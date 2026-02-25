@@ -1,0 +1,16 @@
+{
+  "name": "DeliveryRun.UI",
+  "rootNamespace": "DeliveryRun.UI",
+  "references": [
+    "DeliveryRun.Managers"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
