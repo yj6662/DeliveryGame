@@ -16,6 +16,8 @@ namespace DeliveryRun.Managers.Subs
         private UiPrefabCatalogSO _catalog;
         private string _currentBgmKey;
         private bool _bgmMutedLogPrinted;
+        private float _bgmVolume = 0.65f;
+        private float _uiVolume = 0.9f;
 
         public override string Name => nameof(AudioManager);
         public override int InitOrder => 20;
@@ -31,10 +33,12 @@ namespace DeliveryRun.Managers.Subs
             _bgmSource = _audioHost.AddComponent<AudioSource>();
             _bgmSource.loop = true;
             _bgmSource.playOnAwake = false;
+            _bgmSource.volume = _bgmVolume;
 
             _uiSource = _audioHost.AddComponent<AudioSource>();
             _uiSource.loop = false;
             _uiSource.playOnAwake = false;
+            _uiSource.volume = _uiVolume;
 
             _currentBgmKey = null;
             _bgmMutedLogPrinted = false;
@@ -63,6 +67,34 @@ namespace DeliveryRun.Managers.Subs
             _catalog = null;
             _currentBgmKey = null;
             _bgmMutedLogPrinted = false;
+        }
+
+        public float GetBgmVolume01()
+        {
+            return _bgmVolume;
+        }
+
+        public float GetUiVolume01()
+        {
+            return _uiVolume;
+        }
+
+        public void SetBgmVolume01(float value)
+        {
+            _bgmVolume = Mathf.Clamp01(value);
+            if (_bgmSource != null)
+            {
+                _bgmSource.volume = _bgmVolume;
+            }
+        }
+
+        public void SetUiVolume01(float value)
+        {
+            _uiVolume = Mathf.Clamp01(value);
+            if (_uiSource != null)
+            {
+                _uiSource.volume = _uiVolume;
+            }
         }
 
         public void PlayBgm(string bgmKey)

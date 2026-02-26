@@ -15,14 +15,14 @@ namespace DeliveryRun.Editor
 
         private static readonly GenreSeed[] GenreSeeds =
         {
-            new GenreSeed("edm", "EDM", "Nitro Surge", "High-energy acceleration tracks.", "move_speed_mul", "speed"),
-            new GenreSeed("hiphop", "Hip Hop", "Street Bonus", "Reward-focused street rhythm.", "reward_mul", "reward"),
-            new GenreSeed("rock", "Rock", "Brake Burst", "Hard stop control with power riffs.", "bike_brake_mul", "control"),
-            new GenreSeed("pop", "Pop", "City Drive", "Balanced speed and bonus flow.", "move_speed_mul", "balanced"),
-            new GenreSeed("lofi", "Lo-Fi", "Calm Grip", "Stable handling with smooth pace.", "bike_grip_mul", "stability"),
-            new GenreSeed("metal", "Metal", "Risk Engine", "Extreme speed with handling risk.", "move_speed_mul", "risk"),
-            new GenreSeed("jazz", "Jazz", "Precision Line", "Control-oriented grip and brake harmony.", "bike_grip_mul", "control"),
-            new GenreSeed("classic", "Classic", "Safe Tempo", "Safer handling with reduced pace.", "bike_grip_mul", "stability")
+            new GenreSeed("hiphop", "Hip Hop", "Street Sprint", "Fast and aggressive driving, higher spill risk.", "move_speed_mul", "speed"),
+            new GenreSeed("ballad", "Ballad", "Warm Delivery", "Stable driving with stronger temperature retention.", "food_temp_decay_mul", "stability"),
+            new GenreSeed("edm", "EDM", "Nitro Pulse", "Burst speed and quicker order tempo.", "move_speed_mul", "tempo"),
+            new GenreSeed("jazz", "Jazz", "Smart Route", "Longer decision windows with balanced reward growth.", "offer_accept_ttl_mul", "route"),
+            new GenreSeed("lofi", "Lo-Fi", "Soft Handling", "Lower spill growth and safer delivery handling.", "spill_gain_mul", "safe"),
+            new GenreSeed("rock", "Rock", "Momentum Brake", "Powerful braking and control momentum.", "bike_brake_mul", "control"),
+            new GenreSeed("classic", "Classic", "Precision Guard", "High control and calm handling at lower top pace.", "bike_grip_mul", "precision"),
+            new GenreSeed("disco", "Funk / Disco", "Multi Drop Groove", "More frequent order opportunities and cash flow.", "offer_respawn_delay_mul", "multi")
         };
 
         [MenuItem("Tools/DeliveryRun/Generate Music Content")]
@@ -39,16 +39,33 @@ namespace DeliveryRun.Editor
             var genres = new List<MusicGenreSO>(8);
             var tracks = new List<MusicTrackSO>(48);
             var synergies = new List<MusicSynergySO>(16);
+            var expectedGenrePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var expectedTrackPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var expectedSynergyPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             for (int i = 0; i < GenreSeeds.Length; i++)
             {
                 GenreSeed seed = GenreSeeds[i];
+                expectedGenrePaths.Add(GenreFolder + "/" + seed.GenreId + ".asset");
+                expectedTrackPaths.Add(TrackFolder + "/" + seed.GenreId + "_c1.asset");
+                expectedTrackPaths.Add(TrackFolder + "/" + seed.GenreId + "_c2.asset");
+                expectedTrackPaths.Add(TrackFolder + "/" + seed.GenreId + "_c3.asset");
+                expectedTrackPaths.Add(TrackFolder + "/" + seed.GenreId + "_r1.asset");
+                expectedTrackPaths.Add(TrackFolder + "/" + seed.GenreId + "_r2.asset");
+                expectedTrackPaths.Add(TrackFolder + "/" + seed.GenreId + "_e1.asset");
+                expectedSynergyPaths.Add(SynergyFolder + "/" + seed.GenreId + "_duo.asset");
+                expectedSynergyPaths.Add(SynergyFolder + "/" + seed.GenreId + "_trio.asset");
+
                 MusicGenreSO genre = LoadOrCreateGenre(seed);
                 genres.Add(genre);
 
                 CreateOrUpdateTracksForGenre(genre, tracks);
                 CreateOrUpdateSynergyForGenre(genre, synergies);
             }
+
+            CleanupFolderExcept(GenreFolder, "t:MusicGenreSO", expectedGenrePaths);
+            CleanupFolderExcept(TrackFolder, "t:MusicTrackSO", expectedTrackPaths);
+            CleanupFolderExcept(SynergyFolder, "t:MusicSynergySO", expectedSynergyPaths);
 
             MusicDatabaseSO db = LoadOrCreateAsset<MusicDatabaseSO>(DatabasePath);
             db.Genres = genres.ToArray();
@@ -131,53 +148,32 @@ namespace DeliveryRun.Editor
 
         private static MusicModifierDef[] BuildTrackModifiers(string genreId, MusicTier tier)
         {
-            if (genreId == "edm")
-            {
-                return new[]
-                {
-                    Mul("move_speed_mul", TierValue(tier, 1.10f, 1.18f, 1.30f))
-                };
-            }
-
             if (genreId == "hiphop")
             {
                 return new[]
                 {
-                    Mul("reward_mul", TierValue(tier, 1.12f, 1.22f, 1.40f))
+                    Mul("move_speed_mul", TierValue(tier, 1.10f, 1.16f, 1.24f)),
+                    Mul("spill_gain_mul", TierValue(tier, 1.08f, 1.14f, 1.22f))
                 };
             }
 
-            if (genreId == "rock")
+            if (genreId == "ballad")
             {
                 return new[]
                 {
-                    Mul("bike_brake_mul", TierValue(tier, 1.10f, 1.18f, 1.30f))
+                    Mul("food_temp_decay_mul", TierValue(tier, 0.90f, 0.82f, 0.74f)),
+                    Mul("spill_gain_mul", TierValue(tier, 0.92f, 0.86f, 0.80f)),
+                    Mul("move_speed_mul", TierValue(tier, 0.98f, 0.96f, 0.94f))
                 };
             }
 
-            if (genreId == "pop")
+            if (genreId == "edm")
             {
                 return new[]
                 {
-                    Mul("move_speed_mul", TierValue(tier, 1.08f, 1.14f, 1.22f)),
-                    Mul("reward_mul", TierValue(tier, 1.05f, 1.10f, 1.18f))
-                };
-            }
-
-            if (genreId == "lofi")
-            {
-                return new[]
-                {
-                    Mul("bike_grip_mul", TierValue(tier, 1.10f, 1.18f, 1.30f))
-                };
-            }
-
-            if (genreId == "metal")
-            {
-                return new[]
-                {
-                    Mul("move_speed_mul", TierValue(tier, 1.20f, 1.32f, 1.45f)),
-                    Mul("bike_grip_mul", TierValue(tier, 0.92f, 0.88f, 0.84f))
+                    Mul("move_speed_mul", TierValue(tier, 1.12f, 1.20f, 1.30f)),
+                    Mul("offer_respawn_delay_mul", TierValue(tier, 0.90f, 0.82f, 0.74f)),
+                    Mul("spill_gain_mul", TierValue(tier, 1.06f, 1.12f, 1.18f))
                 };
             }
 
@@ -185,8 +181,27 @@ namespace DeliveryRun.Editor
             {
                 return new[]
                 {
-                    Mul("bike_grip_mul", TierValue(tier, 1.10f, 1.16f, 1.24f)),
-                    Mul("bike_brake_mul", TierValue(tier, 1.08f, 1.12f, 1.18f))
+                    Mul("offer_accept_ttl_mul", TierValue(tier, 1.10f, 1.18f, 1.28f)),
+                    Mul("reward_mul", TierValue(tier, 1.05f, 1.10f, 1.16f)),
+                    Mul("bike_brake_mul", TierValue(tier, 1.06f, 1.12f, 1.20f))
+                };
+            }
+
+            if (genreId == "lofi")
+            {
+                return new[]
+                {
+                    Mul("spill_gain_mul", TierValue(tier, 0.88f, 0.80f, 0.72f)),
+                    Mul("food_temp_decay_mul", TierValue(tier, 0.94f, 0.88f, 0.82f))
+                };
+            }
+
+            if (genreId == "rock")
+            {
+                return new[]
+                {
+                    Mul("bike_brake_mul", TierValue(tier, 1.10f, 1.18f, 1.28f)),
+                    Mul("bike_grip_mul", TierValue(tier, 1.06f, 1.12f, 1.18f))
                 };
             }
 
@@ -194,8 +209,19 @@ namespace DeliveryRun.Editor
             {
                 return new[]
                 {
-                    Mul("bike_grip_mul", TierValue(tier, 1.12f, 1.20f, 1.30f)),
-                    Mul("move_speed_mul", TierValue(tier, 0.98f, 0.96f, 0.94f))
+                    Mul("bike_grip_mul", TierValue(tier, 1.10f, 1.18f, 1.28f)),
+                    Mul("offer_accept_ttl_mul", TierValue(tier, 1.06f, 1.12f, 1.20f)),
+                    Mul("move_speed_mul", TierValue(tier, 0.97f, 0.95f, 0.93f))
+                };
+            }
+
+            if (genreId == "disco")
+            {
+                return new[]
+                {
+                    Mul("offer_respawn_delay_mul", TierValue(tier, 0.90f, 0.82f, 0.74f)),
+                    Mul("reward_mul", TierValue(tier, 1.08f, 1.14f, 1.22f)),
+                    Mul("move_speed_mul", TierValue(tier, 1.04f, 1.08f, 1.14f))
                 };
             }
 
@@ -232,29 +258,67 @@ namespace DeliveryRun.Editor
 
         private static MusicModifierDef[] BuildSynergyModifiers(MusicGenreSO genre, int requiredCount)
         {
-            if (genre.GenreId == "metal")
-            {
-                if (requiredCount == 2)
-                {
-                    return new[]
-                    {
-                        Mul("move_speed_mul", 1.10f),
-                        Mul("bike_grip_mul", 0.95f)
-                    };
-                }
+            bool duo = requiredCount == 2;
+            string genreId = genre != null ? genre.GenreId : string.Empty;
 
-                return new[]
-                {
-                    Mul("move_speed_mul", 1.18f),
-                    Mul("bike_grip_mul", 0.92f)
-                };
+            if (genreId == "hiphop")
+            {
+                return duo
+                    ? new[] { Mul("move_speed_mul", 1.08f), Mul("spill_gain_mul", 1.05f) }
+                    : new[] { Mul("move_speed_mul", 1.15f), Mul("spill_gain_mul", 1.12f) };
             }
 
-            float value = requiredCount == 2 ? 1.08f : 1.15f;
-            return new[]
+            if (genreId == "ballad")
             {
-                Mul(genre.PrimaryStatKey, value)
-            };
+                return duo
+                    ? new[] { Mul("food_temp_decay_mul", 0.88f), Mul("spill_gain_mul", 0.90f) }
+                    : new[] { Mul("food_temp_decay_mul", 0.78f), Mul("spill_gain_mul", 0.82f) };
+            }
+
+            if (genreId == "edm")
+            {
+                return duo
+                    ? new[] { Mul("move_speed_mul", 1.10f), Mul("offer_respawn_delay_mul", 0.88f) }
+                    : new[] { Mul("move_speed_mul", 1.20f), Mul("offer_respawn_delay_mul", 0.75f), Mul("spill_gain_mul", 1.08f) };
+            }
+
+            if (genreId == "jazz")
+            {
+                return duo
+                    ? new[] { Mul("offer_accept_ttl_mul", 1.12f), Mul("reward_mul", 1.08f) }
+                    : new[] { Mul("offer_accept_ttl_mul", 1.25f), Mul("reward_mul", 1.15f) };
+            }
+
+            if (genreId == "lofi")
+            {
+                return duo
+                    ? new[] { Mul("spill_gain_mul", 0.82f) }
+                    : new[] { Mul("spill_gain_mul", 0.70f), Mul("food_temp_decay_mul", 0.85f) };
+            }
+
+            if (genreId == "rock")
+            {
+                return duo
+                    ? new[] { Mul("bike_brake_mul", 1.12f) }
+                    : new[] { Mul("bike_brake_mul", 1.22f), Mul("bike_grip_mul", 1.12f) };
+            }
+
+            if (genreId == "classic")
+            {
+                return duo
+                    ? new[] { Mul("bike_grip_mul", 1.12f), Mul("offer_accept_ttl_mul", 1.08f) }
+                    : new[] { Mul("bike_grip_mul", 1.22f), Mul("offer_accept_ttl_mul", 1.16f), Mul("move_speed_mul", 0.95f) };
+            }
+
+            if (genreId == "disco")
+            {
+                return duo
+                    ? new[] { Mul("reward_mul", 1.10f), Mul("offer_respawn_delay_mul", 0.85f) }
+                    : new[] { Mul("reward_mul", 1.22f), Mul("offer_respawn_delay_mul", 0.72f) };
+            }
+
+            float value = duo ? 1.08f : 1.15f;
+            return new[] { Mul(genre.PrimaryStatKey, value) };
         }
 
         private static float TierValue(MusicTier tier, float common, float rare, float epic)
@@ -313,6 +377,35 @@ namespace DeliveryRun.Editor
                 }
 
                 current = next;
+            }
+        }
+
+        private static void CleanupFolderExcept(string folderPath, string searchFilter, HashSet<string> keepPaths)
+        {
+            string[] guids = AssetDatabase.FindAssets(searchFilter, new[] { folderPath });
+            for (int i = 0; i < guids.Length; i++)
+            {
+                string guid = guids[i];
+                if (string.IsNullOrEmpty(guid))
+                {
+                    continue;
+                }
+
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                if (string.IsNullOrEmpty(path))
+                {
+                    continue;
+                }
+
+                if (keepPaths.Contains(path))
+                {
+                    continue;
+                }
+
+                if (AssetDatabase.DeleteAsset(path))
+                {
+                    Debug.Log("[MusicGen] Deleted legacy asset: " + path);
+                }
             }
         }
 

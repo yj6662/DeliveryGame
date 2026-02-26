@@ -54,6 +54,7 @@ namespace DeliveryRun.Managers.Subs
             Subs.Add<SceneTransitionCompleted>(Events, OnSceneTransitionCompleted);
             Subs.Add<RatingZeroReached>(Events, OnRatingZeroReached);
             Subs.Add<RatingDepleted>(Events, OnRatingDepleted);
+            Subs.Add<FuelDepleted>(Events, OnFuelDepleted);
 
             if (SceneManager.GetActiveScene().name == SceneNames.RunScene)
             {
@@ -231,6 +232,23 @@ namespace DeliveryRun.Managers.Subs
         private void OnRatingDepleted(RatingDepleted evt)
         {
             OnRatingZeroReached(new RatingZeroReached { Rating = 0f });
+        }
+
+        private void OnFuelDepleted(FuelDepleted evt)
+        {
+            if (_session == null || _session.State == DomainRunSessionState.Ended)
+            {
+                return;
+            }
+
+            DomainRunSessionState fromState = _session.State;
+            if (_session.End(DomainRunEndReason.OutOfFuel))
+            {
+                PublishStateChanged(fromState, _session.State);
+            }
+
+            PublishEndedIfNeeded();
+            RequestReturnToLobbyOnce();
         }
 
         private void BeginNewRun()
@@ -418,6 +436,11 @@ namespace DeliveryRun.Managers.Subs
             if (reason == DomainRunEndReason.RatingZero)
             {
                 return LegacyRunEndReason.RatingDepleted;
+            }
+
+            if (reason == DomainRunEndReason.OutOfFuel)
+            {
+                return LegacyRunEndReason.FuelDepleted;
             }
 
             return LegacyRunEndReason.SceneLeft;

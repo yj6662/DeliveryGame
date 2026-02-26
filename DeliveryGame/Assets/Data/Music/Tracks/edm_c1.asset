@@ -16,8 +16,14 @@ MonoBehaviour:
   DisplayName: EDM Common 1
   Tier: 0
   Genre: {fileID: 11400000, guid: 9751f6274e1d73d45aa5ee21a59b17fe, type: 2}
-  Description: 'EDM vibe track. Tier: Common. Theme: Nitro Surge'
+  Description: 'EDM vibe track. Tier: Common. Theme: Nitro Pulse'
   Modifiers:
   - StatKey: move_speed_mul
     Mode: 0
-    Value: 1.1
+    Value: 1.12
+  - StatKey: offer_respawn_delay_mul
+    Mode: 0
+    Value: 0.9
+  - StatKey: spill_gain_mul
+    Mode: 0
+    Value: 1.06

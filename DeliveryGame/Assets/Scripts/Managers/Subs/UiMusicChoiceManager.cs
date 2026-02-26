@@ -5,6 +5,7 @@ using DeliveryRun.UI;
 using DeliveryRun.UI.Run;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using DomainRunSessionStarted = DeliveryRun.Delivery.RunSession.RunSessionStarted;
 
 namespace DeliveryRun.Managers.Subs
 {
@@ -14,6 +15,7 @@ namespace DeliveryRun.Managers.Subs
         private const float ScenePollInterval = 0.25f;
 
         private readonly string[] _currentTrackIds = new string[OptionCount];
+        private readonly string[] _pickedGenreByChoice = new string[OptionCount];
 
         private UiPrefabCatalogSO _catalog;
         private AddressablesService _addressables;
@@ -26,6 +28,7 @@ namespace DeliveryRun.Managers.Subs
         private bool _modalLoadRequested;
         private int _choiceIndexOpen;
         private float _scenePollElapsed;
+        private bool _modalOpenPublished;
 
         private bool _fallbackPauseCaptured;
         private float _fallbackSavedTimeScale;
@@ -42,8 +45,10 @@ namespace DeliveryRun.Managers.Subs
 
             _choiceIndexOpen = -1;
             ClearDraftCache();
+            ClearPickedGenres();
 
             Subs.Add<MusicDraftGenerated>(Events, OnDraftGenerated);
+            Subs.Add<DomainRunSessionStarted>(Events, OnRunSessionStarted);
             Subs.Add<SceneTransitionStarted>(Events, OnSceneTransitionStarted);
             Subs.Add<SceneTransitionCompleted>(Events, OnSceneTransitionCompleted);
         }
@@ -71,7 +76,16 @@ namespace DeliveryRun.Managers.Subs
         protected override void OnShutdown()
         {
             HideModalAndResume();
+            PublishModalState(false);
             RestoreFallbackTimeScale();
+            ClearPickedGenres();
+        }
+
+        private void OnRunSessionStarted(DomainRunSessionStarted evt)
+        {
+            ClearPickedGenres();
+            _choiceIndexOpen = -1;
+            ClearDraftCache();
         }
 
         private void OnDraftGenerated(MusicDraftGenerated evt)
@@ -137,6 +151,7 @@ namespace DeliveryRun.Managers.Subs
             PauseGameplayOnly();
             _isOpen = true;
             _scenePollElapsed = 0f;
+            PublishModalState(true);
 
             if (_addressables != null && _addressables.IsAvailable && !string.IsNullOrEmpty(_catalog.MusicSelectionModalKey))
             {
@@ -206,17 +221,28 @@ namespace DeliveryRun.Managers.Subs
             {
                 string title;
                 string sub;
-                string synergy;
-                BuildOptionStrings(i, out title, out sub, out synergy);
-                _modal.SetOption(i, title, sub, synergy);
+                string detail;
+                int tierCode;
+                bool immediateSynergy;
+                BuildOptionStrings(i, out title, out sub, out detail, out tierCode, out immediateSynergy);
+                _modal.SetOption(i, title, sub, detail);
+                _modal.SetOptionVisual(i, tierCode, immediateSynergy);
             }
         }
 
-        private void BuildOptionStrings(int optionIndex, out string title, out string sub, out string synergy)
+        private void BuildOptionStrings(
+            int optionIndex,
+            out string title,
+            out string sub,
+            out string detail,
+            out int tierCode,
+            out bool immediateSynergy)
         {
             title = "Unknown Track";
             sub = "Unknown Genre";
-            synergy = "Theme: -";
+            detail = "Theme: -";
+            tierCode = 0;
+            immediateSynergy = false;
 
             if (optionIndex < 0 || optionIndex >= OptionCount)
             {
@@ -235,7 +261,8 @@ namespace DeliveryRun.Managers.Subs
                 return;
             }
 
-            title = string.IsNullOrEmpty(track.DisplayName) ? trackId : track.DisplayName;
+            title = NormalizeTrackCardTitle(string.IsNullOrEmpty(track.DisplayName) ? trackId : track.DisplayName);
+            tierCode = ToTierCode(track.Tier);
 
             string genreName = "Unknown";
             if (track.Genre != null && !string.IsNullOrEmpty(track.Genre.DisplayName))
@@ -243,21 +270,43 @@ namespace DeliveryRun.Managers.Subs
                 genreName = track.Genre.DisplayName;
             }
 
-            sub = genreName + " ? " + track.Tier;
-            synergy = BuildSynergyText(track.Genre);
+            sub = genreName + " | " + track.Tier.ToString().ToUpperInvariant();
+            detail = BuildDetailText(track);
+            immediateSynergy = WouldActivateSynergyNow(track.Genre);
         }
 
-        private string BuildSynergyText(MusicGenreSO genre)
+        private static int ToTierCode(MusicTier tier)
         {
-            if (genre == null)
+            if (tier == MusicTier.Rare) return 1;
+            if (tier == MusicTier.Epic) return 2;
+            return 0;
+        }
+
+        private string BuildDetailText(MusicTrackSO track)
+        {
+            if (track == null)
             {
                 return "Theme: -";
             }
 
-            string text = "Theme: " + (string.IsNullOrEmpty(genre.ThemeTitle) ? genre.DisplayName : genre.ThemeTitle);
-            if (_musicLibrary == null)
+            string themeTitle = "Theme: -";
+            string synergyLine = "Synergy: -";
+            if (track.Genre != null)
             {
-                return text;
+                string theme = string.IsNullOrEmpty(track.Genre.ThemeTitle) ? track.Genre.DisplayName : track.Genre.ThemeTitle;
+                themeTitle = "Theme: " + theme;
+                synergyLine = BuildSynergyLine(track.Genre);
+            }
+
+            string buffLine = BuildModifierSummary(track.Modifiers);
+            return themeTitle + "\n" + synergyLine + "\n" + buffLine;
+        }
+
+        private string BuildSynergyLine(MusicGenreSO genre)
+        {
+            if (genre == null || _musicLibrary == null)
+            {
+                return "Synergy: -";
             }
 
             string duoName = null;
@@ -271,36 +320,176 @@ namespace DeliveryRun.Managers.Subs
 
                 if (synergy.RequiredCount == 2)
                 {
-                    duoName = synergy.DisplayName;
+                    duoName = string.IsNullOrEmpty(synergy.DisplayName) ? "Duo" : synergy.DisplayName;
                 }
                 else if (synergy.RequiredCount == 3)
                 {
-                    trioName = synergy.DisplayName;
+                    trioName = string.IsNullOrEmpty(synergy.DisplayName) ? "Trio" : synergy.DisplayName;
                 }
             }
 
             if (string.IsNullOrEmpty(duoName) && string.IsNullOrEmpty(trioName))
             {
-                return text;
-            }
-
-            string synergyText = "Synergy: ";
-            if (!string.IsNullOrEmpty(duoName))
-            {
-                synergyText += duoName;
+                return "Synergy: -";
             }
 
             if (!string.IsNullOrEmpty(duoName) && !string.IsNullOrEmpty(trioName))
             {
-                synergyText += " / ";
+                return "Synergy: " + duoName + " / " + trioName;
             }
 
-            if (!string.IsNullOrEmpty(trioName))
+            return "Synergy: " + (!string.IsNullOrEmpty(duoName) ? duoName : trioName);
+        }
+
+        private bool WouldActivateSynergyNow(MusicGenreSO genre)
+        {
+            if (genre == null || _musicLibrary == null || string.IsNullOrEmpty(genre.GenreId))
             {
-                synergyText += trioName;
+                return false;
             }
 
-            return text + "\n" + synergyText;
+            int existingCount = CountPickedGenre(genre.GenreId, _choiceIndexOpen);
+            MusicSynergySO before = _musicLibrary.GetBestSynergyForGenre(genre, existingCount);
+            MusicSynergySO after = _musicLibrary.GetBestSynergyForGenre(genre, existingCount + 1);
+            if (after == null)
+            {
+                return false;
+            }
+
+            if (before == null)
+            {
+                return true;
+            }
+
+            if (after.RequiredCount > before.RequiredCount)
+            {
+                return true;
+            }
+
+            return !string.Equals(after.SynergyId, before.SynergyId, System.StringComparison.Ordinal);
+        }
+
+        private int CountPickedGenre(string genreId, int skipChoiceIndex)
+        {
+            if (string.IsNullOrEmpty(genreId))
+            {
+                return 0;
+            }
+
+            int count = 0;
+            for (int i = 0; i < _pickedGenreByChoice.Length; i++)
+            {
+                if (i == skipChoiceIndex)
+                {
+                    continue;
+                }
+
+                if (string.Equals(_pickedGenreByChoice[i], genreId, System.StringComparison.Ordinal))
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        private static string NormalizeTrackCardTitle(string raw)
+        {
+            if (string.IsNullOrEmpty(raw))
+            {
+                return string.Empty;
+            }
+
+            string title = raw.Replace('\n', ' ').Replace('\r', ' ').Trim();
+            if (title.Length <= 0)
+            {
+                return string.Empty;
+            }
+
+            int end = title.Length - 1;
+            while (end >= 0 && char.IsDigit(title[end]))
+            {
+                end--;
+            }
+
+            if (end < title.Length - 1)
+            {
+                while (end >= 0 && char.IsWhiteSpace(title[end]))
+                {
+                    end--;
+                }
+
+                if (end >= 0)
+                {
+                    title = title.Substring(0, end + 1).TrimEnd();
+                }
+            }
+
+            return title;
+        }
+
+        private static string BuildModifierSummary(MusicModifierDef[] modifiers)
+        {
+            if (modifiers == null || modifiers.Length == 0)
+            {
+                return "BUFF: -";
+            }
+
+            System.Text.StringBuilder builder = new System.Text.StringBuilder(96);
+            builder.Append("BUFF: ");
+            int appended = 0;
+            for (int i = 0; i < modifiers.Length; i++)
+            {
+                MusicModifierDef modifier = modifiers[i];
+                string label = ToShortStatLabel(modifier.StatKey);
+                if (string.IsNullOrEmpty(label))
+                {
+                    continue;
+                }
+
+                if (appended > 0)
+                {
+                    builder.Append(", ");
+                }
+
+                if (modifier.Mode == MusicModifierMode.Mul)
+                {
+                    float pct = (modifier.Value - 1f) * 100f;
+                    builder.Append(label).Append(' ').Append(pct.ToString("+0;-0")).Append('%');
+                }
+                else
+                {
+                    builder.Append(label).Append(' ').Append(modifier.Value.ToString("+0.##;-0.##"));
+                }
+                appended++;
+            }
+
+            if (appended <= 0)
+            {
+                return "BUFF: -";
+            }
+
+            return builder.ToString();
+        }
+
+        private static string ToShortStatLabel(string statKey)
+        {
+            if (string.IsNullOrEmpty(statKey))
+            {
+                return null;
+            }
+
+            if (string.Equals(statKey, "move_speed_mul", System.StringComparison.Ordinal)) return "SPD";
+            if (string.Equals(statKey, "bike_grip_mul", System.StringComparison.Ordinal)) return "GRIP";
+            if (string.Equals(statKey, "bike_brake_mul", System.StringComparison.Ordinal)) return "BRAKE";
+            if (string.Equals(statKey, "reward_mul", System.StringComparison.Ordinal)) return "REWARD";
+            if (string.Equals(statKey, "food_temp_decay_mul", System.StringComparison.Ordinal) ||
+                string.Equals(statKey, "temp_decay_mul", System.StringComparison.Ordinal)) return "TEMP";
+            if (string.Equals(statKey, "spill_gain_mul", System.StringComparison.Ordinal)) return "SPILL";
+            if (string.Equals(statKey, "offer_accept_ttl_mul", System.StringComparison.Ordinal)) return "TTL";
+            if (string.Equals(statKey, "offer_respawn_delay_mul", System.StringComparison.Ordinal) ||
+                string.Equals(statKey, "offer_interval_mul", System.StringComparison.Ordinal)) return "RESPAWN";
+            return statKey;
         }
 
         private void OnSelected(int optionIndex)
@@ -332,6 +521,11 @@ namespace DeliveryRun.Managers.Subs
                 }
             }
 
+            if (_choiceIndexOpen >= 0 && _choiceIndexOpen < _pickedGenreByChoice.Length)
+            {
+                _pickedGenreByChoice[_choiceIndexOpen] = genreId;
+            }
+
             TryPlayUiClick();
             Events.Publish(new MusicChoiceSelected
             {
@@ -343,6 +537,7 @@ namespace DeliveryRun.Managers.Subs
 
             HideModal();
             ResumeGameplayOnly();
+            PublishModalState(false);
             _isOpen = false;
             _choiceIndexOpen = -1;
             ClearDraftCache();
@@ -357,6 +552,7 @@ namespace DeliveryRun.Managers.Subs
 
             HideModal();
             ResumeGameplayOnly();
+            PublishModalState(false);
             _isOpen = false;
             _choiceIndexOpen = -1;
             ClearDraftCache();
@@ -470,6 +666,28 @@ namespace DeliveryRun.Managers.Subs
             {
                 _currentTrackIds[i] = null;
             }
+        }
+
+        private void ClearPickedGenres()
+        {
+            for (int i = 0; i < _pickedGenreByChoice.Length; i++)
+            {
+                _pickedGenreByChoice[i] = null;
+            }
+        }
+
+        private void PublishModalState(bool isOpen)
+        {
+            if (isOpen == _modalOpenPublished)
+            {
+                return;
+            }
+
+            _modalOpenPublished = isOpen;
+            Events.Publish(new MusicChoiceModalStateChanged
+            {
+                IsOpen = isOpen
+            });
         }
     }
 }

@@ -16,11 +16,14 @@ MonoBehaviour:
   DisplayName: Jazz Rare 1
   Tier: 1
   Genre: {fileID: 11400000, guid: 96353ceb457504b4c9da96de791179ca, type: 2}
-  Description: 'Jazz vibe track. Tier: Rare. Theme: Precision Line'
+  Description: 'Jazz vibe track. Tier: Rare. Theme: Smart Route'
   Modifiers:
-  - StatKey: bike_grip_mul
+  - StatKey: offer_accept_ttl_mul
     Mode: 0
-    Value: 1.16
+    Value: 1.18
+  - StatKey: reward_mul
+    Mode: 0
+    Value: 1.1
   - StatKey: bike_brake_mul
     Mode: 0
     Value: 1.12

@@ -5,7 +5,8 @@ namespace DeliveryRun.Managers.Core
         None = 0,
         TimeUp = 1,
         RatingDepleted = 2,
-        SceneLeft = 3
+        SceneLeft = 3,
+        FuelDepleted = 4
     }
 
     public struct RunSessionStarted

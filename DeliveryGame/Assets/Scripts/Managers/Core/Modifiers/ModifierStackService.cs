@@ -6,8 +6,8 @@ namespace DeliveryRun.Managers.Core
     public sealed class ModifierStackService
     {
         private readonly Dictionary<string, RunModifier> _modsBySource = new Dictionary<string, RunModifier>(8);
-        private readonly Dictionary<RunStatId, float> _mulByStat = new Dictionary<RunStatId, float>(4);
-        private readonly Dictionary<RunStatId, float> _addByStat = new Dictionary<RunStatId, float>(4);
+        private readonly Dictionary<RunStatId, float> _mulByStat = new Dictionary<RunStatId, float>(8);
+        private readonly Dictionary<RunStatId, float> _addByStat = new Dictionary<RunStatId, float>(8);
 
         public void AddOrReplace(in RunModifier mod)
         {

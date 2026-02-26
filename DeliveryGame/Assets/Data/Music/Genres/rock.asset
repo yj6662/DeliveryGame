@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicGenreSO
   GenreId: rock
   DisplayName: Rock
-  ThemeTitle: Brake Burst
-  ThemeDescription: Hard stop control with power riffs.
+  ThemeTitle: Momentum Brake
+  ThemeDescription: Powerful braking and control momentum.
   PrimaryStatKey: bike_brake_mul
   Tag: control

@@ -16,8 +16,11 @@ MonoBehaviour:
   DisplayName: Lo-Fi Common 3
   Tier: 0
   Genre: {fileID: 11400000, guid: 61dd029851e8e2643a7aca5d5b0371d7, type: 2}
-  Description: 'Lo-Fi vibe track. Tier: Common. Theme: Calm Grip'
+  Description: 'Lo-Fi vibe track. Tier: Common. Theme: Soft Handling'
   Modifiers:
-  - StatKey: bike_grip_mul
+  - StatKey: spill_gain_mul
     Mode: 0
-    Value: 1.1
+    Value: 0.88
+  - StatKey: food_temp_decay_mul
+    Mode: 0
+    Value: 0.94

@@ -77,7 +77,13 @@ namespace DeliveryRun.Editor
 
             string restaurantName;
             string destinationName;
-            AssignOrderBuildingAnchors(placedBuildings, poiRoot.transform, out restaurantName, out destinationName);
+            string gasStationName;
+            AssignOrderBuildingAnchors(
+                placedBuildings,
+                poiRoot.transform,
+                out restaurantName,
+                out destinationName,
+                out gasStationName);
 
             EditorSceneManager.MarkSceneDirty(runScene);
             EditorSceneManager.SaveScene(runScene);
@@ -87,7 +93,7 @@ namespace DeliveryRun.Editor
             Debug.Log("[RunCityBlockLayoutGenerator] Scene: " + runScenePath);
             Debug.Log("[RunCityBlockLayoutGenerator] Roads created: " + roadCount + ", Blocks created: " + blockCount);
             Debug.Log("[RunCityBlockLayoutGenerator] Buildings instantiated: " + instantiatedBuildings + ", placeholders created: " + placeholderBuildings);
-            Debug.Log("[RunCityBlockLayoutGenerator] Anchors: Restaurant=" + restaurantName + ", Destination=" + destinationName);
+            Debug.Log("[RunCityBlockLayoutGenerator] Anchors: Restaurant=" + restaurantName + ", Destination=" + destinationName + ", GasStation=" + gasStationName);
             Debug.Log("[RunCityBlockLayoutGenerator] Removed legacy roots: " + removedLegacyRootCount);
         }
 
@@ -571,10 +577,12 @@ namespace DeliveryRun.Editor
             List<GameObject> placedBuildings,
             Transform poiRoot,
             out string restaurantName,
-            out string destinationName)
+            out string destinationName,
+            out string gasStationName)
         {
             restaurantName = "(none)";
             destinationName = "(none)";
+            gasStationName = "(none)";
 
             if (placedBuildings == null || placedBuildings.Count == 0)
             {
@@ -587,37 +595,88 @@ namespace DeliveryRun.Editor
                 Object.DestroyImmediate(existingAnchors[i]);
             }
 
-            GameObject restaurant = placedBuildings[0];
-            GameObject destination = placedBuildings[placedBuildings.Count - 1];
+            int gasIndex = placedBuildings.Count / 2;
+            if (gasIndex < 0) gasIndex = 0;
+            if (gasIndex >= placedBuildings.Count) gasIndex = placedBuildings.Count - 1;
 
-            restaurant.name = "RestaurantBuilding";
-            destination.name = "DestinationBuilding";
+            Transform firstRestaurant = null;
+            Transform firstDestination = null;
+            Transform gasStation = null;
+            int restaurantSerial = 1;
+            int destinationSerial = 1;
 
-            OrderBuildingAnchor restaurantAnchor = restaurant.GetComponent<OrderBuildingAnchor>();
-            if (restaurantAnchor == null)
+            for (int i = 0; i < placedBuildings.Count; i++)
             {
-                restaurantAnchor = restaurant.AddComponent<OrderBuildingAnchor>();
+                GameObject building = placedBuildings[i];
+                if (building == null)
+                {
+                    continue;
+                }
+
+                OrderBuildingAnchor anchor = building.GetComponent<OrderBuildingAnchor>();
+                if (anchor == null)
+                {
+                    anchor = building.AddComponent<OrderBuildingAnchor>();
+                }
+
+                if (i == gasIndex)
+                {
+                    building.name = "GasStationBuilding";
+                    anchor.Role = OrderBuildingRole.GasStation;
+                    anchor.AnchorId = "G1";
+                    anchor.DisplayName = "Gas Station";
+                    gasStation = building.transform;
+                    continue;
+                }
+
+                if ((i % 4) == 0)
+                {
+                    anchor.Role = OrderBuildingRole.Restaurant;
+                    anchor.AnchorId = "R" + restaurantSerial;
+                    anchor.DisplayName = "Restaurant " + restaurantSerial;
+                    if (firstRestaurant == null)
+                    {
+                        building.name = "RestaurantBuilding";
+                        firstRestaurant = building.transform;
+                    }
+                    restaurantSerial++;
+                }
+                else
+                {
+                    anchor.Role = OrderBuildingRole.Destination;
+                    anchor.AnchorId = "D" + destinationSerial;
+                    anchor.DisplayName = "Destination " + destinationSerial;
+                    if (firstDestination == null)
+                    {
+                        building.name = "DestinationBuilding";
+                        firstDestination = building.transform;
+                    }
+                    destinationSerial++;
+                }
             }
 
-            restaurantAnchor.Role = OrderBuildingRole.Restaurant;
-            restaurantAnchor.AnchorId = "R1";
-            restaurantAnchor.DisplayName = "PICKUP: Burger Shop";
-
-            OrderBuildingAnchor destinationAnchor = destination.GetComponent<OrderBuildingAnchor>();
-            if (destinationAnchor == null)
+            if (firstRestaurant == null)
             {
-                destinationAnchor = destination.AddComponent<OrderBuildingAnchor>();
+                firstRestaurant = placedBuildings[0].transform;
             }
 
-            destinationAnchor.Role = OrderBuildingRole.Destination;
-            destinationAnchor.AnchorId = "D1";
-            destinationAnchor.DisplayName = "DELIVER: Apartment";
+            if (firstDestination == null)
+            {
+                firstDestination = placedBuildings[Mathf.Max(0, placedBuildings.Count - 1)].transform;
+            }
 
-            CreatePoiReference(poiRoot, "RestaurantBuildingRef", restaurant.transform);
-            CreatePoiReference(poiRoot, "DestinationBuildingRef", destination.transform);
+            if (gasStation == null)
+            {
+                gasStation = placedBuildings[gasIndex].transform;
+            }
 
-            restaurantName = restaurant.name;
-            destinationName = destination.name;
+            CreatePoiReference(poiRoot, "RestaurantBuildingRef", firstRestaurant);
+            CreatePoiReference(poiRoot, "DestinationBuildingRef", firstDestination);
+            CreatePoiReference(poiRoot, "GasStationBuildingRef", gasStation);
+
+            restaurantName = firstRestaurant != null ? firstRestaurant.name : "(none)";
+            destinationName = firstDestination != null ? firstDestination.name : "(none)";
+            gasStationName = gasStation != null ? gasStation.name : "(none)";
         }
 
         private static void CreatePoiReference(Transform poiRoot, string name, Transform target)

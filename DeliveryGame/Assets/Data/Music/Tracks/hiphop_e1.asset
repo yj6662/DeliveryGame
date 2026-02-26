@@ -16,8 +16,11 @@ MonoBehaviour:
   DisplayName: Hip Hop Epic 1
   Tier: 2
   Genre: {fileID: 11400000, guid: 2a123b11e07cd0549a2d6bf6e28f61a0, type: 2}
-  Description: 'Hip Hop vibe track. Tier: Epic. Theme: Street Bonus'
+  Description: 'Hip Hop vibe track. Tier: Epic. Theme: Street Sprint'
   Modifiers:
-  - StatKey: reward_mul
+  - StatKey: move_speed_mul
     Mode: 0
-    Value: 1.4
+    Value: 1.24
+  - StatKey: spill_gain_mul
+    Mode: 0
+    Value: 1.22

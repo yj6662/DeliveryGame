@@ -13,14 +13,6 @@ namespace DeliveryRun.Managers.Core
                 coreRootObject.AddComponent<CoreRoot>();
             }
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            if (Object.FindFirstObjectByType<DebugOverlay>() == null)
-            {
-                GameObject overlayObject = new GameObject("DebugOverlay");
-                overlayObject.AddComponent<DebugOverlay>();
-                Object.DontDestroyOnLoad(overlayObject);
-            }
-#endif
         }
     }
 }

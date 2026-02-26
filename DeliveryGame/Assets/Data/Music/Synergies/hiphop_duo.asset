@@ -18,6 +18,9 @@ MonoBehaviour:
   RequiredCount: 2
   Description: Two picks of Hip Hop unlocked.
   Modifiers:
-  - StatKey: reward_mul
+  - StatKey: move_speed_mul
     Mode: 0
     Value: 1.08
+  - StatKey: spill_gain_mul
+    Mode: 0
+    Value: 1.05

@@ -16,11 +16,14 @@ MonoBehaviour:
   DisplayName: Classic Rare 1
   Tier: 1
   Genre: {fileID: 11400000, guid: 99dde4f21696aaf44a6822ed3d117266, type: 2}
-  Description: 'Classic vibe track. Tier: Rare. Theme: Safe Tempo'
+  Description: 'Classic vibe track. Tier: Rare. Theme: Precision Guard'
   Modifiers:
   - StatKey: bike_grip_mul
     Mode: 0
-    Value: 1.2
+    Value: 1.18
+  - StatKey: offer_accept_ttl_mul
+    Mode: 0
+    Value: 1.12
   - StatKey: move_speed_mul
     Mode: 0
-    Value: 0.96
+    Value: 0.95

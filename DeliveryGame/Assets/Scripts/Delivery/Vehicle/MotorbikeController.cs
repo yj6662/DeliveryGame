@@ -63,6 +63,7 @@ namespace DeliveryRun.Delivery.Vehicle
         private float _throttleRampValue;
         private float _reverseHoldTimer;
         private float _currentLeanAngle;
+        private float _stunRemaining;
 
         private float _gripMul = 1f;
         private float _brakeMul = 1f;
@@ -70,6 +71,7 @@ namespace DeliveryRun.Delivery.Vehicle
         public float SpeedMultiplier { get; private set; } = 1f;
         public float CurrentSpeed => _currentSpeed;
         public float EffectiveMaxSpeed => Mathf.Max(0f, maxMoveSpeed * SpeedMultiplier);
+        public bool IsStunned => _stunRemaining > 0f;
 
         private void Awake()
         {
@@ -112,6 +114,16 @@ namespace DeliveryRun.Delivery.Vehicle
             _brakeMul = Mathf.Clamp(mul, 0.2f, 3f);
         }
 
+        public void ApplyStun(float seconds)
+        {
+            if (seconds <= 0f)
+            {
+                return;
+            }
+
+            _stunRemaining = Mathf.Max(_stunRemaining, seconds);
+        }
+
         private void FixedUpdate()
         {
             if (rb == null)
@@ -120,6 +132,25 @@ namespace DeliveryRun.Delivery.Vehicle
             }
 
             float dt = Time.fixedDeltaTime;
+            if (_stunRemaining > 0f)
+            {
+                _stunRemaining -= dt;
+                if (_stunRemaining < 0f)
+                {
+                    _stunRemaining = 0f;
+                }
+
+                _steeringInput = 0f;
+                _throttleInput = 0f;
+                _throttleRampValue = 0f;
+                _targetSpeed = 0f;
+                _currentSpeed = Mathf.MoveTowards(_currentSpeed, 0f, brakeForce * Mathf.Max(0.2f, _brakeMul) * dt);
+                ApplyMovement(dt);
+                ApplyLean(0f, dt);
+                ApplyDownforce();
+                return;
+            }
+
             Vector2 moveInput = RuntimeInput.ReadMove();
             _steeringInput = Mathf.Clamp(moveInput.x, -1f, 1f);
             _throttleInput = Mathf.Clamp(moveInput.y, -1f, 1f);

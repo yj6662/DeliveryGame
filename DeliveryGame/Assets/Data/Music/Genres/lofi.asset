@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicGenreSO
   GenreId: lofi
   DisplayName: Lo-Fi
-  ThemeTitle: Calm Grip
-  ThemeDescription: Stable handling with smooth pace.
-  PrimaryStatKey: bike_grip_mul
-  Tag: stability
+  ThemeTitle: Soft Handling
+  ThemeDescription: Lower spill growth and safer delivery handling.
+  PrimaryStatKey: spill_gain_mul
+  Tag: safe

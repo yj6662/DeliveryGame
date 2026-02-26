@@ -18,6 +18,9 @@ MonoBehaviour:
   RequiredCount: 3
   Description: Three picks of Lo-Fi unlocked.
   Modifiers:
-  - StatKey: bike_grip_mul
+  - StatKey: spill_gain_mul
     Mode: 0
-    Value: 1.15
+    Value: 0.7
+  - StatKey: food_temp_decay_mul
+    Mode: 0
+    Value: 0.85

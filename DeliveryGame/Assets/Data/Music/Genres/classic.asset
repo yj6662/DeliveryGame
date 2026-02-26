@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicGenreSO
   GenreId: classic
   DisplayName: Classic
-  ThemeTitle: Safe Tempo
-  ThemeDescription: Safer handling with reduced pace.
+  ThemeTitle: Precision Guard
+  ThemeDescription: High control and calm handling at lower top pace.
   PrimaryStatKey: bike_grip_mul
-  Tag: stability
+  Tag: precision

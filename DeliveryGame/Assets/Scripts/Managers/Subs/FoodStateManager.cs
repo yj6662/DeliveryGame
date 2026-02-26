@@ -12,6 +12,7 @@ namespace DeliveryRun.Managers.Subs
 
         private FoodStateService _food;
         private FoodStateConfigSO _cfg;
+        private ModifierStackService _stack;
         private MotorbikeController _bike;
         private Rigidbody _rb;
         private BikeCollisionReporter _collisionReporter;
@@ -32,6 +33,7 @@ namespace DeliveryRun.Managers.Subs
 
             _food = new FoodStateService();
             Services.Register(_food);
+            Services.TryGet(out _stack);
 
             Subs.Add<DomainRunSessionStarted>(Events, OnRunStarted);
             Subs.Add<DomainRunSessionEnded>(Events, OnRunEnded);
@@ -62,8 +64,10 @@ namespace DeliveryRun.Managers.Subs
             float yawRateAbs = Mathf.Abs(Vector3.Dot(_rb.angularVelocity, Vector3.up));
             float impulse = _collisionImpulseAccum;
             _collisionImpulseAccum = 0f;
+            float tempDecayMul = GetTemperatureDecayMultiplier();
+            float spillGainMul = GetSpillGainMultiplier();
 
-            _food.TickUnscaled(unscaledDeltaTime, speed, yawRateAbs, decel, impulse, _cfg);
+            _food.TickUnscaled(unscaledDeltaTime, speed, yawRateAbs, decel, impulse, _cfg, tempDecayMul, spillGainMul);
 
             _uiTickAccum += unscaledDeltaTime;
             if (_uiTickAccum >= UiTickInterval)
@@ -130,7 +134,9 @@ namespace DeliveryRun.Managers.Subs
                 return;
             }
 
-            _food.StartForOffer(evt.OfferId, _cfg);
+            float orderTempMul = evt.TemperatureDecayMultiplier > 0f ? evt.TemperatureDecayMultiplier : 1f;
+            float orderSpillMul = evt.SpillGainMultiplier > 0f ? evt.SpillGainMultiplier : 1f;
+            _food.StartForOffer(evt.OfferId, _cfg, orderTempMul, orderSpillMul);
             _uiTickAccum = 0f;
             _collisionImpulseAccum = 0f;
             _prevSpeed = _rb != null ? _rb.linearVelocity.magnitude : 0f;
@@ -184,6 +190,36 @@ namespace DeliveryRun.Managers.Subs
         private void OnBikeCollided(float impulse)
         {
             _collisionImpulseAccum += impulse;
+        }
+
+        private float GetTemperatureDecayMultiplier()
+        {
+            if (_stack == null)
+            {
+                Services.TryGet(out _stack);
+            }
+
+            if (_stack == null)
+            {
+                return 1f;
+            }
+
+            return _stack.GetMul(RunStatId.FoodTemperatureDecayMultiplier);
+        }
+
+        private float GetSpillGainMultiplier()
+        {
+            if (_stack == null)
+            {
+                Services.TryGet(out _stack);
+            }
+
+            if (_stack == null)
+            {
+                return 1f;
+            }
+
+            return _stack.GetMul(RunStatId.FoodSpillGainMultiplier);
         }
     }
 }

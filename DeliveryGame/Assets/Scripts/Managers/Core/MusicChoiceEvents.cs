@@ -1,5 +1,10 @@
 namespace DeliveryRun.Managers.Core
 {
+    public struct MusicChoiceModalStateChanged
+    {
+        public bool IsOpen;
+    }
+
     public struct MusicChoiceSelected
     {
         public int ChoiceIndex;

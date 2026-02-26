@@ -377,6 +377,32 @@ namespace DeliveryRun.Managers.Subs
                 return true;
             }
 
+            if (string.Equals(statKey, "food_temp_decay_mul", StringComparison.Ordinal) ||
+                string.Equals(statKey, "temp_decay_mul", StringComparison.Ordinal))
+            {
+                stat = RunStatId.FoodTemperatureDecayMultiplier;
+                return true;
+            }
+
+            if (string.Equals(statKey, "spill_gain_mul", StringComparison.Ordinal))
+            {
+                stat = RunStatId.FoodSpillGainMultiplier;
+                return true;
+            }
+
+            if (string.Equals(statKey, "offer_accept_ttl_mul", StringComparison.Ordinal))
+            {
+                stat = RunStatId.OfferAcceptTtlMultiplier;
+                return true;
+            }
+
+            if (string.Equals(statKey, "offer_respawn_delay_mul", StringComparison.Ordinal) ||
+                string.Equals(statKey, "offer_interval_mul", StringComparison.Ordinal))
+            {
+                stat = RunStatId.OfferRespawnDelayMultiplier;
+                return true;
+            }
+
             stat = default;
             return false;
         }

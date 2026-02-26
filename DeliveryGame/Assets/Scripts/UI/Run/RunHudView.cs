@@ -119,6 +119,16 @@ namespace DeliveryRun.UI.Run
             return deliverToText != null ? deliverToText.transform.parent as RectTransform : null;
         }
 
+        public RectTransform GetBottomLeftPanelRectTransform()
+        {
+            return boostText != null ? boostText.transform.parent as RectTransform : null;
+        }
+
+        public RectTransform GetBottomCenterPanelRectTransform()
+        {
+            return nowPlayingText != null ? nowPlayingText.transform.parent as RectTransform : null;
+        }
+
         public RectTransform GetRootRectTransform()
         {
             return transform as RectTransform;
@@ -162,6 +172,53 @@ namespace DeliveryRun.UI.Run
             if (panel.gameObject.activeSelf != visible)
             {
                 panel.gameObject.SetActive(visible);
+            }
+        }
+
+        public void SetBottomLeftPanelVisible(bool visible)
+        {
+            RectTransform panel = GetBottomLeftPanelRectTransform();
+            if (panel == null)
+            {
+                return;
+            }
+
+            if (panel.gameObject.activeSelf != visible)
+            {
+                panel.gameObject.SetActive(visible);
+            }
+        }
+
+        public void ConfigureCenterStatusMerged()
+        {
+            RectTransform panel = GetBottomCenterPanelRectTransform();
+            if (panel != null)
+            {
+                panel.sizeDelta = new Vector2(520f, 108f);
+                panel.anchoredPosition = new Vector2(0f, 20f);
+
+                Image panelImage = panel.GetComponent<Image>();
+                if (panelImage != null)
+                {
+                    panelImage.color = new Color(0.09f, 0.12f, 0.16f, 0.9f);
+                    panelImage.raycastTarget = false;
+                }
+            }
+
+            if (nowPlayingText != null)
+            {
+                nowPlayingText.alignment = TextAnchor.UpperLeft;
+                nowPlayingText.fontSize = 14;
+                nowPlayingText.lineSpacing = 1.08f;
+                nowPlayingText.horizontalOverflow = HorizontalWrapMode.Wrap;
+                nowPlayingText.verticalOverflow = VerticalWrapMode.Overflow;
+                nowPlayingText.raycastTarget = false;
+
+                RectTransform textRect = nowPlayingText.rectTransform;
+                textRect.anchorMin = new Vector2(0f, 0f);
+                textRect.anchorMax = new Vector2(1f, 1f);
+                textRect.offsetMin = new Vector2(16f, 10f);
+                textRect.offsetMax = new Vector2(-16f, -10f);
             }
         }
 

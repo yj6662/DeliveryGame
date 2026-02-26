@@ -18,5 +18,21 @@ namespace DeliveryRun.Managers.Core
 
             SessionBalance += amount;
         }
+
+        public bool TrySpend(int amount)
+        {
+            if (amount <= 0)
+            {
+                return true;
+            }
+
+            if (SessionBalance < amount)
+            {
+                return false;
+            }
+
+            SessionBalance -= amount;
+            return true;
+        }
     }
 }

@@ -4,6 +4,7 @@ namespace DeliveryRun.Delivery.RunSession
     {
         TimeExpired = 0,
         Forced = 1,
-        RatingZero = 2
+        RatingZero = 2,
+        OutOfFuel = 3
     }
 }

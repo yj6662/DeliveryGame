@@ -18,6 +18,9 @@ MonoBehaviour:
   RequiredCount: 2
   Description: Two picks of Jazz unlocked.
   Modifiers:
-  - StatKey: bike_grip_mul
+  - StatKey: offer_accept_ttl_mul
+    Mode: 0
+    Value: 1.12
+  - StatKey: reward_mul
     Mode: 0
     Value: 1.08

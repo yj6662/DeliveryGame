@@ -10,6 +10,8 @@ namespace DeliveryRun.Managers.Core
         public string PickupName;
         public string DeliveryName;
         public int Reward;
+        public string FoodId;
+        public string FoodName;
     }
 
     public struct OfferTicked
@@ -31,6 +33,10 @@ namespace DeliveryRun.Managers.Core
     public struct OrderPickupReached
     {
         public string OfferId;
+        public string FoodId;
+        public string FoodName;
+        public float TemperatureDecayMultiplier;
+        public float SpillGainMultiplier;
     }
 
     public struct OrderDeliveryReached
@@ -64,6 +70,7 @@ namespace DeliveryRun.Managers.Core
 
     public struct OrderObjectiveUpdated
     {
+        public string OfferId;
         public string Text;
         public float DistanceMeters;
     }
@@ -74,5 +81,22 @@ namespace DeliveryRun.Managers.Core
         public bool Active;
         public OrderPointType PointType;
         public Vector3 WorldPosition;
+    }
+
+    public struct OrderObjectiveMarkersUpdated
+    {
+        public int Count;
+
+        public string OfferId0;
+        public OrderPointType PointType0;
+        public Vector3 WorldPosition0;
+
+        public string OfferId1;
+        public OrderPointType PointType1;
+        public Vector3 WorldPosition1;
+
+        public string OfferId2;
+        public OrderPointType PointType2;
+        public Vector3 WorldPosition2;
     }
 }

@@ -1,5 +1,5 @@
 # DELIVERY RUN 작업 계획서 (WBS + 단계별 로드맵)
-- 기준 문서: **DELIVERY RUN GDD MASTER v1.0 (2026-02-25)**  
+- 기준 문서: **DELIVERY RUN GDD MASTER v2.0 (2026-02)**  
 - 목적: 신규 프로젝트를 “전체 프로젝트 → 큰 목표 기능(에픽) → 세부 기능(피처) → 작업(Task)” 단위로 최대한 세분화하여, 개발/기획/아트/오디오/QA가 같은 체크리스트로 진행할 수 있게 한다.
 - 범위: GDD에 정의된 Phase A~D, 시스템 사양, 아키텍처/데이터/Addressables 표준, 수용 기준(acceptance) 반영
 Unity Version: 6000.3.9f1
@@ -11,6 +11,7 @@ Unity Version: 6000.3.9f1
 - **시간 기준**: 런 타이머/주문 타이머/이벤트 타이머는 `GameClock`(unscaled)로 일관
 - **음악 선택 중 정지 정책**: 게임플레이만 정지, UI/오디오는 유지
 - **주문 정책**: 수락 제한 5초, 활성 주문 슬롯 최대 3, 앱 오버레이는 주행 중 열리며 게임은 멈추지 않음(리스크 증가)
+- **음악 장르(v2 고정)**: hiphop/ballad/edm/jazz/lofi/rock/classic/disco
 - **평판 정책**: 5.0~0.0, 0.0 즉시 런 종료 + 그 시점까지 정산
 - **통신 원칙**: 시스템 간 직접 참조 최소화, 이벤트 버스(pub/sub) 중심
 - **런타임 로딩 원칙**: UI/Audio는 Addressables 기본, `Resources`는 부트스트랩 수준만 제한 사용
@@ -164,7 +165,7 @@ Unity Version: 6000.3.9f1
 - [ENG] 상태: Ready → Running → PauseForChoice → Ended 구현
 - [ENG] 전이 이벤트 정의:
   - StartRun
-  - ReachMusicChoice(time=0/180/300)
+  - ReachMusicChoice(time=0/180/360)
   - LastOrderStart(time=360)
   - TimeExpired(time=420)
   - RatingZero
@@ -208,7 +209,7 @@ Unity Version: 6000.3.9f1
   - 플레이어 조작/물리/AI/주행 update 정지(시간 스케일 or 입력 차단)
   - UI/오디오 유지
 - [UI] 선택 타이머/입력(선택, 상세보기, 자동 선택 정책 여부)
-- [QA] 0:00/3:00/5:00 정확히 트리거되는지 검증
+- [QA] 0:00/3:00/6:00 정확히 트리거되는지 검증
 
 #### (Feature) 모디파이어 적용/해제(누적/원인 추적)
 - [ENG] Modifier 모델:
@@ -388,7 +389,7 @@ Unity Version: 6000.3.9f1
 #### (Feature) 음악 선택 결과의 즉시 청각 피드백
 - [AUDIO] 트랙별 샘플(또는 루프) 준비
 - [ENG] 선택 즉시 BGM 전환/레이어 변화
-- [QA] 0:00/3:00/5:00 전환 시 클릭/끊김 최소화(페이드)
+- [QA] 0:00/3:00/6:00 전환 시 클릭/끊김 최소화(페이드)
 
 #### (Feature) 핵심 SFX(수락/실패/경고/성공)
 - [AUDIO] UI 클릭, 경고(평판/스필), 성공/실패 SFX 제작

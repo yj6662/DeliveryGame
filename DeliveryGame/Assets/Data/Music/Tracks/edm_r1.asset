@@ -16,8 +16,14 @@ MonoBehaviour:
   DisplayName: EDM Rare 1
   Tier: 1
   Genre: {fileID: 11400000, guid: 9751f6274e1d73d45aa5ee21a59b17fe, type: 2}
-  Description: 'EDM vibe track. Tier: Rare. Theme: Nitro Surge'
+  Description: 'EDM vibe track. Tier: Rare. Theme: Nitro Pulse'
   Modifiers:
   - StatKey: move_speed_mul
     Mode: 0
-    Value: 1.18
+    Value: 1.2
+  - StatKey: offer_respawn_delay_mul
+    Mode: 0
+    Value: 0.82
+  - StatKey: spill_gain_mul
+    Mode: 0
+    Value: 1.12

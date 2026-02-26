@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicGenreSO
   GenreId: edm
   DisplayName: EDM
-  ThemeTitle: Nitro Surge
-  ThemeDescription: High-energy acceleration tracks.
+  ThemeTitle: Nitro Pulse
+  ThemeDescription: Burst speed and quicker order tempo.
   PrimaryStatKey: move_speed_mul
-  Tag: speed
+  Tag: tempo

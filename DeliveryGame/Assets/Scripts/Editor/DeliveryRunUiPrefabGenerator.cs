@@ -304,8 +304,6 @@ namespace DeliveryRun.Editor
                     out optionSynergyTexts[i]);
             }
 
-            cardRow.transform.SetAsLastSibling();
-
             MusicSelectionModalView view = root.AddComponent<MusicSelectionModalView>();
             SerializedObject so = new SerializedObject(view);
             so.FindProperty("canvasGroup").objectReferenceValue = canvasGroup;
@@ -818,32 +816,32 @@ namespace DeliveryRun.Editor
                 card.transform,
                 font,
                 "Option " + (index + 1),
-                38,
-                TextAnchor.UpperCenter,
+                34,
+                TextAnchor.MiddleCenter,
                 new Color(0.06f, 0.09f, 0.16f, 1f));
             SetRect(
                 mainTitleText.rectTransform,
-                new Vector2(0f, 1f),
-                new Vector2(1f, 1f),
-                new Vector2(0.5f, 1f),
-                new Vector2(0f, -88f),
-                new Vector2(-30f, 90f));
+                new Vector2(0f, 0.5f),
+                new Vector2(1f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 36f),
+                new Vector2(-30f, 72f));
 
             subTitleText = CreateText(
                 "SubTitle",
                 card.transform,
                 font,
                 "Tempo and style change",
-                24,
-                TextAnchor.UpperCenter,
+                22,
+                TextAnchor.MiddleCenter,
                 new Color(0.11f, 0.13f, 0.18f, 1f));
             SetRect(
                 subTitleText.rectTransform,
-                new Vector2(0f, 1f),
-                new Vector2(1f, 1f),
-                new Vector2(0.5f, 1f),
-                new Vector2(0f, -190f),
-                new Vector2(-36f, 110f));
+                new Vector2(0f, 0.5f),
+                new Vector2(1f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -8f),
+                new Vector2(-36f, 46f));
 
             Image icon = CreateImage(
                 "SmallIconRightTop",
@@ -860,51 +858,49 @@ namespace DeliveryRun.Editor
                 new Vector2(-16f, -16f),
                 new Vector2(36f, 36f));
 
-            Image activatablePanel = CreateImage(
-                "ActivatablePanel",
-                card.transform,
-                uiSprite,
-                new Color(0.89f, 0.93f, 1f, 0.35f),
-                true);
-            activatablePanel.raycastTarget = false;
-            SetRect(
-                activatablePanel.rectTransform,
-                new Vector2(0f, 0.5f),
-                new Vector2(1f, 0.5f),
-                new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -10f),
-                new Vector2(-32f, 84f));
-
             synergyText = CreateText(
                 "SynergyText",
                 card.transform,
                 font,
                 "Synergy: +15% Combo Gain",
-                20,
-                TextAnchor.MiddleCenter,
+                19,
+                TextAnchor.UpperCenter,
                 new Color(0.09f, 0.12f, 0.2f, 1f));
             SetRect(
                 synergyText.rectTransform,
-                new Vector2(0f, 0f),
-                new Vector2(1f, 0f),
-                new Vector2(0.5f, 0f),
-                new Vector2(0f, 96f),
-                new Vector2(-32f, 38f));
+                new Vector2(0f, 0.5f),
+                new Vector2(1f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -24f),
+                new Vector2(-40f, 210f));
 
             selectButton = CreateActionButton(
-                "SelectButton",
+                "CardSelectButton",
                 card.transform,
                 uiSprite,
                 null,
                 font,
-                "Select");
+                string.Empty);
             SetRect(
                 selectButton.GetComponent<RectTransform>(),
+                new Vector2(0f, 0f),
+                new Vector2(1f, 1f),
                 new Vector2(0.5f, 0f),
-                new Vector2(0.5f, 0f),
-                new Vector2(0.5f, 0f),
-                new Vector2(0f, 30f),
-                new Vector2(200f, 46f));
+                Vector2.zero,
+                Vector2.zero);
+
+            Image cardSelectImage = selectButton.GetComponent<Image>();
+            if (cardSelectImage != null)
+            {
+                cardSelectImage.color = new Color(1f, 1f, 1f, 0f);
+                cardSelectImage.raycastTarget = true;
+            }
+
+            Transform label = selectButton.transform.Find("Label");
+            if (label != null)
+            {
+                label.gameObject.SetActive(false);
+            }
         }
 
         private static Slider CreateSlider(string name, Transform parent, Sprite uiSprite, Sprite knob)

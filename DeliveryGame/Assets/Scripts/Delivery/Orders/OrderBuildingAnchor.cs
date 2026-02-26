@@ -5,7 +5,8 @@ namespace DeliveryRun.Delivery.Orders
     public enum OrderBuildingRole
     {
         Restaurant = 0,
-        Destination = 1
+        Destination = 1,
+        GasStation = 2
     }
 
     public sealed class OrderBuildingAnchor : MonoBehaviour

@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b9ba925ed920ff34696dffb489222ad9, type: 3}
+  m_Name: disco_r1
+  m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
+  TrackId: disco_r1
+  DisplayName: Funk / Disco Rare 1
+  Tier: 1
+  Genre: {fileID: 11400000, guid: 4b51c54c44a327848aefca6468f7a9f5, type: 2}
+  Description: 'Funk / Disco vibe track. Tier: Rare. Theme: Multi Drop Groove'
+  Modifiers:
+  - StatKey: offer_respawn_delay_mul
+    Mode: 0
+    Value: 0.82
+  - StatKey: reward_mul
+    Mode: 0
+    Value: 1.14
+  - StatKey: move_speed_mul
+    Mode: 0
+    Value: 1.08

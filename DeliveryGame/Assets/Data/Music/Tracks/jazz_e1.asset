@@ -16,11 +16,14 @@ MonoBehaviour:
   DisplayName: Jazz Epic 1
   Tier: 2
   Genre: {fileID: 11400000, guid: 96353ceb457504b4c9da96de791179ca, type: 2}
-  Description: 'Jazz vibe track. Tier: Epic. Theme: Precision Line'
+  Description: 'Jazz vibe track. Tier: Epic. Theme: Smart Route'
   Modifiers:
-  - StatKey: bike_grip_mul
+  - StatKey: offer_accept_ttl_mul
     Mode: 0
-    Value: 1.24
+    Value: 1.28
+  - StatKey: reward_mul
+    Mode: 0
+    Value: 1.16
   - StatKey: bike_brake_mul
     Mode: 0
-    Value: 1.18
+    Value: 1.2

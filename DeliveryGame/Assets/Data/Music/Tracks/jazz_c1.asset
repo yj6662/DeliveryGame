@@ -16,11 +16,14 @@ MonoBehaviour:
   DisplayName: Jazz Common 1
   Tier: 0
   Genre: {fileID: 11400000, guid: 96353ceb457504b4c9da96de791179ca, type: 2}
-  Description: 'Jazz vibe track. Tier: Common. Theme: Precision Line'
+  Description: 'Jazz vibe track. Tier: Common. Theme: Smart Route'
   Modifiers:
-  - StatKey: bike_grip_mul
+  - StatKey: offer_accept_ttl_mul
     Mode: 0
     Value: 1.1
+  - StatKey: reward_mul
+    Mode: 0
+    Value: 1.05
   - StatKey: bike_brake_mul
     Mode: 0
-    Value: 1.08
+    Value: 1.06

@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicGenreSO
   GenreId: jazz
   DisplayName: Jazz
-  ThemeTitle: Precision Line
-  ThemeDescription: Control-oriented grip and brake harmony.
-  PrimaryStatKey: bike_grip_mul
-  Tag: control
+  ThemeTitle: Smart Route
+  ThemeDescription: Longer decision windows with balanced reward growth.
+  PrimaryStatKey: offer_accept_ttl_mul
+  Tag: route
