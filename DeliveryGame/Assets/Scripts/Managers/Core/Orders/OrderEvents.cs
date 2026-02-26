@@ -1,4 +1,5 @@
 using DeliveryRun.Delivery.Orders;
+using UnityEngine;
 
 namespace DeliveryRun.Managers.Core
 {
@@ -65,5 +66,13 @@ namespace DeliveryRun.Managers.Core
     {
         public string Text;
         public float DistanceMeters;
+    }
+
+    public struct OrderObjectiveMarkerUpdated
+    {
+        public string OfferId;
+        public bool Active;
+        public OrderPointType PointType;
+        public Vector3 WorldPosition;
     }
 }

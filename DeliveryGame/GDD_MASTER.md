@@ -367,3 +367,23 @@
   1. 기획 의도 확인
   2. 본 문서 수정
   3. 코드/데이터 동기화
+
+---
+
+## 15) Next Execution Pack (2026-02-26)
+
+Priority `P0` (start now):
+- Traffic signal loop hardening:
+  - Keep intersection signal cycle deterministic.
+  - Ensure NPC stop/go behavior matches signal phase at intersection entry.
+  - Add batch PlayMode verification for `Core -> Lobby -> Run -> signal phase change`.
+- RunScene traffic presentation:
+  - Keep temporary traffic-light visuals synced with signal phase.
+  - Keep BGM muted during traffic tuning sessions to reduce noise while validating behavior.
+- Regression guard:
+  - Keep one-command batch validation for traffic NPC lane rules and traffic signal phase flow.
+
+Priority `P1` (next):
+- Camera occlusion polish for isometric follow (no near-object clipping artifacts).
+- Day-night timeline polish tied to run time progression.
+- Traffic content expansion (vehicle variants, spawn balancing by lane density).

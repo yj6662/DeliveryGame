@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using DeliveryRun.Delivery.Orders;
-using DeliveryRun.Delivery.Vehicle;
 using DeliveryRun.Delivery.World;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -15,13 +14,20 @@ namespace DeliveryRun.Editor
     public static class RunCityBlockLayoutGenerator
     {
         private const string PreferredRunScenePath = "Assets/Scenes/Run/RunScene.unity";
+        private const string CityKitModelFolder = "Assets/Externals/kenney_city-kit-commercial_2.1/Models/FBX format";
+        private const string MaterialRoot = "Assets/Materials/Generated";
+        private const string RoadMaterialPath = MaterialRoot + "/RunCity_Road_Asphalt.mat";
+        private const string BlockMaterialPath = MaterialRoot + "/RunCity_Block_Concrete.mat";
+
+        private const int BlockGridSize = 4; // 4x4 => 16 blocks, world area about 4x of 2x2
+        private const int BuildingsPerBlock = 8; // 3x3 lots without center
+
         private const float BlockSize = 40f;
-        private const float BlockHeight = 2f;
-        private const float BlockCenterY = 1f;
-        private const float RoadWidth = 14f;
+        private const float BlockHeight = 0.6f; // reduced step between road and block
+        private const float BlockCenterY = 0.3f;
+        private const float RoadWidth = 22f;
         private const float RoadHeight = 0.2f;
-        private const float LotInset = 11f;
-        private const int LotCount = 16;
+        private const float LotInset = 10.0f;
 
         public static void Generate()
         {
@@ -30,6 +36,12 @@ namespace DeliveryRun.Editor
             {
                 throw new InvalidOperationException("[RunCityBlockLayoutGenerator] RunScene path not found.");
             }
+
+            EnsureFolder("Assets/Materials");
+            EnsureFolder(MaterialRoot);
+
+            Material roadMat = EnsureGeneratedMaterial(RoadMaterialPath, new Color(0.105f, 0.105f, 0.11f, 1f), 0.03f, 0.22f);
+            Material blockMat = EnsureGeneratedMaterial(BlockMaterialPath, new Color(0.38f, 0.39f, 0.42f, 1f), 0.02f, 0.08f);
 
             Scene runScene = EditorSceneManager.OpenScene(runScenePath, OpenSceneMode.Single);
             if (!runScene.IsValid())
@@ -43,19 +55,23 @@ namespace DeliveryRun.Editor
             GameObject buildingsRoot = GetOrCreateChild(cityRoot.transform, "BuildingsRoot");
             GameObject poiRoot = GetOrCreateChild(cityRoot.transform, "POIRoot");
 
-            List<GameObject> buildingPool = CollectBuildingCandidates(runScene, cityRoot.transform, buildingsRoot.transform);
-
             ClearChildren(roadsRoot.transform);
             ClearChildren(blocksRoot.transform);
+            ClearChildren(buildingsRoot.transform);
             ClearChildren(poiRoot.transform);
 
-            int roadCount = BuildRoads(roadsRoot.transform);
-            int blockCount = BuildBlocks(blocksRoot.transform);
+            List<string> cityBuildingAssets = CollectCityBuildingAssets();
 
-            List<Vector3> lotPositions = BuildLotPositions();
-            int movedCount;
-            int placeholderCount;
-            List<GameObject> placedBuildings = PlaceBuildings(buildingPool, buildingsRoot.transform, lotPositions, out movedCount, out placeholderCount);
+            int roadCount = BuildRoads(roadsRoot.transform, roadMat);
+            int blockCount = BuildBlocks(blocksRoot.transform, blockMat);
+
+            int instantiatedBuildings;
+            int placeholderBuildings;
+            List<GameObject> placedBuildings = PlaceBuildings(
+                buildingsRoot.transform,
+                cityBuildingAssets,
+                out instantiatedBuildings,
+                out placeholderBuildings);
 
             int removedLegacyRootCount = RemoveLegacyRoots(runScene, cityRoot);
 
@@ -70,7 +86,7 @@ namespace DeliveryRun.Editor
 
             Debug.Log("[RunCityBlockLayoutGenerator] Scene: " + runScenePath);
             Debug.Log("[RunCityBlockLayoutGenerator] Roads created: " + roadCount + ", Blocks created: " + blockCount);
-            Debug.Log("[RunCityBlockLayoutGenerator] Buildings moved: " + movedCount + ", placeholders created: " + placeholderCount + ", total lots: " + LotCount);
+            Debug.Log("[RunCityBlockLayoutGenerator] Buildings instantiated: " + instantiatedBuildings + ", placeholders created: " + placeholderBuildings);
             Debug.Log("[RunCityBlockLayoutGenerator] Anchors: Restaurant=" + restaurantName + ", Destination=" + destinationName);
             Debug.Log("[RunCityBlockLayoutGenerator] Removed legacy roots: " + removedLegacyRootCount);
         }
@@ -95,6 +111,50 @@ namespace DeliveryRun.Editor
             }
 
             return string.Empty;
+        }
+
+        private static Material EnsureGeneratedMaterial(string path, Color color, float metallic, float smoothness)
+        {
+            Material mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat == null)
+            {
+                Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+                if (shader == null)
+                {
+                    shader = Shader.Find("Standard");
+                }
+
+                mat = new Material(shader);
+                AssetDatabase.CreateAsset(mat, path);
+            }
+
+            if (mat.HasProperty("_BaseColor"))
+            {
+                mat.SetColor("_BaseColor", color);
+            }
+
+            if (mat.HasProperty("_Color"))
+            {
+                mat.SetColor("_Color", color);
+            }
+
+            if (mat.HasProperty("_Metallic"))
+            {
+                mat.SetFloat("_Metallic", metallic);
+            }
+
+            if (mat.HasProperty("_Smoothness"))
+            {
+                mat.SetFloat("_Smoothness", smoothness);
+            }
+
+            if (mat.HasProperty("_Glossiness"))
+            {
+                mat.SetFloat("_Glossiness", smoothness);
+            }
+
+            EditorUtility.SetDirty(mat);
+            return mat;
         }
 
         private static GameObject GetOrCreateRoot(string name)
@@ -136,11 +196,10 @@ namespace DeliveryRun.Editor
             }
         }
 
-        private static int BuildRoads(Transform roadsRoot)
+        private static int BuildRoads(Transform roadsRoot, Material roadMat)
         {
-            float halfSpan = (BlockSize * 2f + RoadWidth * 3f) * 0.5f;
-            float edgeCenter = halfSpan - (RoadWidth * 0.5f);
-            float[] lineCenters = { -edgeCenter, 0f, edgeCenter };
+            float halfSpan = (BlockSize * BlockGridSize + RoadWidth * (BlockGridSize + 1)) * 0.5f;
+            float[] lineCenters = BuildRoadLineCenters(halfSpan);
             int created = 0;
 
             for (int i = 0; i < lineCenters.Length; i++)
@@ -149,7 +208,8 @@ namespace DeliveryRun.Editor
                     roadsRoot,
                     "Road_V_" + i.ToString("00"),
                     new Vector3(lineCenters[i], -RoadHeight * 0.5f, 0f),
-                    new Vector3(RoadWidth, RoadHeight, halfSpan * 2f));
+                    new Vector3(RoadWidth, RoadHeight, halfSpan * 2f),
+                    roadMat);
                 created++;
             }
 
@@ -159,14 +219,34 @@ namespace DeliveryRun.Editor
                     roadsRoot,
                     "Road_H_" + i.ToString("00"),
                     new Vector3(0f, -RoadHeight * 0.5f, lineCenters[i]),
-                    new Vector3(halfSpan * 2f, RoadHeight, RoadWidth));
+                    new Vector3(halfSpan * 2f, RoadHeight, RoadWidth),
+                    roadMat);
                 created++;
             }
 
             return created;
         }
 
-        private static void CreateRoadStrip(Transform parent, string name, Vector3 worldPosition, Vector3 scale)
+        private static float[] BuildRoadLineCenters(float halfSpan)
+        {
+            int roadLineCount = BlockGridSize + 1;
+            var centers = new float[roadLineCount];
+            float start = -halfSpan + (RoadWidth * 0.5f);
+            float step = BlockSize + RoadWidth;
+            for (int i = 0; i < roadLineCount; i++)
+            {
+                centers[i] = start + (i * step);
+            }
+
+            return centers;
+        }
+
+        private static void CreateRoadStrip(
+            Transform parent,
+            string name,
+            Vector3 worldPosition,
+            Vector3 scale,
+            Material roadMat)
         {
             GameObject strip = GameObject.CreatePrimitive(PrimitiveType.Cube);
             strip.name = name;
@@ -179,9 +259,15 @@ namespace DeliveryRun.Editor
             {
                 strip.AddComponent<RoadSurface>();
             }
+
+            Renderer renderer = strip.GetComponent<Renderer>();
+            if (renderer != null && roadMat != null)
+            {
+                renderer.sharedMaterial = roadMat;
+            }
         }
 
-        private static int BuildBlocks(Transform blocksRoot)
+        private static int BuildBlocks(Transform blocksRoot, Material blockMat)
         {
             Vector2[] centers = GetBlockCenters();
             int created = 0;
@@ -193,289 +279,259 @@ namespace DeliveryRun.Editor
                 block.transform.position = new Vector3(centers[i].x, BlockCenterY, centers[i].y);
                 block.transform.rotation = Quaternion.identity;
                 block.transform.localScale = new Vector3(BlockSize, BlockHeight, BlockSize);
+
+                Renderer renderer = block.GetComponent<Renderer>();
+                if (renderer != null && blockMat != null)
+                {
+                    renderer.sharedMaterial = blockMat;
+                }
+
                 created++;
             }
 
             return created;
         }
 
-        private static List<Vector3> BuildLotPositions()
+        private static Vector2[] GetBlockCenters()
         {
-            Vector2[] centers = GetBlockCenters();
-            float[] offsets = { -LotInset, LotInset };
-            float blockTopY = BlockCenterY + (BlockHeight * 0.5f);
-            var lots = new List<Vector3>(LotCount);
-
-            for (int i = 0; i < centers.Length; i++)
+            int total = BlockGridSize * BlockGridSize;
+            var centers = new Vector2[total];
+            float step = BlockSize + RoadWidth;
+            float start = -((BlockGridSize - 1) * step * 0.5f);
+            int idx = 0;
+            for (int z = 0; z < BlockGridSize; z++)
             {
-                for (int z = 0; z < offsets.Length; z++)
+                for (int x = 0; x < BlockGridSize; x++)
                 {
-                    for (int x = 0; x < offsets.Length; x++)
-                    {
-                        lots.Add(new Vector3(
-                            centers[i].x + offsets[x],
-                            blockTopY,
-                            centers[i].y + offsets[z]));
-                    }
+                    centers[idx++] = new Vector2(start + (x * step), start + (z * step));
                 }
             }
 
-            return lots;
+            return centers;
         }
 
-        private static Vector2[] GetBlockCenters()
+        private static List<string> CollectCityBuildingAssets()
         {
-            float offset = (BlockSize + RoadWidth) * 0.5f;
-            return new[]
-            {
-                new Vector2(-offset, -offset),
-                new Vector2(offset, -offset),
-                new Vector2(-offset, offset),
-                new Vector2(offset, offset)
-            };
-        }
+            var results = new List<string>(64);
+            string[] searchFolders = { CityKitModelFolder };
+            string[] guids = AssetDatabase.FindAssets("t:GameObject", searchFolders);
 
-        private static List<GameObject> CollectBuildingCandidates(Scene scene, Transform cityRoot, Transform buildingsRoot)
-        {
-            var result = new List<GameObject>(64);
-            var seen = new HashSet<int>();
-
-            for (int i = 0; i < buildingsRoot.childCount; i++)
+            for (int i = 0; guids != null && i < guids.Length; i++)
             {
-                AddCandidate(buildingsRoot.GetChild(i).gameObject, result, seen);
-            }
-
-            GameObject[] roots = scene.GetRootGameObjects();
-            for (int r = 0; r < roots.Length; r++)
-            {
-                Transform root = roots[r].transform;
-                if (root == cityRoot)
+                string path = AssetDatabase.GUIDToAssetPath(guids[i]);
+                if (string.IsNullOrEmpty(path))
                 {
                     continue;
                 }
 
-                GatherCandidatesRecursive(root, result, seen);
-            }
-
-            result.Sort(CompareByNameThenId);
-            return result;
-        }
-
-        private static void GatherCandidatesRecursive(Transform current, List<GameObject> result, HashSet<int> seen)
-        {
-            GameObject go = current.gameObject;
-            if (IsBuildingCandidate(go))
-            {
-                AddCandidate(go, result, seen);
-            }
-
-            for (int i = 0; i < current.childCount; i++)
-            {
-                GatherCandidatesRecursive(current.GetChild(i), result, seen);
-            }
-        }
-
-        private static bool IsBuildingCandidate(GameObject go)
-        {
-            if (go == null)
-            {
-                return false;
-            }
-
-            if (go.GetComponentInParent<MotorbikeController>() != null)
-            {
-                return false;
-            }
-
-            string lowered = go.name.ToLowerInvariant();
-            if (ContainsAny(lowered, "road", "block", "ground", "player", "bike", "camera", "order", "pickup", "delivery", "ui", "hud", "canvas", "marker", "poi"))
-            {
-                return false;
-            }
-
-            bool nameLooksBuilding = ContainsAny(lowered, "building", "house", "shop", "tower", "apartment", "skyscraper");
-            bool underBuildingRoot = HasAncestorNamed(go.transform, "BuildingRoot") || HasAncestorNamed(go.transform, "BuildingsRoot");
-            bool hasMeshRenderer = go.GetComponent<MeshRenderer>() != null;
-            if (!nameLooksBuilding && !underBuildingRoot && !hasMeshRenderer)
-            {
-                return false;
-            }
-
-            if (go.GetComponent<Camera>() != null || go.GetComponent<Light>() != null || go.GetComponent<Canvas>() != null)
-            {
-                return false;
-            }
-
-            if (go.GetComponentInParent<OrderInteractPoint>() != null)
-            {
-                return false;
-            }
-
-            return true;
-        }
-
-        private static bool ContainsAny(string source, params string[] words)
-        {
-            for (int i = 0; i < words.Length; i++)
-            {
-                if (source.Contains(words[i]))
+                string filename = Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
+                if (!filename.Contains("building"))
                 {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private static bool HasAncestorNamed(Transform t, string ancestorName)
-        {
-            Transform current = t.parent;
-            while (current != null)
-            {
-                if (string.Equals(current.name, ancestorName, StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
+                    continue;
                 }
 
-                current = current.parent;
+                results.Add(path);
             }
 
-            return false;
-        }
-
-        private static void AddCandidate(GameObject go, List<GameObject> result, HashSet<int> seen)
-        {
-            if (go == null)
-            {
-                return;
-            }
-
-            int id = go.GetInstanceID();
-            if (seen.Contains(id))
-            {
-                return;
-            }
-
-            seen.Add(id);
-            result.Add(go);
-        }
-
-        private static int CompareByNameThenId(GameObject left, GameObject right)
-        {
-            if (ReferenceEquals(left, right))
-            {
-                return 0;
-            }
-
-            if (left == null)
-            {
-                return 1;
-            }
-
-            if (right == null)
-            {
-                return -1;
-            }
-
-            int byName = string.Compare(left.name, right.name, StringComparison.Ordinal);
-            if (byName != 0)
-            {
-                return byName;
-            }
-
-            return left.GetInstanceID().CompareTo(right.GetInstanceID());
+            results.Sort(StringComparer.Ordinal);
+            return results;
         }
 
         private static List<GameObject> PlaceBuildings(
-            List<GameObject> buildingPool,
             Transform buildingsRoot,
-            List<Vector3> lotPositions,
-            out int movedCount,
+            List<string> buildingAssets,
+            out int instantiatedCount,
             out int placeholderCount)
         {
-            movedCount = 0;
+            int totalLots = BlockGridSize * BlockGridSize * BuildingsPerBlock;
+            var placed = new List<GameObject>(totalLots);
+
+            instantiatedCount = 0;
             placeholderCount = 0;
 
-            var placed = new List<GameObject>(LotCount);
-            int usableExisting = Mathf.Min(buildingPool.Count, LotCount);
+            Vector2[] blockCenters = GetBlockCenters();
+            float[] lotAxis = { -LotInset, 0f, LotInset };
+            float blockTopY = BlockCenterY + (BlockHeight * 0.5f);
+            int globalLotIndex = 0;
 
-            for (int i = 0; i < LotCount; i++)
+            for (int blockIndex = 0; blockIndex < blockCenters.Length; blockIndex++)
             {
-                GameObject building;
-                if (i < usableExisting)
+                Vector2 blockCenter = blockCenters[blockIndex];
+                for (int z = 0; z < lotAxis.Length; z++)
                 {
-                    building = buildingPool[i];
-                    movedCount++;
-                    building.SetActive(true);
-                }
-                else
-                {
-                    building = CreatePlaceholderBuilding(i);
-                    placeholderCount++;
-                }
+                    for (int x = 0; x < lotAxis.Length; x++)
+                    {
+                        if (x == 1 && z == 1)
+                        {
+                            continue;
+                        }
 
-                MoveBuildingToLot(building, buildingsRoot, lotPositions[i], i);
-                placed.Add(building);
-            }
+                        Vector3 lotPosition = new Vector3(
+                            blockCenter.x + lotAxis[x],
+                            blockTopY,
+                            blockCenter.y + lotAxis[z]);
 
-            for (int i = LotCount; i < buildingPool.Count; i++)
-            {
-                GameObject extra = buildingPool[i];
-                if (extra == null)
-                {
-                    continue;
+                        GameObject building = InstantiateBuildingAsset(buildingAssets, globalLotIndex, buildingsRoot);
+                        if (building != null)
+                        {
+                            instantiatedCount++;
+                        }
+                        else
+                        {
+                            building = CreatePlaceholderBuilding(globalLotIndex);
+                            building.transform.SetParent(buildingsRoot, false);
+                            placeholderCount++;
+                        }
+
+                        PositionBuildingOnLot(building, lotPosition, globalLotIndex);
+                        RemoveRigidbodies(building);
+                        EnsureAnyCollider(building);
+                        placed.Add(building);
+                        globalLotIndex++;
+                    }
                 }
-
-                extra.transform.SetParent(buildingsRoot, true);
-                extra.SetActive(false);
             }
 
             return placed;
         }
 
+        private static GameObject InstantiateBuildingAsset(List<string> assets, int index, Transform parent)
+        {
+            if (assets == null || assets.Count == 0)
+            {
+                return null;
+            }
+
+            string path = assets[index % assets.Count];
+            GameObject asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (asset == null)
+            {
+                return null;
+            }
+
+            GameObject instance = PrefabUtility.InstantiatePrefab(asset) as GameObject;
+            if (instance == null)
+            {
+                instance = Object.Instantiate(asset);
+            }
+
+            if (instance == null)
+            {
+                return null;
+            }
+
+            instance.transform.SetParent(parent, true);
+            string shortName = Path.GetFileNameWithoutExtension(path);
+            instance.name = "Building_" + index.ToString("00") + "_" + shortName;
+            return instance;
+        }
+
         private static GameObject CreatePlaceholderBuilding(int index)
         {
             GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.name = "Building_" + index.ToString("00");
+            go.name = "Building_Placeholder_" + index.ToString("00");
+            go.transform.localScale = new Vector3(8f, 14f, 8f);
             return go;
         }
 
-        private static void MoveBuildingToLot(GameObject building, Transform buildingsRoot, Vector3 lotPosition, int index)
+        private static void PositionBuildingOnLot(GameObject building, Vector3 lotPosition, int lotIndex)
         {
             if (building == null)
             {
                 return;
             }
 
-            building.transform.SetParent(buildingsRoot, true);
-
-            Rigidbody[] rigidbodies = building.GetComponentsInChildren<Rigidbody>(true);
-            for (int i = 0; i < rigidbodies.Length; i++)
-            {
-                Object.DestroyImmediate(rigidbodies[i]);
-            }
+            float targetFootprint = 9.4f + ((lotIndex % 3) * 0.8f); // 9.4 ~ 11.0
+            float minHeight = 10f;
+            FitBuildingToLot(building, targetFootprint, minHeight);
 
             float y = ComputePlacementY(building, lotPosition.y);
             building.transform.position = new Vector3(lotPosition.x, y, lotPosition.z);
-            building.transform.rotation = Quaternion.Euler(0f, (index % 4) * 90f, 0f);
+            building.transform.rotation = Quaternion.Euler(0f, (lotIndex % 4) * 90f, 0f);
         }
 
-        private static float ComputePlacementY(GameObject go, float blockTopY)
+        private static void FitBuildingToLot(GameObject building, float targetFootprint, float minHeight)
+        {
+            if (building == null)
+            {
+                return;
+            }
+
+            Bounds bounds;
+            if (!TryGetRendererBounds(building, out bounds))
+            {
+                return;
+            }
+
+            float footprint = Mathf.Max(bounds.size.x, bounds.size.z);
+            if (footprint > 0.0001f)
+            {
+                float uniformScale = Mathf.Clamp(targetFootprint / footprint, 0.15f, 20f);
+                building.transform.localScale *= uniformScale;
+            }
+
+            if (!TryGetRendererBounds(building, out bounds))
+            {
+                return;
+            }
+
+            float height = Mathf.Max(0.0001f, bounds.size.y);
+            if (height < minHeight)
+            {
+                float yScaleMul = Mathf.Clamp(minHeight / height, 1f, 4f);
+                Vector3 ls = building.transform.localScale;
+                ls.y *= yScaleMul;
+                building.transform.localScale = ls;
+            }
+        }
+
+        private static bool TryGetRendererBounds(GameObject go, out Bounds bounds)
         {
             Renderer[] renderers = go.GetComponentsInChildren<Renderer>(true);
             if (renderers == null || renderers.Length == 0)
             {
-                return blockTopY + 1f;
+                bounds = default;
+                return false;
             }
 
-            Bounds bounds = renderers[0].bounds;
+            bounds = renderers[0].bounds;
             for (int i = 1; i < renderers.Length; i++)
             {
                 bounds.Encapsulate(renderers[i].bounds);
             }
 
+            return true;
+        }
+
+        private static float ComputePlacementY(GameObject go, float blockTopY)
+        {
+            Bounds bounds;
+            if (!TryGetRendererBounds(go, out bounds))
+            {
+                return blockTopY + 1f;
+            }
+
             float minOffsetFromPivot = bounds.min.y - go.transform.position.y;
-            return blockTopY - minOffsetFromPivot + 0.05f;
+            return blockTopY - minOffsetFromPivot + 0.02f;
+        }
+
+        private static void EnsureAnyCollider(GameObject root)
+        {
+            if (root.GetComponentInChildren<Collider>(true) != null)
+            {
+                return;
+            }
+
+            root.AddComponent<BoxCollider>();
+        }
+
+        private static void RemoveRigidbodies(GameObject root)
+        {
+            Rigidbody[] rigidbodies = root.GetComponentsInChildren<Rigidbody>(true);
+            for (int i = 0; i < rigidbodies.Length; i++)
+            {
+                Object.DestroyImmediate(rigidbodies[i]);
+            }
         }
 
         private static int RemoveLegacyRoots(Scene scene, GameObject cityRoot)
@@ -544,6 +600,8 @@ namespace DeliveryRun.Editor
             }
 
             restaurantAnchor.Role = OrderBuildingRole.Restaurant;
+            restaurantAnchor.AnchorId = "R1";
+            restaurantAnchor.DisplayName = "PICKUP: Burger Shop";
 
             OrderBuildingAnchor destinationAnchor = destination.GetComponent<OrderBuildingAnchor>();
             if (destinationAnchor == null)
@@ -552,6 +610,8 @@ namespace DeliveryRun.Editor
             }
 
             destinationAnchor.Role = OrderBuildingRole.Destination;
+            destinationAnchor.AnchorId = "D1";
+            destinationAnchor.DisplayName = "DELIVER: Apartment";
 
             CreatePoiReference(poiRoot, "RestaurantBuildingRef", restaurant.transform);
             CreatePoiReference(poiRoot, "DestinationBuildingRef", destination.transform);
@@ -577,6 +637,26 @@ namespace DeliveryRun.Editor
 
             marker.position = target.position;
             marker.rotation = Quaternion.identity;
+        }
+
+        private static void EnsureFolder(string path)
+        {
+            if (AssetDatabase.IsValidFolder(path))
+            {
+                return;
+            }
+
+            string parent = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(parent))
+            {
+                EnsureFolder(parent.Replace("\\", "/"));
+            }
+
+            string name = Path.GetFileName(path);
+            if (!string.IsNullOrEmpty(parent) && !string.IsNullOrEmpty(name))
+            {
+                AssetDatabase.CreateFolder(parent.Replace("\\", "/"), name);
+            }
         }
     }
 }

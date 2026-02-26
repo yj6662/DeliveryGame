@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2760b103ba5cb644dbe639b174a3842d, type: 3}
+  m_Name: TrafficNpcCatalog
+  m_EditorClassIdentifier: DeliveryRun.Delivery::DeliveryRun.Delivery.Traffic.TrafficNpcCatalogSO
+  VehiclePrefabs:
+  - {fileID: 5134870977874769289, guid: 6a440fe35b33ad64089e0c9133fe0c1c, type: 3}
+  - {fileID: 3858245125666465028, guid: 6aadd935975b8d84fb2320ab10f8c0e2, type: 3}
+  - {fileID: 7541804289157246832, guid: 0da43295073eed540b9597e90a9154a1, type: 3}
+  - {fileID: 1532272718870051836, guid: 3f4a90658b3f7494b86b799d24a7441c, type: 3}
+  - {fileID: 8248581333063879678, guid: 28b2aa674d1d31a4a871bc56e8b33976, type: 3}
+  - {fileID: 4299953173155810190, guid: b145a62f873e66746943f93bd770a0d9, type: 3}
+  - {fileID: 2412634502275101847, guid: c37147764e8ed2b4693587f17da58f85, type: 3}
+  - {fileID: 5977822475084887993, guid: 353f021234a052448a19429a7289dabd, type: 3}
+  - {fileID: 5925797120438098969, guid: ac11931424f902c4eac7eacd6ca122b9, type: 3}
+  - {fileID: 8336793059003632784, guid: dd4cdf6d67f58d242b148c374ca522b0, type: 3}
+  - {fileID: 1459510080996441126, guid: 4b10063a856f72f45945304c8e65101a, type: 3}

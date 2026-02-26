@@ -128,6 +128,16 @@ namespace DeliveryRun.Editor
             so.FindProperty("speedLagEnd").floatValue = 28f;
             so.FindProperty("followSharpnessLowSpeed").floatValue = 16f;
             so.FindProperty("followSharpnessHighSpeed").floatValue = 5f;
+            so.FindProperty("preventClipping").boolValue = true;
+            so.FindProperty("obstacleMask").intValue = ~0;
+            so.FindProperty("occlusionPivotHeight").floatValue = 1.4f;
+            so.FindProperty("collisionRadius").floatValue = 0.48f;
+            so.FindProperty("collisionBuffer").floatValue = 0.25f;
+            so.FindProperty("minDistanceFromTarget").floatValue = 2.2f;
+            so.FindProperty("collisionBackoffStep").floatValue = 0.4f;
+            so.FindProperty("collisionResolveSteps").intValue = 10;
+            so.FindProperty("nearClipWhenOccluded").floatValue = 0f;
+            so.FindProperty("defaultNearClip").floatValue = 0f;
             so.FindProperty("autoFindPlayer").boolValue = true;
             so.FindProperty("playerTag").stringValue = "Player";
             so.ApplyModifiedPropertiesWithoutUndo();
@@ -136,7 +146,7 @@ namespace DeliveryRun.Editor
 
             mainCamera.orthographic = true;
             mainCamera.orthographicSize = 12f;
-            mainCamera.nearClipPlane = 0.1f;
+            mainCamera.nearClipPlane = 0f;
             mainCamera.farClipPlane = 5000f;
 
             Type brainType = FindType(

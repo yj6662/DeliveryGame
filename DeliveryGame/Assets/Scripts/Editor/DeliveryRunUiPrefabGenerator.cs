@@ -15,6 +15,8 @@ namespace DeliveryRun.Editor
         private const string RunResultModalPrefabPath = PrefabFolder + "/RunResultModal.prefab";
         private const string CatalogPath = "Assets/Resources/Bootstrap/UiPrefabCatalog.asset";
         private const string ExternalsFolder = "Assets/Externals";
+        private const string KenneyUiPngFolder = "Assets/Externals/kenney_ui-pack/PNG";
+        private const string KenneyUiFontFolder = "Assets/Externals/kenney_ui-pack/Font";
 
         [MenuItem("Tools/DeliveryRun/Generate UI Prefabs")]
         public static void GenerateAll()
@@ -33,12 +35,27 @@ namespace DeliveryRun.Editor
                 font = Resources.GetBuiltinResource<Font>("Arial.ttf");
             }
 
-            Sprite avatarSprite = FindExternalSprite(uiSprite, "avatar", "profile", "character");
-            Sprite minimapSprite = FindExternalSprite(background, "minimap", "map");
-            Sprite jumpSprite = FindExternalSprite(uiSprite, "jump");
-            Sprite dashSprite = FindExternalSprite(uiSprite, "dash", "boost");
-            Sprite arrowSprite = FindExternalSprite(uiSprite, "arrow", "focus");
-            Sprite musicSprite = FindExternalSprite(uiSprite, "music", "note", "audio");
+            font = LoadKenneyFont(font);
+            background = FindKenneyUiSprite(background, "button_square_depth_flat", "button_square_flat");
+            uiSprite = FindKenneyUiSprite(uiSprite, "button_round_depth_flat", "button_square_depth_flat");
+            knob = FindKenneyUiSprite(knob, "slide_hangle");
+
+            Sprite avatarSprite = FindKenneyUiSprite(uiSprite, "icon_circle", "icon_square");
+            Sprite minimapSprite = FindKenneyUiSprite(background, "icon_square", "icon_circle");
+            Sprite jumpSprite = FindKenneyUiSprite(uiSprite, "icon_checkmark", "icon_circle");
+            Sprite dashSprite = FindKenneyUiSprite(uiSprite, "icon_square", "icon_circle");
+            Sprite arrowSprite = FindKenneyUiSprite(uiSprite, "arrow_basic_e_small", "arrow_basic_e");
+            Sprite musicSprite = FindKenneyUiSprite(uiSprite, "icon_circle", "icon_checkmark");
+
+            if (avatarSprite == uiSprite)
+            {
+                avatarSprite = FindExternalSprite(uiSprite, "avatar", "profile", "character");
+            }
+
+            if (minimapSprite == background)
+            {
+                minimapSprite = FindExternalSprite(background, "minimap", "map");
+            }
 
             GameObject runHudRoot = BuildRunHudRoot(
                 background,
@@ -1065,6 +1082,83 @@ namespace DeliveryRun.Editor
             }
 
             return prefab;
+        }
+
+        private static Font LoadKenneyFont(Font fallback)
+        {
+            if (!AssetDatabase.IsValidFolder(KenneyUiFontFolder))
+            {
+                return fallback;
+            }
+
+            string[] preferred =
+            {
+                KenneyUiFontFolder + "/Kenney Future.ttf",
+                KenneyUiFontFolder + "/Kenney Future Narrow.ttf"
+            };
+
+            for (int i = 0; i < preferred.Length; i++)
+            {
+                Font loaded = AssetDatabase.LoadAssetAtPath<Font>(preferred[i]);
+                if (loaded != null)
+                {
+                    return loaded;
+                }
+            }
+
+            return fallback;
+        }
+
+        private static Sprite FindKenneyUiSprite(Sprite fallback, params string[] keywords)
+        {
+            if (!AssetDatabase.IsValidFolder(KenneyUiPngFolder) || keywords == null)
+            {
+                return fallback;
+            }
+
+            string[] folders = { KenneyUiPngFolder };
+            Sprite best = null;
+            int bestScore = int.MinValue;
+
+            for (int i = 0; i < keywords.Length; i++)
+            {
+                string keyword = keywords[i];
+                if (string.IsNullOrEmpty(keyword))
+                {
+                    continue;
+                }
+
+                string[] guids = AssetDatabase.FindAssets("t:Sprite " + keyword, folders);
+                for (int j = 0; j < guids.Length; j++)
+                {
+                    string path = AssetDatabase.GUIDToAssetPath(guids[j]);
+                    if (string.IsNullOrEmpty(path))
+                    {
+                        continue;
+                    }
+
+                    Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+                    if (sprite == null)
+                    {
+                        continue;
+                    }
+
+                    string lowered = path.Replace("\\", "/").ToLowerInvariant();
+                    int score = 0;
+                    if (lowered.Contains("/blue/default/")) score += 40;
+                    else if (lowered.Contains("/blue/")) score += 30;
+                    else if (lowered.Contains("/default/")) score += 20;
+                    if (lowered.Contains(keyword.ToLowerInvariant())) score += 10;
+
+                    if (score > bestScore)
+                    {
+                        best = sprite;
+                        bestScore = score;
+                    }
+                }
+            }
+
+            return best != null ? best : fallback;
         }
 
         private static Sprite FindExternalSprite(Sprite fallback, params string[] keywords)

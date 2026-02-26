@@ -635,6 +635,9 @@ namespace DeliveryRun.Editor
                 cam = c.AddComponent<Camera>();
             }
 
+            cam.nearClipPlane = 0f;
+            cam.farClipPlane = 5000f;
+
             GameObject proxy = GetOrCreate("CameraFollowProxy");
             SpeedFollowProxyDriver driver = proxy.GetComponent<SpeedFollowProxyDriver>();
             if (driver == null)
@@ -653,7 +656,11 @@ namespace DeliveryRun.Editor
                 }
 
                 SimpleFollowCamera sf = cam.GetComponent<SimpleFollowCamera>();
-                if (sf != null) sf.enabled = false;
+                if (sf != null)
+                {
+                    ConfigureSimpleFollowDefaults(sf);
+                    sf.enabled = false;
+                }
 
                 GameObject vcamObj = GetOrCreate("RunVCam");
                 Component vcam = vcamObj.GetComponent(vcamType);
@@ -674,9 +681,31 @@ namespace DeliveryRun.Editor
             {
                 fallback = cam.gameObject.AddComponent<SimpleFollowCamera>();
             }
+            ConfigureSimpleFollowDefaults(fallback);
             fallback.enabled = true;
             fallback.SetTarget(target);
             return false;
+        }
+
+        private static void ConfigureSimpleFollowDefaults(SimpleFollowCamera follow)
+        {
+            if (follow == null)
+            {
+                return;
+            }
+
+            SerializedObject so = new SerializedObject(follow);
+            so.FindProperty("preventClipping").boolValue = true;
+            so.FindProperty("obstacleMask").intValue = ~0;
+            so.FindProperty("occlusionPivotHeight").floatValue = 1.4f;
+            so.FindProperty("collisionRadius").floatValue = 0.48f;
+            so.FindProperty("collisionBuffer").floatValue = 0.25f;
+            so.FindProperty("minDistanceFromTarget").floatValue = 2.2f;
+            so.FindProperty("collisionBackoffStep").floatValue = 0.4f;
+            so.FindProperty("collisionResolveSteps").intValue = 10;
+            so.FindProperty("nearClipWhenOccluded").floatValue = 0f;
+            so.FindProperty("defaultNearClip").floatValue = 0f;
+            so.ApplyModifiedPropertiesWithoutUndo();
         }
 
         private static void SetObj(Component c, UnityEngine.Object obj, params string[] names)

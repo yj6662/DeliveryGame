@@ -98,5 +98,114 @@ namespace DeliveryRun.UI.Run
                 focusButton.onClick.AddListener(onClick);
             }
         }
+
+        public RectTransform GetMinimapRectTransform()
+        {
+            return minimapImage != null ? minimapImage.rectTransform : null;
+        }
+
+        public Image GetMinimapImage()
+        {
+            return minimapImage;
+        }
+
+        public RectTransform GetMinimapPanelRectTransform()
+        {
+            return minimapImage != null ? minimapImage.transform.parent as RectTransform : null;
+        }
+
+        public RectTransform GetDeliveryPanelRectTransform()
+        {
+            return deliverToText != null ? deliverToText.transform.parent as RectTransform : null;
+        }
+
+        public RectTransform GetRootRectTransform()
+        {
+            return transform as RectTransform;
+        }
+
+        public Font GetDefaultFont()
+        {
+            if (cashText != null && cashText.font != null)
+            {
+                return cashText.font;
+            }
+
+            if (nowPlayingText != null && nowPlayingText.font != null)
+            {
+                return nowPlayingText.font;
+            }
+
+            return Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        }
+
+        public Sprite GetPanelSkinSprite()
+        {
+            RectTransform panel = GetMinimapPanelRectTransform();
+            if (panel == null)
+            {
+                return null;
+            }
+
+            Image panelImage = panel.GetComponent<Image>();
+            return panelImage != null ? panelImage.sprite : null;
+        }
+
+        public void SetDeliveryPanelVisible(bool visible)
+        {
+            RectTransform panel = GetDeliveryPanelRectTransform();
+            if (panel == null)
+            {
+                return;
+            }
+
+            if (panel.gameObject.activeSelf != visible)
+            {
+                panel.gameObject.SetActive(visible);
+            }
+        }
+
+        public void ConfigureStatusHudCompact()
+        {
+            if (boostSlider != null)
+            {
+                boostSlider.gameObject.SetActive(false);
+            }
+
+            if (jumpButton != null)
+            {
+                jumpButton.gameObject.SetActive(false);
+            }
+
+            if (dashButton != null)
+            {
+                dashButton.gameObject.SetActive(false);
+            }
+        }
+
+        public void SetStatusSpeed(string text)
+        {
+            SetBoostLabel(text);
+        }
+
+        public void SetStatusBuffAndSynergy(string buffText, string synergyText)
+        {
+            if (buffActiveText == null)
+            {
+                return;
+            }
+
+            if (string.IsNullOrEmpty(buffText))
+            {
+                buffText = "BUFF: -";
+            }
+
+            if (string.IsNullOrEmpty(synergyText))
+            {
+                synergyText = "SYNERGY: -";
+            }
+
+            buffActiveText.text = buffText + "\n" + synergyText;
+        }
     }
 }

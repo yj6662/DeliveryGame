@@ -123,6 +123,7 @@ namespace DeliveryRun.Managers.Subs
         {
             CancelRespawn();
             DespawnAllInteractPoints();
+            PublishObjectiveMarkerInactive();
             _state = InternalState.Idle;
             _runActive = false;
             _isRunScene = false;
@@ -142,6 +143,7 @@ namespace DeliveryRun.Managers.Subs
 
             CancelRespawn();
             DespawnAllInteractPoints();
+            PublishObjectiveMarkerInactive();
             _runActive = false;
             _state = InternalState.Idle;
             _offerTickAccum = 0f;
@@ -171,6 +173,7 @@ namespace DeliveryRun.Managers.Subs
             Events.Publish(new OfferAccepted { OfferId = FixedOfferId });
 
             SpawnPickupInteractPoint();
+            PublishCurrentObjectiveMarker();
             PublishObjectiveUpdate();
         }
 
@@ -188,6 +191,7 @@ namespace DeliveryRun.Managers.Subs
                 DespawnPickupInteractPoint();
                 Events.Publish(new OrderPickupReached { OfferId = FixedOfferId });
                 SpawnDeliveryInteractPoint();
+                PublishCurrentObjectiveMarker();
                 PublishObjectiveUpdate();
                 return;
             }
@@ -212,6 +216,7 @@ namespace DeliveryRun.Managers.Subs
 
             _isRunScene = false;
             DespawnAllInteractPoints();
+            PublishObjectiveMarkerInactive();
             _player = null;
             _restaurantAnchor = null;
             _destinationAnchor = null;
@@ -235,6 +240,7 @@ namespace DeliveryRun.Managers.Subs
 
             CancelRespawn();
             DespawnAllInteractPoints();
+            PublishObjectiveMarkerInactive();
 
             _economy.ResetSession();
             Events.Publish(new SessionBalanceChanged
@@ -258,6 +264,7 @@ namespace DeliveryRun.Managers.Subs
             _state = InternalState.Offering;
             _offerEndTime = Clock.Now + OfferTtlSeconds;
             _offerTickAccum = 0f;
+            PublishObjectiveMarkerInactive();
 
             string pickupName = GetAnchorDisplayName(_restaurantAnchor, "PICKUP: Restaurant");
             string deliveryName = GetAnchorDisplayName(_destinationAnchor, "DELIVER: Destination");
@@ -304,6 +311,7 @@ namespace DeliveryRun.Managers.Subs
 
             _state = InternalState.Idle;
             DespawnAllInteractPoints();
+            PublishObjectiveMarkerInactive();
             Events.Publish(new OfferExpired { OfferId = FixedOfferId });
             ScheduleRespawnIfNeeded();
         }
@@ -476,6 +484,7 @@ namespace DeliveryRun.Managers.Subs
             _state = InternalState.Completed;
             _ordersCompleted++;
             DespawnDeliveryInteractPoint();
+            PublishObjectiveMarkerInactive();
 
             float qualityMul = 1f;
             float quality = 1f;
@@ -674,6 +683,51 @@ namespace DeliveryRun.Managers.Subs
             }
         }
 
+        private void PublishCurrentObjectiveMarker()
+        {
+            if (_state == InternalState.Accepted)
+            {
+                PublishObjectiveMarker(_pickupInteract, OrderPointType.Pickup);
+                return;
+            }
+
+            if (_state == InternalState.PickedUp)
+            {
+                PublishObjectiveMarker(_deliveryInteract, OrderPointType.Delivery);
+                return;
+            }
+
+            PublishObjectiveMarkerInactive();
+        }
+
+        private void PublishObjectiveMarker(OrderInteractPoint point, OrderPointType pointType)
+        {
+            if (point == null)
+            {
+                PublishObjectiveMarkerInactive();
+                return;
+            }
+
+            Events.Publish(new OrderObjectiveMarkerUpdated
+            {
+                OfferId = FixedOfferId,
+                Active = true,
+                PointType = pointType,
+                WorldPosition = point.transform.position
+            });
+        }
+
+        private void PublishObjectiveMarkerInactive()
+        {
+            Events.Publish(new OrderObjectiveMarkerUpdated
+            {
+                OfferId = FixedOfferId,
+                Active = false,
+                PointType = OrderPointType.Pickup,
+                WorldPosition = Vector3.zero
+            });
+        }
+
         private void PublishRunReport()
         {
             RunReport report = new RunReport
@@ -698,6 +752,7 @@ namespace DeliveryRun.Managers.Subs
             if (!_isRunScene)
             {
                 DespawnAllInteractPoints();
+                PublishObjectiveMarkerInactive();
                 _player = null;
                 _restaurantAnchor = null;
                 _destinationAnchor = null;

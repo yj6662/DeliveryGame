@@ -14,6 +14,7 @@ namespace DeliveryRun.Delivery.Input
         private static InputActionMap _gameplayMap;
         private static InputAction _move;
         private static InputAction _offerAccept;
+        private static InputAction _interact;
 #endif
 
         public static Vector2 ReadMove()
@@ -46,14 +47,35 @@ namespace DeliveryRun.Delivery.Input
 
         public static bool WasOfferAcceptPressedThisFrame()
         {
-            return WasInteractPressedThisFrame();
+#if ENABLE_INPUT_SYSTEM
+            EnsureInitialized();
+            if (_offerAccept != null && _offerAccept.WasPressedThisFrame())
+            {
+                return true;
+            }
+#endif
+
+            if (_legacyInputUnavailable)
+            {
+                return false;
+            }
+
+            try
+            {
+                return UnityEngine.Input.GetKeyDown(KeyCode.Space);
+            }
+            catch (InvalidOperationException)
+            {
+                _legacyInputUnavailable = true;
+                return false;
+            }
         }
 
         public static bool WasInteractPressedThisFrame()
         {
 #if ENABLE_INPUT_SYSTEM
             EnsureInitialized();
-            if (_offerAccept != null && _offerAccept.WasPressedThisFrame())
+            if (_interact != null && _interact.WasPressedThisFrame())
             {
                 return true;
             }
@@ -99,8 +121,12 @@ namespace DeliveryRun.Delivery.Input
             _move.AddBinding("<Gamepad>/leftStick");
 
             _offerAccept = _gameplayMap.AddAction("OfferAccept", InputActionType.Button);
-            _offerAccept.AddBinding("<Keyboard>/f");
-            _offerAccept.AddBinding("<Gamepad>/buttonSouth");
+            _offerAccept.AddBinding("<Keyboard>/space");
+            _offerAccept.AddBinding("<Gamepad>/start");
+
+            _interact = _gameplayMap.AddAction("Interact", InputActionType.Button);
+            _interact.AddBinding("<Keyboard>/f");
+            _interact.AddBinding("<Gamepad>/buttonSouth");
 
             _gameplayMap.Enable();
             _initialized = true;

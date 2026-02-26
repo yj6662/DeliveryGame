@@ -1,0 +1,21 @@
+{
+  "name": "DeliveryRun.EditModeTests",
+  "rootNamespace": "DeliveryRun.Tests.EditMode",
+  "references": [
+    "DeliveryRun.Managers",
+    "DeliveryRun.Delivery"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [],
+  "testAssemblies": true
+}

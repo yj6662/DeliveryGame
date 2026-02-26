@@ -203,8 +203,13 @@ namespace DeliveryRun.Managers.Core
             AddSubManager(new UiRunHudManager());
             AddSubManager(new AddressablesService());
             AddSubManager(new RunSessionManager());
+            AddSubManager(new RunDayNightLightingManager());
             AddSubManager(new RunModifierManager());
             AddSubManager(new PlayerBikeModifierLink());
+            AddSubManager(new TrafficSystemManager());
+            AddSubManager(new TrafficSignalManager());
+            AddSubManager(new TrafficSignalVisualManager());
+            AddSubManager(new TrafficNpcManager());
             AddSubManager(new RoadQueryManager());
             AddSubManager(new OrderFlowManager());
             AddSubManager(new FoodStateManager());

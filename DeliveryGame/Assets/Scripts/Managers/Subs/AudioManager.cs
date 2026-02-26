@@ -7,12 +7,15 @@ namespace DeliveryRun.Managers.Subs
 {
     public sealed class AudioManager : SubManagerBase
     {
+        private static bool DisableBgmPlaybackTemporarily = true;
+
         private GameObject _audioHost;
         private AudioSource _bgmSource;
         private AudioSource _uiSource;
         private AddressablesService _addressables;
         private UiPrefabCatalogSO _catalog;
         private string _currentBgmKey;
+        private bool _bgmMutedLogPrinted;
 
         public override string Name => nameof(AudioManager);
         public override int InitOrder => 20;
@@ -34,6 +37,7 @@ namespace DeliveryRun.Managers.Subs
             _uiSource.playOnAwake = false;
 
             _currentBgmKey = null;
+            _bgmMutedLogPrinted = false;
 
             Subs.Add<DomainRunSessionStarted>(Events, OnRunSessionStarted);
         }
@@ -58,6 +62,7 @@ namespace DeliveryRun.Managers.Subs
             _addressables = null;
             _catalog = null;
             _currentBgmKey = null;
+            _bgmMutedLogPrinted = false;
         }
 
         public void PlayBgm(string bgmKey)
@@ -67,6 +72,18 @@ namespace DeliveryRun.Managers.Subs
 
         public void PlayTestBgm(string key)
         {
+            if (DisableBgmPlaybackTemporarily)
+            {
+                if (!_bgmMutedLogPrinted)
+                {
+                    _bgmMutedLogPrinted = true;
+                    Debug.Log("[AudioManager] BGM playback is temporarily muted.");
+                }
+
+                StopBgm();
+                return;
+            }
+
             string resolvedKey = key;
             string testBgmKey = _catalog != null ? _catalog.TestBgmKey : null;
             if (!string.IsNullOrEmpty(testBgmKey))
@@ -168,6 +185,11 @@ namespace DeliveryRun.Managers.Subs
 
         private void OnRunSessionStarted(DomainRunSessionStarted evt)
         {
+            if (DisableBgmPlaybackTemporarily)
+            {
+                return;
+            }
+
             string bgmKey = _catalog != null ? _catalog.TestBgmKey : null;
             PlayTestBgm(bgmKey);
         }

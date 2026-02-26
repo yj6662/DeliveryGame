@@ -524,3 +524,25 @@ Unity Version: 6000.3.9f1
 - **AUDIO 시작 묶음**: BGM 2개(테스트 루프) + UI 클릭/경고 SFX 3종  
 - **QA 시작 묶음**: Phase A 수용 기준 체크리스트 문서화 + 전환 반복/누수 테스트 템플릿
 
+
+---
+
+## 7. Next Sprint (2026-02-26)
+
+### 7.1 P0 (즉시 진행)
+- [ENG] Traffic 신호 루프 안정화:
+  - 교차로 신호 위상(Vertical/Horizontal Green/Yellow) 결정적 순환 유지
+  - NPC 교차로 진입 시 신호 위상 준수(정지/진행) 검증
+- [ENG][QA] PlayMode 자동검증 추가/유지:
+  - `Core -> Lobby -> Run` 진입 후 신호 서비스/시각화 생성 확인
+  - 신호 위상 변경(phase change) 확인 테스트 유지
+- [ENG][AUDIO] 교통 튜닝 기간 임시 BGM mute 유지(테스트 집중용)
+
+### 7.2 P1 (다음 묶음)
+- [ENG] Isometric 카메라 근접 오브젝트 clipping 완화(occlusion handling)
+- [ENG][ART] 낮/저녁 시간대 전환 품질 개선(런 타임라인 동기화)
+- [ENG][ART] Traffic 차량 변형/스폰 밸런싱(차선 밀도 기준)
+
+### 7.3 실행 커맨드(회귀 검증)
+- [QA] `Tools/RunTests_TrafficNpc_PlayMode.cmd`
+- [QA] `Tools/RunTests_TrafficSignal_PlayMode.cmd`
