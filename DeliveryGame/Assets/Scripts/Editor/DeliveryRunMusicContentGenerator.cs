@@ -125,20 +125,194 @@ namespace DeliveryRun.Editor
             MusicTrackSO track = LoadOrCreateAsset<MusicTrackSO>(path);
 
             track.TrackId = trackId;
-            track.DisplayName = BuildTrackName(genre.DisplayName, tier, tierIndex);
+            MusicModifierDef[] modifiers = BuildTrackModifiers(genre.GenreId, tier);
+            track.DisplayName = BuildTrackName(genre, tier, tierIndex, modifiers);
             track.Tier = tier;
             track.Genre = genre;
             track.Description = BuildTrackDescription(genre, tier);
-            track.Modifiers = BuildTrackModifiers(genre.GenreId, tier);
+            track.Modifiers = modifiers;
 
             EditorUtility.SetDirty(track);
             outTracks.Add(track);
         }
 
-        private static string BuildTrackName(string genreDisplayName, MusicTier tier, int tierIndex)
+        private static string BuildTrackName(MusicGenreSO genre, MusicTier tier, int tierIndex, MusicModifierDef[] modifiers)
         {
-            string tierText = tier == MusicTier.Common ? "Common" : tier == MusicTier.Rare ? "Rare" : "Epic";
-            return genreDisplayName + " " + tierText + " " + tierIndex;
+            string genreId = genre != null ? genre.GenreId : string.Empty;
+            int slotIndex = GetTrackSlotIndex(tier, tierIndex);
+            string curatedTitle = GetCuratedTrackTitle(genreId, slotIndex);
+            if (!string.IsNullOrEmpty(curatedTitle))
+            {
+                return curatedTitle;
+            }
+
+            string buffTag = ResolvePrimaryBuffTag(modifiers);
+            string tail = ResolveTrackTailWord(tier, tierIndex);
+            return buffTag + " " + tail;
+        }
+
+        private static int GetTrackSlotIndex(MusicTier tier, int tierIndex)
+        {
+            if (tier == MusicTier.Common)
+            {
+                if (tierIndex <= 1) return 0;
+                if (tierIndex == 2) return 1;
+                return 2;
+            }
+
+            if (tier == MusicTier.Rare)
+            {
+                if (tierIndex <= 1) return 3;
+                return 4;
+            }
+
+            return 5;
+        }
+
+        private static string GetCuratedTrackTitle(string genreId, int slotIndex)
+        {
+            if (string.IsNullOrEmpty(genreId))
+            {
+                return null;
+            }
+
+            if (genreId == "hiphop")
+            {
+                if (slotIndex == 0) return "Back Alley Kick";
+                if (slotIndex == 1) return "Concrete Pulse";
+                if (slotIndex == 2) return "Redline Cipher";
+                if (slotIndex == 3) return "Corner Cut Anthem";
+                if (slotIndex == 4) return "Nitro Sidewalk";
+                return "City Heat Drop";
+            }
+
+            if (genreId == "ballad")
+            {
+                if (slotIndex == 0) return "Warm Window";
+                if (slotIndex == 1) return "Steamlight";
+                if (slotIndex == 2) return "Golden Box";
+                if (slotIndex == 3) return "Hold the Flavor";
+                if (slotIndex == 4) return "Late Night Thermos";
+                return "Slow Burn Promise";
+            }
+
+            if (genreId == "edm")
+            {
+                if (slotIndex == 0) return "Neon Overpass";
+                if (slotIndex == 1) return "Afterburn Sequence";
+                if (slotIndex == 2) return "Signal Rush";
+                if (slotIndex == 3) return "Midnight Slipstream";
+                if (slotIndex == 4) return "Pulse Dispatch";
+                return "Voltage Overdrive";
+            }
+
+            if (genreId == "jazz")
+            {
+                if (slotIndex == 0) return "Blue Route";
+                if (slotIndex == 1) return "Downtown Swing";
+                if (slotIndex == 2) return "Greenlight Waltz";
+                if (slotIndex == 3) return "Bonus Boulevard";
+                if (slotIndex == 4) return "Late Shift Solo";
+                return "Crescent Detour";
+            }
+
+            if (genreId == "lofi")
+            {
+                if (slotIndex == 0) return "Rainy Delivery";
+                if (slotIndex == 1) return "Soft Corner";
+                if (slotIndex == 2) return "Cup Holder Dream";
+                if (slotIndex == 3) return "Quiet Lane";
+                if (slotIndex == 4) return "Steady Hands";
+                return "No-Spill Reverie";
+            }
+
+            if (genreId == "rock")
+            {
+                if (slotIndex == 0) return "Brake Line Riot";
+                if (slotIndex == 1) return "Iron Turn";
+                if (slotIndex == 2) return "Gripbreaker";
+                if (slotIndex == 3) return "Asphalt Thunder";
+                if (slotIndex == 4) return "Clutch Echo";
+                return "Terminal Roar";
+            }
+
+            if (genreId == "classic")
+            {
+                if (slotIndex == 0) return "Ivory Lane";
+                if (slotIndex == 1) return "Measured Turn";
+                if (slotIndex == 2) return "Silver Overture";
+                if (slotIndex == 3) return "Patience Sonata";
+                if (slotIndex == 4) return "Old Town Minuet";
+                return "Royal Chicane";
+            }
+
+            if (genreId == "disco")
+            {
+                if (slotIndex == 0) return "Mirrorball Courier";
+                if (slotIndex == 1) return "Saturday Route";
+                if (slotIndex == 2) return "Golden Receipt";
+                if (slotIndex == 3) return "Turbo Glitter";
+                if (slotIndex == 4) return "Cashline Boogie";
+                return "Last Drop Fever";
+            }
+
+            return null;
+        }
+
+        private static string ResolvePrimaryBuffTag(MusicModifierDef[] modifiers)
+        {
+            if (modifiers == null || modifiers.Length <= 0)
+            {
+                return "Flow";
+            }
+
+            int bestIndex = 0;
+            float bestScore = -1f;
+            for (int i = 0; i < modifiers.Length; i++)
+            {
+                MusicModifierDef mod = modifiers[i];
+                float score = mod.Mode == MusicModifierMode.Mul
+                    ? Mathf.Abs(mod.Value - 1f)
+                    : Mathf.Abs(mod.Value);
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestIndex = i;
+                }
+            }
+
+            string key = modifiers[bestIndex].StatKey ?? string.Empty;
+            if (key == "move_speed_mul") return "Rush";
+            if (key == "bike_grip_mul") return "Grip";
+            if (key == "bike_brake_mul") return "Brake";
+            if (key == "reward_mul") return "Payout";
+            if (key == "food_temp_decay_mul") return "Heatguard";
+            if (key == "spill_gain_mul")
+            {
+                return modifiers[bestIndex].Value < 1f ? "Stability" : "Risk";
+            }
+            if (key == "offer_accept_ttl_mul") return "Window";
+            if (key == "offer_respawn_delay_mul") return "Dispatch";
+            if (key == "fuel_drain_mul") return "Efficiency";
+            return "Flow";
+        }
+
+        private static string ResolveTrackTailWord(MusicTier tier, int tierIndex)
+        {
+            if (tier == MusicTier.Common)
+            {
+                if (tierIndex <= 1) return "Pulse";
+                if (tierIndex == 2) return "Drive";
+                return "Line";
+            }
+
+            if (tier == MusicTier.Rare)
+            {
+                if (tierIndex <= 1) return "Surge";
+                return "Mode";
+            }
+
+            return "Overdrive";
         }
 
         private static string BuildTrackDescription(MusicGenreSO genre, MusicTier tier)

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: disco_c1
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
   TrackId: disco_c1
-  DisplayName: Funk / Disco Common 1
+  DisplayName: Mirrorball Courier
   Tier: 0
   Genre: {fileID: 11400000, guid: 4b51c54c44a327848aefca6468f7a9f5, type: 2}
   Description: 'Funk / Disco vibe track. Tier: Common. Theme: Multi Drop Groove'

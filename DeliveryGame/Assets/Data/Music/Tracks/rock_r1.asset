@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: rock_r1
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
   TrackId: rock_r1
-  DisplayName: Rock Rare 1
+  DisplayName: Asphalt Thunder
   Tier: 1
   Genre: {fileID: 11400000, guid: 171c2653c10f29c46a8bd768547fa7fd, type: 2}
   Description: 'Rock vibe track. Tier: Rare. Theme: Momentum Brake'

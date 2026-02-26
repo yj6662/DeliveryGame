@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: lofi_r1
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
   TrackId: lofi_r1
-  DisplayName: Lo-Fi Rare 1
+  DisplayName: Quiet Lane
   Tier: 1
   Genre: {fileID: 11400000, guid: 61dd029851e8e2643a7aca5d5b0371d7, type: 2}
   Description: 'Lo-Fi vibe track. Tier: Rare. Theme: Soft Handling'

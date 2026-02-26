@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: ballad_c3
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
   TrackId: ballad_c3
-  DisplayName: Ballad Common 3
+  DisplayName: Golden Box
   Tier: 0
   Genre: {fileID: 11400000, guid: 55c893750bdf946468ed398926fb018f, type: 2}
   Description: 'Ballad vibe track. Tier: Common. Theme: Warm Delivery'

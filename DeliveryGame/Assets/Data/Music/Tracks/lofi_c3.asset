@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: lofi_c3
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
   TrackId: lofi_c3
-  DisplayName: Lo-Fi Common 3
+  DisplayName: Cup Holder Dream
   Tier: 0
   Genre: {fileID: 11400000, guid: 61dd029851e8e2643a7aca5d5b0371d7, type: 2}
   Description: 'Lo-Fi vibe track. Tier: Common. Theme: Soft Handling'

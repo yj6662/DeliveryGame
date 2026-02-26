@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: hiphop_r1
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
   TrackId: hiphop_r1
-  DisplayName: Hip Hop Rare 1
+  DisplayName: Corner Cut Anthem
   Tier: 1
   Genre: {fileID: 11400000, guid: 2a123b11e07cd0549a2d6bf6e28f61a0, type: 2}
   Description: 'Hip Hop vibe track. Tier: Rare. Theme: Street Sprint'

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: ballad_c1
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
   TrackId: ballad_c1
-  DisplayName: Ballad Common 1
+  DisplayName: Warm Window
   Tier: 0
   Genre: {fileID: 11400000, guid: 55c893750bdf946468ed398926fb018f, type: 2}
   Description: 'Ballad vibe track. Tier: Common. Theme: Warm Delivery'

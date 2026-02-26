@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: ballad_r1
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
   TrackId: ballad_r1
-  DisplayName: Ballad Rare 1
+  DisplayName: Hold the Flavor
   Tier: 1
   Genre: {fileID: 11400000, guid: 55c893750bdf946468ed398926fb018f, type: 2}
   Description: 'Ballad vibe track. Tier: Rare. Theme: Warm Delivery'

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: rock_c1
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
   TrackId: rock_c1
-  DisplayName: Rock Common 1
+  DisplayName: Brake Line Riot
   Tier: 0
   Genre: {fileID: 11400000, guid: 171c2653c10f29c46a8bd768547fa7fd, type: 2}
   Description: 'Rock vibe track. Tier: Common. Theme: Momentum Brake'

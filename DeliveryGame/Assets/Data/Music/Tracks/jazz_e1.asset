@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: jazz_e1
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
   TrackId: jazz_e1
-  DisplayName: Jazz Epic 1
+  DisplayName: Crescent Detour
   Tier: 2
   Genre: {fileID: 11400000, guid: 96353ceb457504b4c9da96de791179ca, type: 2}
   Description: 'Jazz vibe track. Tier: Epic. Theme: Smart Route'

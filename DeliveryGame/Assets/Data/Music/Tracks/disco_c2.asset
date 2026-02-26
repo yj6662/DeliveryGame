@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: disco_c2
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
   TrackId: disco_c2
-  DisplayName: Funk / Disco Common 2
+  DisplayName: Saturday Route
   Tier: 0
   Genre: {fileID: 11400000, guid: 4b51c54c44a327848aefca6468f7a9f5, type: 2}
   Description: 'Funk / Disco vibe track. Tier: Common. Theme: Multi Drop Groove'

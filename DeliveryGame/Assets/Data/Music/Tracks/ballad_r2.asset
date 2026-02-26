@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: ballad_r2
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
   TrackId: ballad_r2
-  DisplayName: Ballad Rare 2
+  DisplayName: Late Night Thermos
   Tier: 1
   Genre: {fileID: 11400000, guid: 55c893750bdf946468ed398926fb018f, type: 2}
   Description: 'Ballad vibe track. Tier: Rare. Theme: Warm Delivery'

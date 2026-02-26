@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: hiphop_c1
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
   TrackId: hiphop_c1
-  DisplayName: Hip Hop Common 1
+  DisplayName: Back Alley Kick
   Tier: 0
   Genre: {fileID: 11400000, guid: 2a123b11e07cd0549a2d6bf6e28f61a0, type: 2}
   Description: 'Hip Hop vibe track. Tier: Common. Theme: Street Sprint'

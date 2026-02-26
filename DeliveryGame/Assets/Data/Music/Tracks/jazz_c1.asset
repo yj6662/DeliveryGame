@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: jazz_c1
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
   TrackId: jazz_c1
-  DisplayName: Jazz Common 1
+  DisplayName: Blue Route
   Tier: 0
   Genre: {fileID: 11400000, guid: 96353ceb457504b4c9da96de791179ca, type: 2}
   Description: 'Jazz vibe track. Tier: Common. Theme: Smart Route'

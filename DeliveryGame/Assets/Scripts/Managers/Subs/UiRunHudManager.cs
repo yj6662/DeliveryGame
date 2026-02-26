@@ -65,6 +65,7 @@ namespace DeliveryRun.Managers.Subs
         private readonly Dictionary<string, string> _offerPickupNames = new Dictionary<string, string>(MaxTrackedOrders);
         private readonly Dictionary<string, string> _offerDeliveryNames = new Dictionary<string, string>(MaxTrackedOrders);
         private readonly Dictionary<string, int> _offerBaseRewards = new Dictionary<string, int>(MaxTrackedOrders);
+        private readonly Dictionary<string, bool> _orderCarryingByOffer = new Dictionary<string, bool>(MaxTrackedOrders);
 
         private UiPrefabCatalogSO _catalog;
         private AddressablesService _addressables;
@@ -125,6 +126,7 @@ namespace DeliveryRun.Managers.Subs
         private Image _newOfferPanelImage;
         private Text _newOfferHeaderText;
         private Text _phonePreviewText;
+        private Image _newOfferExpiryOverlay;
         private float _phoneCurrentHeight;
         private float _phoneCurrentLift;
         private float _activePanelCurrentHeight;
@@ -148,6 +150,7 @@ namespace DeliveryRun.Managers.Subs
         private string _currentDeliveryName;
         private int _currentOfferReward;
         private float _currentOfferRemaining;
+        private float _currentOfferDuration;
         private bool _offerAcceptWindow;
         private bool _previewVisible;
 
@@ -260,8 +263,11 @@ namespace DeliveryRun.Managers.Subs
             _isRunScene = false;
             _offerAcceptWindow = false;
             _previewVisible = false;
+            _currentOfferRemaining = 0f;
+            _currentOfferDuration = 0f;
             _foodOfferId = null;
             _hasFoodState = false;
+            _orderCarryingByOffer.Clear();
             ClearObjectiveMarkers();
             _musicChoiceModalOpen = false;
             ClosePause(true);
@@ -296,11 +302,14 @@ namespace DeliveryRun.Managers.Subs
 
             _offerAcceptWindow = false;
             _previewVisible = false;
+            _currentOfferRemaining = 0f;
+            _currentOfferDuration = 0f;
             _musicChoiceModalOpen = false;
             _activeOrderCount = 0;
             _offerPickupNames.Clear();
             _offerDeliveryNames.Clear();
             _offerBaseRewards.Clear();
+            _orderCarryingByOffer.Clear();
             _phoneCurrentLift = 0f;
             _activePanelCurrentPosY = ActiveOrderPanelBasePosY;
             _phoneDirty = true;
@@ -374,6 +383,7 @@ namespace DeliveryRun.Managers.Subs
             _offerBaseRewards[_currentOfferId] = evt.Reward;
             _currentOfferReward = evt.Reward;
             _currentOfferRemaining = evt.TtlSeconds;
+            _currentOfferDuration = Mathf.Max(0.01f, evt.TtlSeconds);
             _offerAcceptWindow = true;
             _previewVisible = true;
             _phoneDirty = true;
@@ -402,10 +412,12 @@ namespace DeliveryRun.Managers.Subs
 
             _offerAcceptWindow = false;
             _previewVisible = false;
+            _currentOfferRemaining = 0f;
             RemoveActiveOrder(evt.OfferId);
             _offerPickupNames.Remove(evt.OfferId);
             _offerDeliveryNames.Remove(evt.OfferId);
             _offerBaseRewards.Remove(evt.OfferId);
+            _orderCarryingByOffer.Remove(evt.OfferId);
             _phoneDirty = true;
         }
         private void OnOfferAccepted(OfferAccepted evt)
@@ -422,6 +434,7 @@ namespace DeliveryRun.Managers.Subs
                 pickupName = _currentPickupName;
             }
             UpsertActiveOrder(evt.OfferId, string.IsNullOrEmpty(pickupName) ? "GO PICKUP" : "GO PICKUP: " + pickupName);
+            _orderCarryingByOffer[evt.OfferId] = false;
             _phoneDirty = true;
         }
 
@@ -433,6 +446,7 @@ namespace DeliveryRun.Managers.Subs
                 deliveryName = _currentDeliveryName;
             }
             _foodOfferId = evt.OfferId;
+            _orderCarryingByOffer[evt.OfferId] = true;
             UpsertActiveOrder(evt.OfferId, string.IsNullOrEmpty(deliveryName) ? "DELIVER TO" : "DELIVER TO: " + deliveryName);
             _phoneDirty = true;
         }
@@ -455,6 +469,7 @@ namespace DeliveryRun.Managers.Subs
             _offerPickupNames.Remove(evt.OfferId);
             _offerDeliveryNames.Remove(evt.OfferId);
             _offerBaseRewards.Remove(evt.OfferId);
+            _orderCarryingByOffer.Remove(evt.OfferId);
             if (string.Equals(_foodOfferId, evt.OfferId, StringComparison.Ordinal))
             {
                 _foodOfferId = null;
@@ -722,6 +737,7 @@ namespace DeliveryRun.Managers.Subs
             _newOfferPanelImage = null;
             _newOfferHeaderText = null;
             _phonePreviewText = null;
+            _newOfferExpiryOverlay = null;
             _statusGaugeRect = null;
             _statusGaugeNeedleImage = null;
             _statusGaugeSpeedText = null;
@@ -1112,6 +1128,93 @@ namespace DeliveryRun.Managers.Subs
             _activeOrderCount--;
             _activeOrderIds[_activeOrderCount] = null;
             _activeOrderTexts[_activeOrderCount] = null;
+            _orderCarryingByOffer.Remove(offerId);
+        }
+
+        private bool IsOfferCarrying(string offerId)
+        {
+            if (string.IsNullOrEmpty(offerId))
+            {
+                return false;
+            }
+
+            bool isCarrying;
+            if (_orderCarryingByOffer.TryGetValue(offerId, out isCarrying))
+            {
+                return isCarrying;
+            }
+
+            return false;
+        }
+
+        private bool ShouldShowFoodDetailsForAllCarryingSlots()
+        {
+            if (!_hasFoodState || _activeOrderCount != 3)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < _activeOrderCount; i++)
+            {
+                if (!IsOfferCarrying(_activeOrderIds[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private int GetDetailedOrderCardCountForLayout()
+        {
+            if (!_hasFoodState || _activeOrderCount <= 0)
+            {
+                return 0;
+            }
+
+            if (ShouldShowFoodDetailsForAllCarryingSlots())
+            {
+                int carryingCount = 0;
+                for (int i = 0; i < _activeOrderCount; i++)
+                {
+                    if (IsOfferCarrying(_activeOrderIds[i]))
+                    {
+                        carryingCount++;
+                    }
+                }
+
+                return carryingCount;
+            }
+
+            return 1;
+        }
+
+        private void UpdateNewOfferProgressOverlay()
+        {
+            if (_newOfferExpiryOverlay == null)
+            {
+                return;
+            }
+
+            bool show = _previewVisible && _offerAcceptWindow && _currentOfferDuration > 0.001f;
+            if (!show)
+            {
+                if (_newOfferExpiryOverlay.gameObject.activeSelf)
+                {
+                    _newOfferExpiryOverlay.gameObject.SetActive(false);
+                }
+
+                _newOfferExpiryOverlay.fillAmount = 0f;
+                return;
+            }
+
+            float normalized = Mathf.Clamp01(_currentOfferRemaining / _currentOfferDuration);
+            if (!_newOfferExpiryOverlay.gameObject.activeSelf)
+            {
+                _newOfferExpiryOverlay.gameObject.SetActive(true);
+            }
+
+            _newOfferExpiryOverlay.fillAmount = normalized;
         }
 
         private void BuildPhoneUi()
@@ -1230,6 +1333,19 @@ namespace DeliveryRun.Managers.Subs
             AnchorStretch(_phonePreviewText.rectTransform, 14f, 14f, 12f, 44f);
             _phonePreviewText.lineSpacing = 1.08f;
 
+            GameObject overlayObject = new GameObject("OfferExpiryOverlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            RectTransform overlayRect = overlayObject.GetComponent<RectTransform>();
+            overlayRect.SetParent(offerScreenRect, false);
+            AnchorStretch(overlayRect, 0f, 0f, 0f, 0f);
+            _newOfferExpiryOverlay = overlayObject.GetComponent<Image>();
+            _newOfferExpiryOverlay.color = new Color(0f, 0f, 0f, 0.96f);
+            _newOfferExpiryOverlay.type = Image.Type.Filled;
+            _newOfferExpiryOverlay.fillMethod = Image.FillMethod.Vertical;
+            _newOfferExpiryOverlay.fillOrigin = (int)Image.OriginVertical.Top;
+            _newOfferExpiryOverlay.fillAmount = 1f;
+            _newOfferExpiryOverlay.raycastTarget = false;
+            _newOfferExpiryOverlay.gameObject.SetActive(false);
+
             _phoneDirty = true;
         }
 
@@ -1240,7 +1356,8 @@ namespace DeliveryRun.Managers.Subs
                 return;
             }
 
-            float activeTarget = ActiveOrderPanelBaseHeight + (_activeOrderCount * ActiveOrderPanelRowHeight) + (_hasFoodState ? 64f : 0f);
+            float activeTarget = ActiveOrderPanelBaseHeight + (_activeOrderCount * ActiveOrderPanelRowHeight) +
+                                 (GetDetailedOrderCardCountForLayout() * 52f);
             _activePanelCurrentHeight = Mathf.MoveTowards(_activePanelCurrentHeight, activeTarget, PhoneSlideSpeed * dt);
             _phonePanelRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _activePanelCurrentHeight);
 
@@ -1262,6 +1379,8 @@ namespace DeliveryRun.Managers.Subs
             float activePosTargetY = Mathf.Max(ActiveOrderPanelBasePosY, offerTop + ActiveOrderPanelGapY);
             _activePanelCurrentPosY = Mathf.MoveTowards(_activePanelCurrentPosY, activePosTargetY, PhoneSlideSpeed * dt);
             _phonePanelRect.anchoredPosition = new Vector2(ActiveOrderPanelPosX, _activePanelCurrentPosY);
+
+            UpdateNewOfferProgressOverlay();
         }
 
         private void RebuildPhoneTextIfNeeded(bool force = false)
@@ -1329,6 +1448,7 @@ namespace DeliveryRun.Managers.Subs
             float y = 0f;
             int visibleCount = _activeOrderCount;
             bool showFallback = visibleCount <= 0;
+            bool showFoodOnAllCarrying = ShouldShowFoodDetailsForAllCarryingSlots();
             if (showFallback)
             {
                 visibleCount = 1;
@@ -1362,7 +1482,11 @@ namespace DeliveryRun.Managers.Subs
                     bool isFoodOrder = false;
                     if (_hasFoodState)
                     {
-                        if (!string.IsNullOrEmpty(_foodOfferId))
+                        if (showFoodOnAllCarrying)
+                        {
+                            isFoodOrder = IsOfferCarrying(_activeOrderIds[i]);
+                        }
+                        else if (!string.IsNullOrEmpty(_foodOfferId))
                         {
                             isFoodOrder = string.Equals(_activeOrderIds[i], _foodOfferId, StringComparison.Ordinal);
                         }
@@ -2278,6 +2402,7 @@ namespace DeliveryRun.Managers.Subs
             _currentDeliveryName = string.Empty;
             _currentOfferReward = 0;
             _currentOfferRemaining = 0f;
+            _currentOfferDuration = 0f;
             _activeOrderCount = 0;
             _sessionBalance = 0;
             _sessionBonus = 0;
@@ -2291,6 +2416,7 @@ namespace DeliveryRun.Managers.Subs
             _offerPickupNames.Clear();
             _offerDeliveryNames.Clear();
             _offerBaseRewards.Clear();
+            _orderCarryingByOffer.Clear();
             for (int i = 0; i < ChoiceSlots; i++)
             {
                 _pickedGenreByChoice[i] = null;

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: ballad_e1
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
   TrackId: ballad_e1
-  DisplayName: Ballad Epic 1
+  DisplayName: Slow Burn Promise
   Tier: 2
   Genre: {fileID: 11400000, guid: 55c893750bdf946468ed398926fb018f, type: 2}
   Description: 'Ballad vibe track. Tier: Epic. Theme: Warm Delivery'

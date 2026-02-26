@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: rock_e1
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
   TrackId: rock_e1
-  DisplayName: Rock Epic 1
+  DisplayName: Terminal Roar
   Tier: 2
   Genre: {fileID: 11400000, guid: 171c2653c10f29c46a8bd768547fa7fd, type: 2}
   Description: 'Rock vibe track. Tier: Epic. Theme: Momentum Brake'

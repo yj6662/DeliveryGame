@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: edm_r1
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
   TrackId: edm_r1
-  DisplayName: EDM Rare 1
+  DisplayName: Midnight Slipstream
   Tier: 1
   Genre: {fileID: 11400000, guid: 9751f6274e1d73d45aa5ee21a59b17fe, type: 2}
   Description: 'EDM vibe track. Tier: Rare. Theme: Nitro Pulse'

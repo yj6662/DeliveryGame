@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: disco_e1
   m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicTrackSO
   TrackId: disco_e1
-  DisplayName: Funk / Disco Epic 1
+  DisplayName: Last Drop Fever
   Tier: 2
   Genre: {fileID: 11400000, guid: 4b51c54c44a327848aefca6468f7a9f5, type: 2}
   Description: 'Funk / Disco vibe track. Tier: Epic. Theme: Multi Drop Groove'
