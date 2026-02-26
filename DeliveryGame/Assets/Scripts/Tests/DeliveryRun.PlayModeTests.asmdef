@@ -3,17 +3,18 @@
   "rootNamespace": "DeliveryRun.PlayModeTests",
   "references": [
     "DeliveryRun.Managers",
-    "DeliveryRun.UI",
-    "UnityEngine.TestRunner"
+    "DeliveryRun.UI"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,
   "precompiledReferences": [],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
   "autoReferenced": true,
   "defineConstraints": [],
   "versionDefines": [],
-  "noEngineReferences": false,
-  "testAssemblies": true
+  "noEngineReferences": false
 }

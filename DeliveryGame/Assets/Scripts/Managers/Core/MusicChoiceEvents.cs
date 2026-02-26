@@ -4,6 +4,8 @@ namespace DeliveryRun.Managers.Core
     {
         public int ChoiceIndex;
         public int OptionIndex;
+        public string TrackId;
+        public string GenreId;
     }
 
     public struct MusicChoiceRequested

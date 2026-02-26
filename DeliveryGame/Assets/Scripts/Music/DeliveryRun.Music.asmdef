@@ -1,9 +1,7 @@
 {
   "name": "DeliveryRun.Music",
   "rootNamespace": "DeliveryRun.Music",
-  "references": [
-    "DeliveryRun.Managers"
-  ],
+  "references": [],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

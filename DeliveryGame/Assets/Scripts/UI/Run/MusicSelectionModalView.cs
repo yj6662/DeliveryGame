@@ -1,6 +1,5 @@
 using System;
 using UnityEngine;
-using UnityEngine.Events;
 using UnityEngine.UI;
 
 namespace DeliveryRun.UI.Run
@@ -16,18 +15,20 @@ namespace DeliveryRun.UI.Run
         [SerializeField] private Button closeButton;
 
         private Action<int> _onSelect;
-        private UnityAction[] _cachedOptionHandlers;
-        private UnityAction _cachedCloseHandler;
 
         private void Awake()
         {
-            BindButtons();
+            EnsureCanvasRaycaster();
+            EnsureSiblingOrder();
             Hide();
         }
 
         public void Show(Action<int> onSelect)
         {
             _onSelect = onSelect;
+            EnsureCanvasRaycaster();
+            EnsureSiblingOrder();
+            BindButtonsForShow();
 
             if (canvasGroup != null)
             {
@@ -70,59 +71,63 @@ namespace DeliveryRun.UI.Run
             }
         }
 
-        private void BindButtons()
+        private void BindButtonsForShow()
         {
             int buttonCount = optionButtons != null ? optionButtons.Length : 0;
-            if (buttonCount > 0)
+            for (int i = 0; i < buttonCount; i++)
             {
-                if (_cachedOptionHandlers == null || _cachedOptionHandlers.Length != buttonCount)
+                int idx = i;
+                Button button = optionButtons[idx];
+                if (button == null)
                 {
-                    _cachedOptionHandlers = new UnityAction[buttonCount];
+                    continue;
                 }
 
-                for (int i = 0; i < buttonCount; i++)
+                button.interactable = true;
+                button.onClick.RemoveAllListeners();
+                button.onClick.AddListener(() =>
                 {
-                    Button button = optionButtons[i];
-                    if (button == null)
-                    {
-                        continue;
-                    }
-
-                    if (_cachedOptionHandlers[i] != null)
-                    {
-                        button.onClick.RemoveListener(_cachedOptionHandlers[i]);
-                    }
-
-                    int index = i;
-                    UnityAction handler = () => HandleOptionSelected(index);
-                    _cachedOptionHandlers[i] = handler;
-                    button.onClick.AddListener(handler);
-                }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                    Debug.Log("[MusicSelectionModalView] Select " + idx);
+#endif
+                    _onSelect?.Invoke(idx);
+                });
             }
 
-            if (closeButton == null)
+            if (closeButton != null)
+            {
+                closeButton.interactable = true;
+                closeButton.onClick.RemoveAllListeners();
+                closeButton.onClick.AddListener(Hide);
+            }
+        }
+
+        private void EnsureSiblingOrder()
+        {
+            Transform dim = transform.Find("DimBackground");
+            if (dim != null)
+            {
+                dim.SetAsFirstSibling();
+            }
+
+            Transform cardRow = transform.Find("CardRow");
+            if (cardRow != null)
+            {
+                cardRow.SetAsLastSibling();
+            }
+        }
+
+        private void EnsureCanvasRaycaster()
+        {
+            Canvas canvas = GetComponent<Canvas>();
+            if (canvas == null)
             {
                 return;
             }
 
-            if (_cachedCloseHandler == null)
+            if (GetComponent<GraphicRaycaster>() == null)
             {
-                _cachedCloseHandler = Hide;
-            }
-            else
-            {
-                closeButton.onClick.RemoveListener(_cachedCloseHandler);
-            }
-
-            closeButton.onClick.AddListener(_cachedCloseHandler);
-        }
-
-        private void HandleOptionSelected(int index)
-        {
-            Action<int> callback = _onSelect;
-            if (callback != null)
-            {
-                callback(index);
+                gameObject.AddComponent<GraphicRaycaster>();
             }
         }
     }

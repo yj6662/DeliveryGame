@@ -125,6 +125,13 @@ namespace DeliveryRun.Managers.Core
                 GUILayout.Label("Run Remaining: " + Mathf.CeilToInt(runSessionManager.RemainingSeconds) + "s");
             }
 
+            ModifierStackService modifierStack;
+            if (root.Services.TryGet(out modifierStack) && modifierStack != null)
+            {
+                float speedMul = modifierStack.GetMul(RunStatId.PlayerMoveSpeedMultiplier);
+                GUILayout.Label("SpeedMul: x" + speedMul.ToString("0.00"));
+            }
+
             RatingManager ratingManager;
             if (root.Services.TryGet(out ratingManager) && ratingManager != null)
             {

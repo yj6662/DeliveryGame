@@ -12,5 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2e0fef1b2acd2214ab341bd902c3e12f, type: 3}
   m_Name: UiPrefabCatalog
   m_EditorClassIdentifier: DeliveryRun.UI::DeliveryRun.UI.UiPrefabCatalogSO
-  RunHudPrefab: {fileID: 8102091385125786533, guid: 5999bb9f4d4755d418b97ac15bcb25d9, type: 3}
-  MusicSelectionModalPrefab: {fileID: 6482342630789826815, guid: 8874021de51528a468113b14bb9285b2, type: 3}
+  RunHudPrefab: {fileID: 0}
+  MusicSelectionModalPrefab: {fileID: 0}
+  RunResultModalPrefab: {fileID: 0}
+  RunHudKey: ui/run/hud
+  MusicSelectionModalKey: ui/run/music_selection_modal
+  RunResultModalKey: ui/run/run_result_modal
+  UiRunLabel: ui:run
+  TestBgmKey: audio/bgm/test_bgm
+  UiClickKey: audio/ui/click

@@ -12,6 +12,7 @@ namespace DeliveryRun.Editor
         private const string PrefabFolder = "Assets/Prefabs/UI/Run";
         private const string RunHudPrefabPath = PrefabFolder + "/RunHUD.prefab";
         private const string MusicModalPrefabPath = PrefabFolder + "/MusicSelectionModal.prefab";
+        private const string RunResultModalPrefabPath = PrefabFolder + "/RunResultModal.prefab";
         private const string CatalogPath = "Assets/Resources/Bootstrap/UiPrefabCatalog.asset";
         private const string ExternalsFolder = "Assets/Externals";
 
@@ -58,7 +59,10 @@ namespace DeliveryRun.Editor
                 musicSprite);
             GameObject modalPrefab = SavePrefab(modalRoot, MusicModalPrefabPath);
 
-            CreateOrUpdateCatalog(runHudPrefab, modalPrefab);
+            GameObject runResultRoot = BuildRunResultModalRoot(background, uiSprite, font);
+            GameObject runResultPrefab = SavePrefab(runResultRoot, RunResultModalPrefabPath);
+
+            CreateOrUpdateCatalog();
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
@@ -66,6 +70,7 @@ namespace DeliveryRun.Editor
             Debug.Log("[DeliveryRunUiPrefabGenerator] Generated:\n - " +
                       RunHudPrefabPath + "\n - " +
                       MusicModalPrefabPath + "\n - " +
+                      RunResultModalPrefabPath + "\n - " +
                       CatalogPath);
         }
 
@@ -224,6 +229,8 @@ namespace DeliveryRun.Editor
                 new Color(0f, 0f, 0f, 0.35f),
                 false);
             StretchFull(dimBackground.rectTransform);
+            dimBackground.raycastTarget = true;
+            dimBackground.transform.SetAsFirstSibling();
 
             Text titleText = CreateText(
                 "TitleText",
@@ -240,6 +247,7 @@ namespace DeliveryRun.Editor
                 new Vector2(0.5f, 1f),
                 new Vector2(0f, -80f),
                 new Vector2(700f, 100f));
+            titleText.raycastTarget = false;
 
             GameObject cardRow = CreateUiObject("CardRow", root.transform, typeof(HorizontalLayoutGroup));
             RectTransform rowRect = cardRow.GetComponent<RectTransform>();
@@ -279,6 +287,8 @@ namespace DeliveryRun.Editor
                     out optionSynergyTexts[i]);
             }
 
+            cardRow.transform.SetAsLastSibling();
+
             MusicSelectionModalView view = root.AddComponent<MusicSelectionModalView>();
             SerializedObject so = new SerializedObject(view);
             so.FindProperty("canvasGroup").objectReferenceValue = canvasGroup;
@@ -313,6 +323,114 @@ namespace DeliveryRun.Editor
             }
 
             so.FindProperty("closeButton").objectReferenceValue = null;
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            return root;
+        }
+
+        private static GameObject BuildRunResultModalRoot(Sprite background, Sprite uiSprite, Font font)
+        {
+            GameObject root = CreateUiObject(
+                "RunResultModal",
+                null,
+                typeof(Canvas),
+                typeof(CanvasScaler),
+                typeof(GraphicRaycaster),
+                typeof(CanvasGroup));
+
+            RectTransform rootRect = root.GetComponent<RectTransform>();
+            StretchFull(rootRect);
+
+            Canvas canvas = root.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 120;
+            ForceOverrideSorting(canvas, true);
+
+            CanvasScaler scaler = root.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 0.5f;
+
+            CanvasGroup canvasGroup = root.GetComponent<CanvasGroup>();
+            canvasGroup.alpha = 0f;
+            canvasGroup.interactable = false;
+            canvasGroup.blocksRaycasts = false;
+
+            Image dim = CreateImage(
+                "DimBackground",
+                root.transform,
+                null,
+                new Color(0f, 0f, 0f, 0.42f),
+                false);
+            StretchFull(dim.rectTransform);
+
+            Image panel = CreateImage(
+                "ResultPanel",
+                root.transform,
+                background,
+                new Color(0.08f, 0.11f, 0.14f, 0.97f),
+                true);
+            SetRect(
+                panel.rectTransform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 0f),
+                new Vector2(560f, 360f));
+
+            Text titleText = CreateText(
+                "TitleText",
+                panel.transform,
+                font,
+                "RUN RESULT",
+                42,
+                TextAnchor.MiddleCenter,
+                Color.white);
+            SetRect(
+                titleText.rectTransform,
+                new Vector2(0f, 1f),
+                new Vector2(1f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(0f, -42f),
+                new Vector2(-32f, 64f));
+
+            Text summaryText = CreateText(
+                "SummaryText",
+                panel.transform,
+                font,
+                "Cash: $0\nOrders: 0\nMusic Option: -1",
+                28,
+                TextAnchor.UpperLeft,
+                new Color(0.94f, 0.94f, 0.94f, 1f));
+            SetRect(
+                summaryText.rectTransform,
+                new Vector2(0f, 0f),
+                new Vector2(1f, 1f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -10f),
+                new Vector2(-52f, -146f));
+
+            Button okButton = CreateActionButton(
+                "OkButton",
+                panel.transform,
+                uiSprite,
+                null,
+                font,
+                "OK");
+            SetRect(
+                okButton.GetComponent<RectTransform>(),
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(0f, 30f),
+                new Vector2(180f, 48f));
+
+            RunResultModalView view = root.AddComponent<RunResultModalView>();
+            SerializedObject so = new SerializedObject(view);
+            so.FindProperty("canvasGroup").objectReferenceValue = canvasGroup;
+            so.FindProperty("summaryText").objectReferenceValue = summaryText;
+            so.FindProperty("okButton").objectReferenceValue = okButton;
             so.ApplyModifiedPropertiesWithoutUndo();
 
             return root;
@@ -654,6 +772,7 @@ namespace DeliveryRun.Editor
                 background,
                 new Color(0.96f, 0.96f, 0.98f, 0.96f),
                 true);
+            card.raycastTarget = false;
             RectTransform cardRect = card.rectTransform;
             cardRect.sizeDelta = new Vector2(420f, 520f);
 
@@ -668,6 +787,7 @@ namespace DeliveryRun.Editor
                 uiSprite,
                 new Color(0.08f, 0.12f, 0.2f, 0.95f),
                 true);
+            header.raycastTarget = false;
             SetRect(
                 header.rectTransform,
                 new Vector2(0f, 1f),
@@ -714,6 +834,7 @@ namespace DeliveryRun.Editor
                 iconSprite,
                 Color.white,
                 false);
+            icon.raycastTarget = false;
             SetRect(
                 icon.rectTransform,
                 new Vector2(1f, 1f),
@@ -728,6 +849,7 @@ namespace DeliveryRun.Editor
                 uiSprite,
                 new Color(0.89f, 0.93f, 1f, 0.35f),
                 true);
+            activatablePanel.raycastTarget = false;
             SetRect(
                 activatablePanel.rectTransform,
                 new Vector2(0f, 0.5f),
@@ -912,7 +1034,7 @@ namespace DeliveryRun.Editor
             return button;
         }
 
-        private static void CreateOrUpdateCatalog(GameObject runHudPrefab, GameObject modalPrefab)
+        private static void CreateOrUpdateCatalog()
         {
             UiPrefabCatalogSO catalog = AssetDatabase.LoadAssetAtPath<UiPrefabCatalogSO>(CatalogPath);
             if (catalog == null)
@@ -921,8 +1043,15 @@ namespace DeliveryRun.Editor
                 AssetDatabase.CreateAsset(catalog, CatalogPath);
             }
 
-            catalog.RunHudPrefab = runHudPrefab;
-            catalog.MusicSelectionModalPrefab = modalPrefab;
+            catalog.RunHudPrefab = null;
+            catalog.MusicSelectionModalPrefab = null;
+            catalog.RunResultModalPrefab = null;
+            catalog.RunHudKey = "ui/run/hud";
+            catalog.MusicSelectionModalKey = "ui/run/music_selection_modal";
+            catalog.RunResultModalKey = "ui/run/run_result_modal";
+            catalog.UiRunLabel = "ui:run";
+            catalog.TestBgmKey = "audio/bgm/test_bgm";
+            catalog.UiClickKey = "audio/ui/click";
             EditorUtility.SetDirty(catalog);
         }
 

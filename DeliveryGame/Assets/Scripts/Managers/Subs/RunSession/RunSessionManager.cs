@@ -52,6 +52,7 @@ namespace DeliveryRun.Managers.Subs
         protected override void OnInitialize()
         {
             Subs.Add<SceneTransitionCompleted>(Events, OnSceneTransitionCompleted);
+            Subs.Add<RatingZeroReached>(Events, OnRatingZeroReached);
             Subs.Add<RatingDepleted>(Events, OnRatingDepleted);
 
             if (SceneManager.GetActiveScene().name == SceneNames.RunScene)
@@ -213,7 +214,7 @@ namespace DeliveryRun.Managers.Subs
             CleanupIfNeeded();
         }
 
-        private void OnRatingDepleted(RatingDepleted evt)
+        private void OnRatingZeroReached(RatingZeroReached evt)
         {
             if (_session == null || _session.State == DomainRunSessionState.Ended)
             {
@@ -225,6 +226,11 @@ namespace DeliveryRun.Managers.Subs
             {
                 PublishStateChanged(fromState, _session.State);
             }
+        }
+
+        private void OnRatingDepleted(RatingDepleted evt)
+        {
+            OnRatingZeroReached(new RatingZeroReached { Rating = 0f });
         }
 
         private void BeginNewRun()

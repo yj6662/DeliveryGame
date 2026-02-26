@@ -1,7 +1,9 @@
 {
   "name": "DeliveryRun.Delivery",
   "rootNamespace": "DeliveryRun.Delivery",
-  "references": [],
+  "references": [
+    "Unity.InputSystem"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

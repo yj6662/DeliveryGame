@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e89905c7c4c6b4f499ccec5e4c3a381d, type: 3}
+  m_Name: rock_trio
+  m_EditorClassIdentifier: DeliveryRun.Music::DeliveryRun.Music.MusicSynergySO
+  SynergyId: rock_trio
+  DisplayName: Rock Trio
+  Genre: {fileID: 11400000, guid: 171c2653c10f29c46a8bd768547fa7fd, type: 2}
+  RequiredCount: 3
+  Description: Three picks of Rock unlocked.
+  Modifiers:
+  - StatKey: bike_brake_mul
+    Mode: 0
+    Value: 1.15

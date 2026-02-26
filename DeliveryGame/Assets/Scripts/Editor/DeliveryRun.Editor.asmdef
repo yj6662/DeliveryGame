@@ -2,7 +2,13 @@
   "name": "DeliveryRun.Editor",
   "rootNamespace": "DeliveryRun.Editor",
   "references": [
-    "DeliveryRun.UI"
+    "DeliveryRun.Managers",
+    "DeliveryRun.Delivery",
+    "DeliveryRun.Music",
+    "DeliveryRun.UI",
+    "Unity.Addressables",
+    "Unity.ResourceManager",
+    "Unity.Addressables.Editor"
   ],
   "includePlatforms": [
     "Editor"
@@ -13,6 +19,12 @@
   "precompiledReferences": [],
   "autoReferenced": true,
   "defineConstraints": [],
-  "versionDefines": [],
+  "versionDefines": [
+    {
+      "name": "com.unity.addressables",
+      "expression": "1.0.0",
+      "define": "DELIVERYRUN_ADDRESSABLES"
+    }
+  ],
   "noEngineReferences": false
 }

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
 
 namespace DeliveryRun.UI.Run
@@ -81,6 +82,20 @@ namespace DeliveryRun.UI.Run
             if (timeText != null)
             {
                 timeText.text = text ?? string.Empty;
+            }
+        }
+
+        public void SetFocusButtonAction(UnityAction onClick)
+        {
+            if (focusButton == null)
+            {
+                return;
+            }
+
+            focusButton.onClick.RemoveAllListeners();
+            if (onClick != null)
+            {
+                focusButton.onClick.AddListener(onClick);
             }
         }
     }

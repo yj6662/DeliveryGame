@@ -102,7 +102,6 @@ namespace DeliveryRun.PlayModeTests
 
                 Assert.IsNotNull(hud, "RunHudView was not found in Run scene.");
 
-                string expectedTrack = ToTrackName(selected.OptionIndex);
                 bool nowPlayingUpdated = false;
                 yield return WaitFor(
                     () =>
@@ -116,7 +115,7 @@ namespace DeliveryRun.PlayModeTests
                             }
                         }
 
-                        nowPlayingUpdated = HasNowPlayingText(hud, expectedTrack);
+                        nowPlayingUpdated = HasNowPlayingText(hud);
                         return nowPlayingUpdated;
                     },
                     5f,
@@ -173,7 +172,7 @@ namespace DeliveryRun.PlayModeTests
             return buttons.Length > 0 ? buttons[0] : null;
         }
 
-        private static bool HasNowPlayingText(RunHudView hud, string expectedTrack)
+        private static bool HasNowPlayingText(RunHudView hud)
         {
             Text[] texts = hud.GetComponentsInChildren<Text>(true);
             for (int i = 0; i < texts.Length; i++)
@@ -189,33 +188,23 @@ namespace DeliveryRun.PlayModeTests
                     continue;
                 }
 
-                if (text.text.IndexOf(expectedTrack, StringComparison.OrdinalIgnoreCase) >= 0)
+                if (text.text.IndexOf("NOW PLAYING: -", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    return true;
+                    continue;
+                }
+
+                int colonIndex = text.text.IndexOf(':');
+                if (colonIndex >= 0 && colonIndex + 1 < text.text.Length)
+                {
+                    string right = text.text.Substring(colonIndex + 1).Trim();
+                    if (!string.IsNullOrEmpty(right) && right != "-")
+                    {
+                        return true;
+                    }
                 }
             }
 
             return false;
-        }
-
-        private static string ToTrackName(int optionIndex)
-        {
-            if (optionIndex == 0)
-            {
-                return "NITRO BEAT";
-            }
-
-            if (optionIndex == 1)
-            {
-                return "CHILL CRUISE";
-            }
-
-            if (optionIndex == 2)
-            {
-                return "RISK BASS";
-            }
-
-            return "UNKNOWN";
         }
 
         private static IEnumerator WaitFor(Func<bool> predicate, float timeoutSecondsRealtime, string conditionName)

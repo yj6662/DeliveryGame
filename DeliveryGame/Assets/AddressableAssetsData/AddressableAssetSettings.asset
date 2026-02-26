@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 468a46d0ae32c3544b7d98094e6448a9, type: 3}
   m_Name: AddressableAssetSettings
   m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetSettings
-  m_DefaultGroup: d3763dc91569b3249ad89db377fd6b41
+  m_DefaultGroup: fbf7218cc778db04fb71c7a2ba79ac06
   m_currentHash:
     serializedVersion: 2
-    Hash: 069d903986731807c891376112cff2aa
+    Hash: 972a1c01575c1cbdd640c282b10fb435
   m_OptimizeCatalogSize: 0
   m_BuildRemoteCatalog: 0
   m_CatalogRequestsTimeout: 0
@@ -24,11 +24,11 @@ MonoBehaviour:
   m_InternalBundleIdMode: 1
   m_AssetLoadMode: 0
   m_BundledAssetProviderType:
-    m_AssemblyName: 
-    m_ClassName: 
+    m_AssemblyName: Unity.ResourceManager, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null
+    m_ClassName: UnityEngine.ResourceManagement.ResourceProviders.BundledAssetProvider
   m_AssetBundleProviderType:
-    m_AssemblyName: 
-    m_ClassName: 
+    m_AssemblyName: Unity.ResourceManager, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null
+    m_ClassName: UnityEngine.ResourceManagement.ResourceProviders.AssetBundleProvider
   m_IgnoreUnsupportedFilesInBuild: 0
   m_UniqueBundleIds: 0
   m_EnableJsonCatalog: 0
@@ -60,8 +60,13 @@ MonoBehaviour:
   m_BuildAddressablesWithPlayerBuild: 0
   m_overridePlayerVersion: '[UnityEditor.PlayerSettings.bundleVersion]'
   m_GroupAssets:
-  - {fileID: 11400000, guid: 6ec7186db2dfa674b91870ed125cb7af, type: 2}
-  - {fileID: 11400000, guid: 79bfda52d067220419192403ae92d9b6, type: 2}
+  - {fileID: 11400000, guid: f4b641487ec1e694eb41b4e1e0e61d97, type: 2}
+  - {fileID: 11400000, guid: e2ac5d734a61ab948b4d338517199cb6, type: 2}
+  - {fileID: 11400000, guid: 6fd00f2ba4e835749a82c83919f36362, type: 2}
+  - {fileID: 11400000, guid: 374e2f6daed5cd54dbf4da6a35dc6450, type: 2}
+  - {fileID: 11400000, guid: 95d23300fa08bb545bd69e9d9ac6f744, type: 2}
+  - {fileID: 11400000, guid: 55f7a69511f487f47919e9c63c727fc4, type: 2}
+  - {fileID: 11400000, guid: 47da00d8895e42a4d947fbd8abc99c3a, type: 2}
   m_BuildSettings:
     m_LogResourceManagerExceptions: 1
     m_BundleBuildPath: Temp/com.unity.addressables/AssetBundles
@@ -101,6 +106,11 @@ MonoBehaviour:
   m_LabelTable:
     m_LabelNames:
     - default
+    - ui
+    - ui:run
+    - audio
+    - audio:bgm
+    - audio:ui
   m_SchemaTemplates: []
   m_GroupTemplateObjects:
   - {fileID: 11400000, guid: 7205b5dc7bb154e4f81f3c6920eb422c, type: 2}

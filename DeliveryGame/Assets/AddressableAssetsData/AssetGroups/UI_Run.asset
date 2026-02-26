@@ -1,0 +1,44 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: UI_Run
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: UI_Run
+  m_GUID: 0c493047c37ee334cb8f0306406bc365
+  m_SerializeEntries:
+  - m_GUID: 5999bb9f4d4755d418b97ac15bcb25d9
+    m_Address: ui/run/hud
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - ui
+    - ui:run
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 66495aa0a9f49e5428cd45fb3feeb44a
+    m_Address: ui/run/run_result_modal
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - ui
+    - ui:run
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8874021de51528a468113b14bb9285b2
+    m_Address: ui/run/music_selection_modal
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - ui
+    - ui:run
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: 61dc1cd8a8b3b954bac49e183a59b1b9, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: fbb8e9029b57d05488c181e6757d4d5b, type: 2}
+    - {fileID: 11400000, guid: 86a6338a31deb5a4282979e2b81dbcb2, type: 2}
