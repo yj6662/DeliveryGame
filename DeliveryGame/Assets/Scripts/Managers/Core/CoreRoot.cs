@@ -198,15 +198,22 @@ namespace DeliveryRun.Managers.Core
             AddSubManager(new SceneFlowController());
             AddSubManager(new AudioManager());
             AddSubManager(new SoundManager());
+            AddSubManager(new MusicDraftManager());
             AddSubManager(new UiMusicChoiceManager());
             AddSubManager(new UiRunHudManager());
             AddSubManager(new AddressablesService());
             AddSubManager(new RunSessionManager());
+            AddSubManager(new RunModifierManager());
+            AddSubManager(new PlayerBikeModifierLink());
+            AddSubManager(new RoadQueryManager());
+            AddSubManager(new OrderFlowManager());
+            AddSubManager(new FoodStateManager());
             AddSubManager(new UIManager());
             AddSubManager(new MusicChoiceManager());
             AddSubManager(new DeliveryManager());
             AddSubManager(new RatingManager());
             AddSubManager(new EconomyManager());
+            AddSubManager(new UiRunResultManager());
             AddSubManager(new TelemetryManager());
 
             _subManagers.Sort(SubManagerSort.Compare);
