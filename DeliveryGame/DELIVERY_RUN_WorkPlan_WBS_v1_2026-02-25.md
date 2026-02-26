@@ -1,488 +1,526 @@
-﻿# DELIVERY RUN ?묒뾽 怨꾪쉷??(WBS + ?④퀎蹂?濡쒕뱶留?
-- 湲곗? 臾몄꽌: **DELIVERY RUN GDD MASTER v1.0 (2026-02-25)**  
-- 紐⑹쟻: ?좉퇋 ?꾨줈?앺듃瑜??쒖쟾泥??꾨줈?앺듃 ????紐⑺몴 湲곕뒫(?먰뵿) ???몃? 湲곕뒫(?쇱쿂) ???묒뾽(Task)???⑥쐞濡?理쒕????몃텇?뷀븯?? 媛쒕컻/湲고쉷/?꾪듃/?ㅻ뵒??QA媛 媛숈? 泥댄겕由ъ뒪?몃줈 吏꾪뻾?????덇쾶 ?쒕떎.
-- 踰붿쐞: GDD???뺤쓽??Phase A~D, ?쒖뒪???ъ뼇, ?꾪궎?띿쿂/?곗씠??Addressables ?쒖?, ?섏슜 湲곗?(acceptance) 諛섏쁺
+# DELIVERY RUN 작업 계획서 (WBS + 단계별 로드맵)
+- 기준 문서: **DELIVERY RUN GDD MASTER v1.0 (2026-02-25)**  
+- 목적: 신규 프로젝트를 “전체 프로젝트 → 큰 목표 기능(에픽) → 세부 기능(피처) → 작업(Task)” 단위로 최대한 세분화하여, 개발/기획/아트/오디오/QA가 같은 체크리스트로 진행할 수 있게 한다.
+- 범위: GDD에 정의된 Phase A~D, 시스템 사양, 아키텍처/데이터/Addressables 표준, 수용 기준(acceptance) 반영
 Unity Version: 6000.3.9f1
 
 ---
 
-## 0. ?⑹뼱/洹쒖튃(怨좎젙)
-- **??1???뚮젅???몄뀡)**: 7遺?420珥?, ?뚯븙 ?좏깮 0:00/3:00/6:00, Last Order 6:00~7:00
-- **?쒓컙 湲곗?**: ????대㉧/二쇰Ц ??대㉧/?대깽????대㉧??`GameClock`(unscaled)濡??쇨?
-- **?뚯븙 ?좏깮 以??뺤? ?뺤콉**: 寃뚯엫?뚮젅?대쭔 ?뺤?, UI/?ㅻ뵒?ㅻ뒗 ?좎?
-- **二쇰Ц ?뺤콉**: ?섎씫 ?쒗븳 5珥? ?쒖꽦 二쇰Ц ?щ’ 理쒕? 3, ???ㅻ쾭?덉씠??二쇳뻾 以??대━硫?寃뚯엫? 硫덉텛吏 ?딆쓬(由ъ뒪??利앷?)
-- **?됲뙋 ?뺤콉**: 5.0~0.0, 0.0 利됱떆 ??醫낅즺 + 洹??쒖젏源뚯? ?뺤궛
-- **?듭떊 ?먯튃**: ?쒖뒪??媛?吏곸젒 李몄“ 理쒖냼?? ?대깽??踰꾩뒪(pub/sub) 以묒떖
-- **?고???濡쒕뵫 ?먯튃**: UI/Audio??Addressables 湲곕낯, `Resources`??遺?몄뒪?몃옪 ?섏?留??쒗븳 ?ъ슜
-- **Addressables 洹몃９ ?쒖?**: UI_Common/UI_Lobby/UI_Run/Audio_BGM/Audio_SFX/Audio_UI/Shared_Fallback 怨좎젙(?꾩쓽 ?좉퇋 洹몃９ 湲덉?)
-- **World layout rule (roads + blocks)**: Road는 주행 가능, Block은 비주행 건물 구역이며 건물은 Block 위에만 배치한다. 플레이어는 도로만 주행한다.
-- **Pickup/Delivery interaction rule**: 주문 수락 시 건물 기준 nearest-road 지점에 InteractPoint를 스폰하고 F 입력으로 픽업/배송을 수행한다.
+## 0. 용어/규칙(고정)
+- **런(1회 플레이 세션)**: 7분(420초), 음악 선택 0:00/3:00/6:00, Last Order 6:00~7:00
+- **시간 기준**: 런 타이머/주문 타이머/이벤트 타이머는 `GameClock`(unscaled)로 일관
+- **음악 선택 중 정지 정책**: 게임플레이만 정지, UI/오디오는 유지
+- **주문 정책**: 수락 제한 5초, 활성 주문 슬롯 최대 3, 앱 오버레이는 주행 중 열리며 게임은 멈추지 않음(리스크 증가)
+- **평판 정책**: 5.0~0.0, 0.0 즉시 런 종료 + 그 시점까지 정산
+- **통신 원칙**: 시스템 간 직접 참조 최소화, 이벤트 버스(pub/sub) 중심
+- **런타임 로딩 원칙**: UI/Audio는 Addressables 기본, `Resources`는 부트스트랩 수준만 제한 사용
+- **Addressables 그룹 표준**: UI_Common/UI_Lobby/UI_Run/Audio_BGM/Audio_SFX/Audio_UI/Shared_Fallback 고정(임의 신규 그룹 금지)
+
+- **World layout rule (roads + blocks; buildings on blocks only; player road-only)**: roads are drivable, blocks are non-drivable building islands.
+- **Pickup/Delivery interaction rule (nearest-road + F)**: spawn InteractPoint on nearest road to building, then complete by `F`.
+---
+
+## 1. 프로젝트 전체 목표(Top-level Goals)
+### 1.1 제품/경험 목표
+1) 7분 완결의 **짧고 강한 세션**  
+2) 런 중 3회 **음악 선택 = 즉시 룰 변화(모디파이어)**  
+3) **배달 리스크(온도/흔들림/평판)** 와 보상을 최적화하는 판단  
+4) 런 결과가 메타(월드 확장/업그레이드)로 연결  
+
+### 1.2 “완료” 정의(최종)
+- Phase D 수용 기준 + 안정성/성능 규칙 충족
+- 코어 루프/메타 루프가 최소 콘텐츠로 “반복 플레이 가능한 형태”로 작동
+- 데이터 주도로 밸런스/콘텐츠 확장이 가능한 구조 완성
 
 ---
 
-## 1. ?꾨줈?앺듃 ?꾩껜 紐⑺몴(Top-level Goals)
-### 1.1 ?쒗뭹/寃쏀뿕 紐⑺몴
-1) 7遺??꾧껐??**吏㏐퀬 媛뺥븳 ?몄뀡**  
-2) ??以?3??**?뚯븙 ?좏깮 = 利됱떆 猷?蹂??紐⑤뵒?뚯씠??**  
-3) **諛곕떖 由ъ뒪???⑤룄/?붾뱾由??됲뙋)** ? 蹂댁긽??理쒖쟻?뷀븯???먮떒  
-4) ??寃곌낵媛 硫뷀?(?붾뱶 ?뺤옣/?낃렇?덉씠??濡??곌껐  
+## 2. 개발 단계(마일스톤) 로드맵
+> 각 Phase는 “데모 가능한 빌드”를 목표로 한다.
 
-### 1.2 ?쒖셿猷뚢??뺤쓽(理쒖쥌)
-- Phase D ?섏슜 湲곗? + ?덉젙???깅뒫 洹쒖튃 異⑹”
-- 肄붿뼱 猷⑦봽/硫뷀? 猷⑦봽媛 理쒖냼 肄섑뀗痢좊줈 ?쒕컲蹂??뚮젅??媛?ν븳 ?뺥깭?앸줈 ?묐룞
-- ?곗씠??二쇰룄濡?諛몃윴??肄섑뀗痢??뺤옣??媛?ν븳 援ъ“ ?꾩꽦
+### Phase A: Core Vertical Slice (최소 재미/최소 완결)
+**산출물**
+- Core/Lobby/Run/Loading 씬 골격
+- 7분 런 타이머
+- 주문 1개 흐름(수락→픽업→배송→정산)
+- 음악 선택 1회(0:00) + 선택 결과를 런에 반영(최소 1개 모디파이어)
+- 결과/정산 화면 → 로비 복귀
 
----
-
-## 2. 媛쒕컻 ?④퀎(留덉씪?ㅽ넠) 濡쒕뱶留?> 媛?Phase???쒕뜲紐?媛?ν븳 鍮뚮뱶?앸? 紐⑺몴濡??쒕떎.
-
-### Phase A: Core Vertical Slice (理쒖냼 ?щ?/理쒖냼 ?꾧껐)
-**?곗텧臾?*
-- Core/Lobby/Run/Loading ??怨④꺽
-- 7遺?????대㉧
-- 二쇰Ц 1媛??먮쫫(?섎씫?믫뵿?끸넂諛곗넚?믪젙??
-- ?뚯븙 ?좏깮 1??0:00) + ?좏깮 寃곌낵瑜??곗뿉 諛섏쁺(理쒖냼 1媛?紐⑤뵒?뚯씠??
-- 寃곌낵/?뺤궛 ?붾㈃ ??濡쒕퉬 蹂듦?
-
-**?꾨즺 湲곗?(DoD)**
-- 而댄뙆???먮윭 0, 濡쒕퉬?믩윴?믩줈鍮??꾪솚 ?덉젙
-- Addressables濡?HUD/紐⑤떖 濡쒕뱶 ?깃났
-- Audio Addressables 濡쒕뱶/?ъ깮 理쒖냼 1媛??깃났
+**완료 기준(DoD)**
+- 컴파일 에러 0, 로비→런→로비 전환 안정
+- Addressables로 HUD/모달 로드 성공
+- Audio Addressables 로드/재생 최소 1개 성공
 
 ---
 
-### Phase B: Full Core Loop (GDD 肄붿뼱 猷⑦봽 ?꾩꽦)
-**?곗텧臾?*
-- ?뚯븙 ?좏깮 3??0/3/6遺? + pause/resume ?뺤긽
-- 二쇰Ц ?щ’ 3 / 5珥??섎씫 ?쒗븳 / ?ㅽ띁 留뚮즺 / ?ㅽ뙣 泥섎━
-- Temperature + Spill + 諛곗넚 ?덉쭏 ?먯닔 ?곗텧
-- ?됲뙋 ?쒖뒪??0.0 利됱떆 ??醫낅즺 + ?뺤궛)
-- ?쒖빋 ?ㅻ쾭?덉씠 二쇳뻾 以??ㅽ뵂(由ъ뒪??利앷?)??援ы쁽
+### Phase B: Full Core Loop (GDD 코어 루프 완성)
+**산출물**
+- 음악 선택 3회(0/3/6분) + pause/resume 정상
+- 주문 슬롯 3 / 5초 수락 제한 / 오퍼 만료 / 실패 처리
+- Temperature + Spill + 배송 품질 점수 산출
+- 평판 시스템(0.0 즉시 런 종료 + 정산)
+- “앱 오버레이 주행 중 오픈(리스크 증가)” 구현
 
 ---
 
-### Phase C: Meta Integration (??諛붽묑???깆옣)
-**?곗텧臾?*
-- ???ы솕(?몄뀡) vs 珥??ы솕(硫뷀?) 遺꾨━, ??醫낅즺 ?뺤궛
-- ?뱁꽣 ?닿툑, ?낃렇?덉씠???곸슜
-- ???濡쒕뱶(?닿툑/?낃렇?덉씠???ы솕/?ㅼ젙)
+### Phase C: Meta Integration (런 바깥의 성장)
+**산출물**
+- 런 재화(세션) vs 총 재화(메타) 분리, 런 종료 정산
+- 섹터 해금, 업그레이드 적용
+- 저장/로드(해금/업그레이드/재화/설정)
 
 ---
 
-### Phase D: Polish & Content (?꾩꽦???뺤옣)
-**?곗텧臾?*
-- UX ?뺣━(?뚮┝/媛?낆꽦/?쇰뱶諛??쒗넗由ъ뼹 理쒖냼)
-- 諛몃윴???쒕떇(?곗씠?곕쭔?쇰줈)
-- 肄섑뀗痢??뺤옣(?몃옓/?쒕꼫吏/怨꾩빟/吏???낃렇?덉씠??
-- ?깅뒫/?덉젙??理쒖쟻?? QA ?쒕굹由ъ삤 而ㅻ쾭
+### Phase D: Polish & Content (완성도/확장)
+**산출물**
+- UX 정리(알림/가독성/피드백/튜토리얼 최소)
+- 밸런스 튜닝(데이터만으로)
+- 콘텐츠 확장(트랙/시너지/계약/지역/업그레이드)
+- 성능/안정성 최적화, QA 시나리오 커버
 
 ---
 
-## 3. 怨듯넻 ?묒뾽 洹쒖빟(???뚰듃 怨듯넻)
-### 3.1 ?쒓렇 洹쒖튃
-- [ENG] ?꾨줈洹몃옒諛?- [DES] 湲고쉷/諛몃윴??洹쒖튃/?ㅽ럺
-- [UI] UI/UX ?ㅺ퀎/援ы쁽
-- [ART] 紐⑤뜽/?꾩씠肄?諛곌꼍/?댄럺??- [AUDIO] BGM/SFX/誘뱀떛
-- [QA] ?뚯뒪??泥댄겕由ъ뒪??踰꾧렇 ?ы쁽
-- [TOOLS] ?먮뵒?????뚯씠?꾨씪??
-### 3.2 Definition of Done(怨듯넻)
-- 湲곕뒫 ?붽뎄 異⑹” + ?덉쇅/?ㅽ뙣 耳?댁뒪 泥섎━
-- ?대깽??援щ룆/?댁젣 ??蹂댁옣, ??醫낅즺 ???곹깭 ?뺣━ ?꾨즺
-- Addressables ???쇰꺼/洹몃９ 洹쒖빟 以??- 濡쒓렇/?붾쾭洹??뺣낫(理쒖냼) ?쒓났
-- ?뚯뒪???쒕굹由ъ삤 1媛??댁긽 ?듦낵
+## 3. 공통 작업 규약(전 파트 공통)
+### 3.1 태그 규칙
+- [ENG] 프로그래밍
+- [DES] 기획/밸런스/규칙/스펙
+- [UI] UI/UX 설계/구현
+- [ART] 모델/아이콘/배경/이펙트
+- [AUDIO] BGM/SFX/믹싱
+- [QA] 테스트/체크리스트/버그 재현
+- [TOOLS] 에디터 툴/파이프라인
+
+### 3.2 Definition of Done(공통)
+- 기능 요구 충족 + 예외/실패 케이스 처리
+- 이벤트 구독/해제 쌍 보장, 런 종료 시 상태 정리 완료
+- Addressables 키/라벨/그룹 규약 준수
+- 로그/디버그 정보(최소) 제공
+- 테스트 시나리오 1개 이상 통과
 
 ---
 
-# 4. WBS: ?꾩껜 ?꾨줈?앺듃 ????紐⑺몴 湲곕뒫 ???몃? 湲곕뒫 ???묒뾽(Task)
+# 4. WBS: 전체 프로젝트 → 큰 목표 기능 → 세부 기능 → 작업(Task)
 
 ---
 
-## 4.1 ?꾨줈?앺듃 湲곕컲(Foundation) ???쒗봽濡쒖젥?멸? 源⑥?吏 ?딄쾶??### 4.1.1 (Epic) ??μ냼/釉뚮옖移?鍮뚮뱶 踰좎씠??#### (Feature) Unity ?꾨줈?앺듃 ?앹꽦/?⑦궎吏 湲곗? ?뺤젙
-- [ENG] Unity LTS 踰꾩쟾 ?좎젙 諛?湲곕줉(README)
-- [ENG] ?꾩닔 ?⑦궎吏 ?ㅼ튂/踰꾩쟾 怨좎젙: Addressables, Input System(?ъ슜 ??, TextMeshPro, URP(?ъ슜 ??
-- [ENG] ?꾨줈?앺듃 ?명똿 ?꾨━?? Quality, Layers/Tags, Physics, Time, PlayerSettings(?뚮옯??
-- [QA] ?쒕퉰 ?꾨줈?앺듃 鍮뚮뱶???깃났 ?뺤씤(PC 湲곗?)
+## 4.1 프로젝트 기반(Foundation) — “프로젝트가 깨지지 않게”
+### 4.1.1 (Epic) 저장소/브랜치/빌드 베이스
+#### (Feature) Unity 프로젝트 생성/패키지 기준 확정
+- [ENG] Unity LTS 버전 선정 및 기록(README)
+- [ENG] 필수 패키지 설치/버전 고정: Addressables, Input System(사용 시), TextMeshPro, URP(사용 시)
+- [ENG] 프로젝트 세팅 프리셋: Quality, Layers/Tags, Physics, Time, PlayerSettings(플랫폼)
+- [QA] “빈 프로젝트 빌드” 성공 확인(PC 기준)
 
-#### (Feature) Git/?대뜑 援ъ“/肄붾뵫 洹쒖빟
-- [ENG] `.gitignore`, `README`, `CONTRIBUTING`(媛꾨떒 洹쒖튃) ?묒꽦
-- [ENG] ?대뜑 援ъ“瑜?GDD 6??湲곗??쇰줈 ?앹꽦(Scenes/Scripts/Data ??
-- [ENG] Assembly Definition(asmdef) ?꾩엯 ?щ? 寃곗젙 諛?湲곕낯 遺꾨━(Managers/Delivery/Music/UI/Data)
-- [ENG] ?ㅼ씠諛?namespace 洹쒖튃 臾몄꽌???? DeliveryRun.Core ??
-
----
-
-### 4.1.2 (Epic) Addressables ?쒖? ?명똿(珥덇린 怨좎젙)
-#### (Feature) 洹몃９/???쇰꺼 怨좎젙 諛?寃利??μ튂
-- [ENG][TOOLS] Addressables 洹몃９ ?앹꽦: UI_Common/UI_Lobby/UI_Run/Audio_BGM/Audio_SFX/Audio_UI/Shared_Fallback
-- [ENG][TOOLS] 洹몃９紐????꾨━?쎌뒪/?쇰꺼 ?쒗뵆由?臾몄꽌??- [ENG][TOOLS] ?쒗몴以 ???좉퇋 洹몃９ ?앹꽦 媛먯????먮뵒??寃利?鍮뚮뱶 ??泥댄겕 ?ㅽ겕由쏀듃)
-- [QA] ?쇰꺼濡?濡쒕뱶 ?뚯뒪???? `ui:run`濡?HUD 濡쒕뱶)
+#### (Feature) Git/폴더 구조/코딩 규약
+- [ENG] `.gitignore`, `README`, `CONTRIBUTING`(간단 규칙) 작성
+- [ENG] 폴더 구조를 GDD 6장 기준으로 생성(Scenes/Scripts/Data 등)
+- [ENG] Assembly Definition(asmdef) 도입 여부 결정 및 기본 분리(Managers/Delivery/Music/UI/Data)
+- [ENG] 네이밍/namespace 규칙 문서화(예: DeliveryRun.Core 등)
 
 ---
 
-### 4.1.3 (Epic) ?대깽??以묒떖 ?꾪궎?띿쿂 堉덈?
-#### (Feature) EventBus/MessageHub 援ъ텞
-- [ENG] ?대깽??紐⑤뜽 寃곗젙(typed struct events vs enum+payload)
-- [ENG] 援щ룆/?댁젣 API, 以묐났 援щ룆 諛⑹? ?듭뀡
-- [ENG] ?붾쾭洹?紐⑤뱶: 理쒓렐 ?대깽??濡쒓렇(媛쒕컻 鍮뚮뱶 ?쒖젙)
-- [ENG] ?쒕윴 醫낅즺 ???쇨큵 援щ룆 ?댁젣???⑦꽩 媛?대뱶 ?쒓났
-
-#### (Feature) GameClock(unscaled) ?쒖???- [ENG] `GameClock` 援ы쁽: unscaled delta 湲곕컲 tick, pause ?곹뼢 ?듭뀡
-- [ENG] ??대㉧ ?좏떥: `Schedule(delay, callback)`/`Cancel(handle)`
-- [ENG] ????대㉧/二쇰Ц ??대㉧媛 ?숈씪 ?쒖뒪???ъ슜?섎룄濡?媛뺤젣
+### 4.1.2 (Epic) Addressables 표준 세팅(초기 고정)
+#### (Feature) 그룹/키/라벨 고정 및 검증 장치
+- [ENG][TOOLS] Addressables 그룹 생성: UI_Common/UI_Lobby/UI_Run/Audio_BGM/Audio_SFX/Audio_UI/Shared_Fallback
+- [ENG][TOOLS] 그룹명/키 프리픽스/라벨 템플릿 문서화
+- [ENG][TOOLS] “표준 외 신규 그룹 생성 감지” 에디터 검증(빌드 전 체크 스크립트)
+- [QA] 라벨로 로드 테스트(예: `ui:run`로 HUD 로드)
 
 ---
 
-## 4.2 ??遺?몄뒪?몃옪/?꾪솚(Core Runtime)
-### 4.2.1 (Epic) CoreScene(?곸냽 留ㅻ땲?) + LoadingScene
-#### (Feature) Core 遺???뚯씠?꾨씪??- [ENG] CoreScene ?앹꽦(?ъ뿉 ?곸냽 ?ㅻ툕?앺듃 1媛? `CoreRoot`)
-- [ENG] `CoreRoot` 援ъ꽦: EventBus, GameClock, AudioManager, AddressablesService, SaveService(Phase C), Analytics(Phase D)
-- [ENG] 遺???쒖꽌(Init order) ?뺤쓽 諛?濡쒓렇
+### 4.1.3 (Epic) 이벤트 중심 아키텍처 뼈대
+#### (Feature) EventBus/MessageHub 구축
+- [ENG] 이벤트 모델 결정(typed struct events vs enum+payload)
+- [ENG] 구독/해제 API, 중복 구독 방지 옵션
+- [ENG] 디버그 모드: 최근 이벤트 로그(개발 빌드 한정)
+- [ENG] “런 종료 시 일괄 구독 해제” 패턴 가이드 제공
 
-#### (Feature) ???꾪솚(濡쒕퉬?붾윴) + 濡쒕뵫 ?붾㈃
-- [ENG] SceneRouter/SceneFlow 援ы쁽
-  - 濡쒕퉬?믩줈?⒱넂??  - ??醫낅즺?믩줈?⒱넂寃곌낵/濡쒕퉬
-- [UI] LoadingScene UI(?ㅽ뵾????吏꾪뻾瑜?
-- [ENG] Addressables prewarm(?좊줈?? ?듭뀡: ??吏꾩엯 ??HUD/Audio 理쒖냼 ?명듃
-- [QA] ???꾪솚 30??諛섎났 ?덉젙??泥댄겕(硫붾え由?以묐났 ?ㅻ툕?앺듃)
+#### (Feature) GameClock(unscaled) 표준화
+- [ENG] `GameClock` 구현: unscaled delta 기반 tick, pause 영향 옵션
+- [ENG] 타이머 유틸: `Schedule(delay, callback)`/`Cancel(handle)`
+- [ENG] 런 타이머/주문 타이머가 동일 시스템 사용하도록 강제
 
 ---
 
-## 4.3 ???몄뀡 ?쒖뒪??Run Session System)
-### 4.3.1 (Epic) ???곹깭癒몄떊 + ??꾨씪???몃━嫄?#### (Feature) ?곹깭 ?뺤쓽 諛??꾩씠
-- [ENG] ?곹깭: Ready ??Running ??PauseForChoice ??Ended 援ы쁽
-- [ENG] ?꾩씠 ?대깽???뺤쓽:
+## 4.2 씬/부트스트랩/전환(Core Runtime)
+### 4.2.1 (Epic) CoreScene(영속 매니저) + LoadingScene
+#### (Feature) Core 부팅 파이프라인
+- [ENG] CoreScene 생성(씬에 영속 오브젝트 1개: `CoreRoot`)
+- [ENG] `CoreRoot` 구성: EventBus, GameClock, AudioManager, AddressablesService, SaveService(Phase C), Analytics(Phase D)
+- [ENG] 부트 순서(Init order) 정의 및 로그
+
+#### (Feature) 씬 전환(로비↔런) + 로딩 화면
+- [ENG] SceneRouter/SceneFlow 구현
+  - 로비→로딩→런
+  - 런 종료→로딩→결과/로비
+- [UI] LoadingScene UI(스피너/팁/진행률)
+- [ENG] Addressables prewarm(선로딩) 옵션: 런 진입 시 HUD/Audio 최소 세트
+- [QA] 씬 전환 30회 반복 안정성 체크(메모리/중복 오브젝트)
+
+---
+
+## 4.3 런 세션 시스템(Run Session System)
+### 4.3.1 (Epic) 런 상태머신 + 타임라인 트리거
+#### (Feature) 상태 정의 및 전이
+- [ENG] 상태: Ready → Running → PauseForChoice → Ended 구현
+- [ENG] 전이 이벤트 정의:
   - StartRun
   - ReachMusicChoice(time=0/180/300)
   - LastOrderStart(time=360)
   - TimeExpired(time=420)
   - RatingZero
-- [ENG] ??醫낅즺 ?먯씤 enum ?뺤쓽(?쒓컙 留뚮즺/?됲뙋 0/媛뺤젣 醫낅즺 ??
+- [ENG] 런 종료 원인 enum 정의(시간 만료/평판 0/강제 종료 등)
 
-#### (Feature) ????대㉧(7遺? + UI ?낅뜲?댄듃
-- [ENG] GameClock 湲곕컲 ??移댁슫?몃떎??- [UI] HUD???⑥? ?쒓컙 ?쒖떆(mm:ss)
-- [QA] ?뚯븙 ?좏깮 以묒뿉?????쒓컙???먰빐 ?놁씠 ?먮Ⅴ?붿? ?뺤씤(?쒓쾶?꾪뵆?덉씠留??뺤???以??
+#### (Feature) 런 타이머(7분) + UI 업데이트
+- [ENG] GameClock 기반 런 카운트다운
+- [UI] HUD에 남은 시간 표시(mm:ss)
+- [QA] 음악 선택 중에도 런 시간이 손해 없이 흐르는지 확인(“게임플레이만 정지” 준수)
 
-#### (Feature) ??醫낅즺 泥섎━(?뺣━/?뺤궛/?꾪솚)
-- [ENG] ??醫낅즺 ???뺣━ 猷⑦떞 ?쒖???  - ??대㉧ cancel
-  - 肄붾（??stop
-  - 紐⑤뵒?뚯씠??remove
+#### (Feature) 런 종료 처리(정리/정산/전환)
+- [ENG] 런 종료 시 정리 루틴 표준화
+  - 타이머 cancel
+  - 코루틴 stop
+  - 모디파이어 remove
   - UI close/reset
-  - ?꾩떆 ?곗씠??flush
-- [ENG] Ended ??Result UI ?쒖떆, 濡쒕퉬 蹂듦? 猷⑦듃
-- [QA] 議곌린 醫낅즺(?됲뙋 0)?먯꽌???뺣━/?뺤궛 ?뺤긽
+  - 임시 데이터 flush
+- [ENG] Ended → Result UI 표시, 로비 복귀 루트
+- [QA] 조기 종료(평판 0)에서도 정리/정산 정상
 
 ---
 
-## 4.4 ?뚯븙 ?쒕옒?꾪듃 & 紐⑤뵒?뚯씠??Music Draft & Modifier System)
-### 4.4.1 (Epic) ?뚯븙 ?좏깮 3??+ 猷?蹂???쒖뒪??#### (Feature) ?곗씠??SO) 紐⑤뜽 ?뺤쓽
-- [ENG][DES] SO ?뺤쓽/?꾨뱶:
-  - MusicGenreSO(?λⅤ id, ?ㅻ챸, ?쒓렇)
-  - MusicTrackSO(?몃옓 id, ?λⅤ, 湲몄씠/?대┰, 湲곕낯 紐⑤뵒?뚯씠??
-  - MusicSynergySO(議고빀 洹쒖튃, 諛쒕룞 議곌굔, 異붽? 紐⑤뵒?뚯씠??
-- [DES] Phase A??理쒖냼 ?곗씠???λⅤ 2, ?몃옓 6, ?쒕꼫吏 1) ?묒꽦
-- [QA] ?고???濡쒕뱶/李몄“ ?먮윭 寃利?
-#### (Feature) ?쒕옒?꾪듃(?꾨낫 3媛??쒖떆) 濡쒖쭅
-- [ENG] ?쒖????쒖젏?앹뿉 ?꾨낫 3媛??앹꽦 洹쒖튃(以묐났 諛⑹?, 媛以묒튂/?ш????듭뀡)
-- [ENG] ?댁쟾 ?좏깮/?쒕꼫吏 怨좊젮 ?щ?(Phase B遺???뺤옣)
-- [ENG] ?좏깮 寃곌낵 ?대깽??諛쒗뻾: `OnMusicChosen(trackId, timeStamp)`
+## 4.4 음악 드래프트 & 모디파이어(Music Draft & Modifier System)
+### 4.4.1 (Epic) 음악 선택 3회 + 룰 변화 시스템
+#### (Feature) 데이터(SO) 모델 정의
+- [ENG][DES] SO 정의/필드:
+  - MusicGenreSO(장르 id, 설명, 태그)
+  - MusicTrackSO(트랙 id, 장르, 길이/클립, 기본 모디파이어)
+  - MusicSynergySO(조합 규칙, 발동 조건, 추가 모디파이어)
+- [DES] Phase A용 최소 데이터(장르 2, 트랙 6, 시너지 1) 작성
+- [QA] 런타임 로드/참조 에러 검증
 
-#### (Feature) ?좏깮 UI(紐⑤떖) + ?뺤? ?뺤콉 援ы쁽
-- [UI] ?뚯븙 ?좏깮 紐⑤떖 UI(?꾨낫 3 移대뱶: ?대쫫/?④낵/由ъ뒪??
-- [ENG] PauseForChoice 吏꾩엯 ??
-  - ?뚮젅?댁뼱 議곗옉/臾쇰━/AI/二쇳뻾 update ?뺤?(?쒓컙 ?ㅼ???or ?낅젰 李⑤떒)
-  - UI/?ㅻ뵒???좎?
-- [UI] ?좏깮 ??대㉧/?낅젰(?좏깮, ?곸꽭蹂닿린, ?먮룞 ?좏깮 ?뺤콉 ?щ?)
-- [QA] 0:00/3:00/5:00 ?뺥솗???몃━嫄곕릺?붿? 寃利?
-#### (Feature) 紐⑤뵒?뚯씠???곸슜/?댁젣(?꾩쟻/?먯씤 異붿쟻)
-- [ENG] Modifier 紐⑤뜽:
-  - sourceId(?몃옓/?쒕꼫吏/?낃렇?덉씠????, stat, add/mul, duration(optional)
-- [ENG] ModifierStack ?쒕퉬??
+#### (Feature) 드래프트(후보 3개 제시) 로직
+- [ENG] “지정 시점”에 후보 3개 생성 규칙(중복 방지, 가중치/희귀도 옵션)
+- [ENG] 이전 선택/시너지 고려 여부(Phase B부터 확장)
+- [ENG] 선택 결과 이벤트 발행: `OnMusicChosen(trackId, timeStamp)`
+
+#### (Feature) 선택 UI(모달) + 정지 정책 구현
+- [UI] 음악 선택 모달 UI(후보 3 카드: 이름/효과/리스크)
+- [ENG] PauseForChoice 진입 시:
+  - 플레이어 조작/물리/AI/주행 update 정지(시간 스케일 or 입력 차단)
+  - UI/오디오 유지
+- [UI] 선택 타이머/입력(선택, 상세보기, 자동 선택 정책 여부)
+- [QA] 0:00/3:00/5:00 정확히 트리거되는지 검증
+
+#### (Feature) 모디파이어 적용/해제(누적/원인 추적)
+- [ENG] Modifier 모델:
+  - sourceId(트랙/시너지/업그레이드 등), stat, add/mul, duration(optional)
+- [ENG] ModifierStack 서비스:
   - add/remove by sourceId
-  - ?꾩옱 ?곸슜媛?議고쉶 API
-- [ENG] ?쒖뒪???곕룞 ?ъ씤??
-  - 二쇰Ц 蹂댁긽/?됲뙋 ?명?/?⑤룄 媛먯냼???ㅽ븘 誘쇨컧??議고뼢 誘쇨컧????- [QA] ?몃옓 蹂寃???利됱떆 ?④낵 諛섏쁺 + ??醫낅즺 ??珥덇린媛?蹂듦뎄
+  - 현재 적용값 조회 API
+- [ENG] 시스템 연동 포인트:
+  - 주문 보상/평판 델타/온도 감소율/스필 민감도/조향 민감도 등
+- [QA] 트랙 변경 시 즉시 효과 반영 + 런 종료 시 초기값 복구
 
 ---
 
-## 4.5 二쇰Ц & 諛곕떖(Order & Delivery)
-### 4.5.1 (Epic) ?ㅽ띁 ?앹꽦/?섎씫/?щ’/留뚮즺/?꾨즺 ?꾩껜 ?먮쫫
-#### (Feature) 怨꾩빟/二쇰Ц ?곗씠??紐⑤뜽
-- [ENG][DES] SO ?뺤쓽:
-  - ContractTypeSO(醫낅쪟, 湲곕낯 蹂댁긽, 湲곕낯 ?쒗븳)
-  - ContractSO(?쎌뾽/諛곗넚 ?ъ씤????? 嫄곕━/?쒖씠?? 蹂댁긽, ?ㅽ뙣 ?⑤꼸??
-  - OrderConfigSO(?섎씫 ?쒗븳 5珥? ?щ’ 3, ?ㅽ룿 二쇨린 ??
-- [DES] ?뚯뒪?몄슜 怨꾩빟 5醫??묒꽦(吏?以?湲? 由ъ뒪??李⑤벑)
-- [QA] ?곗씠??援먯껜留뚯쑝濡?蹂댁긽/?쒖씠??蹂?섎뒗吏 ?뺤씤
+## 4.5 주문 & 배달(Order & Delivery)
+### 4.5.1 (Epic) 오퍼 생성/수락/슬롯/만료/완료 전체 흐름
+#### (Feature) 계약/주문 데이터 모델
+- [ENG][DES] SO 정의:
+  - ContractTypeSO(종류, 기본 보상, 기본 제한)
+  - ContractSO(픽업/배송 포인트 타입, 거리/난이도, 보상, 실패 패널티)
+  - OrderConfigSO(수락 제한 5초, 슬롯 3, 스폰 주기 등)
+- [DES] 테스트용 계약 5종 작성(짧/중/길, 리스크 차등)
+- [QA] 데이터 교체만으로 보상/난이도 변하는지 확인
 
-#### (Feature) ?ㅽ띁 ?앹꽦/?쒖떆/留뚮즺(?섎씫 ?쒗븳 5珥?
+#### (Feature) 오퍼 생성/표시/만료(수락 제한 5초)
 - [ENG] OfferSpawner:
-  - ??吏꾪뻾???곕씪 ?ㅽ띁 ?앹꽦(Phase A: 1媛?怨좎젙)
-  - Offer TTL 5珥??섎씫 ?쒗븳)
-- [UI] ?ㅽ띁 ?뚮┝(?좎뒪??移대뱶) + 移댁슫?몃떎??- [ENG] 留뚮즺 ?대깽??諛쒗뻾: `OfferExpired` ???됲뙋/寃쎌젣 ?곕룞(Phase B)
+  - 런 진행에 따라 오퍼 생성(Phase A: 1개 고정)
+  - Offer TTL 5초(수락 제한)
+- [UI] 오퍼 알림(토스트/카드) + 카운트다운
+- [ENG] 만료 이벤트 발행: `OfferExpired` → 평판/경제 연동(Phase B)
 
-#### (Feature) ?섎씫/?쒖꽦 二쇰Ц ?щ’(理쒕? 3)
+#### (Feature) 수락/활성 주문 슬롯(최대 3)
 - [ENG] ActiveOrderPool:
-  - accept ???щ’ 泥댄겕
-  - 理쒕? 3 ?좎?
-  - ?щ’ 媛??李쇱쓣 ??UX(?섎씫 遺덇?/援먯껜 遺덇?/寃쎄퀬)
-- [UI] 二쇰Ц ???ㅻ쾭?덉씠?먯꽌 ?쒖꽦 二쇰Ц 由ъ뒪???쒖떆
-- [QA] ?щ’ 媛??李??곹깭?먯꽌 ???ㅽ띁 ?깆옣/?섎씫 ?쒕룄 耳?댁뒪
+  - accept 시 슬롯 체크
+  - 최대 3 유지
+  - 슬롯 가득 찼을 때 UX(수락 불가/교체 불가/경고)
+- [UI] 주문 앱/오버레이에서 활성 주문 리스트 표시
+- [QA] 슬롯 가득 찬 상태에서 새 오퍼 등장/수락 시도 케이스
 
-#### (Feature) ?쎌뾽 ??諛곗넚 ?꾨즺 ?먯젙
-- [ENG] 도로 스폰형 InteractPoint + F 상호작용(Nearest Road 규칙)
-- [ENG] 건물(Block) 기준 nearest-road 지점 스폰 규칙(픽업/배송) + 거리 계산 유틸 정규화
-- [ENG] 성공/실패/만료/런 종료/씬 전환 시 InteractPoint/임시 상태 정리 보장
-- [ENG] 二쇰Ц ?곹깭癒몄떊(Offered/Accepted/PickedUp/Delivered/Failed)
-- [ENG] 寃쎈줈/紐⑺몴 ?(誘몃땲留??щ???Phase D, Phase A/B???붾뱶 留덉빱)
-- [QA] ?쎌뾽 ?놁씠 諛곗넚 ?쒕룄, 諛섎?濡?諛곗넚 ?ㅽ뙣 ???덉쇅 耳?댁뒪
+#### (Feature) 픽업 → 배송 완료 판정
+- [ENG] 도로 스폰형 InteractPoint + F 상호작용(Nearest Road 규칙; 건물 기준 가장 가까운 도로 지점 스폰)
+- [ENG] 주문 상태머신(Offered/Accepted/PickedUp/Delivered/Failed)
+- [ENG] 수락 시 Pickup InteractPoint를 Restaurant Building의 Nearest Road에 스폰, Pickup 완료 시 Delivery InteractPoint를 Destination Building의 Nearest Road에 스폰
+- [ENG] Success/Fail/Expire/Run End/Scene Change 시 InteractPoint를 즉시 정리하고 중복/유령 오브젝트를 금지
+- [ENG] 경로/목표 핀(미니맵 여부는 Phase D, Phase A/B는 월드 마커)
+- [QA] 픽업 없이 배송 시도, 반대로 배송 실패 등 예외 케이스
 
-#### (Feature) ?ㅽ뙣 泥섎━(留뚮즺/?뚯넀/?쒓컙 珥덇낵 ??
-- [ENG] ?ㅽ뙣 ?먯씤 enum + 怨듯넻 泥섎━ 猷⑦떞(?됲뙋 ?명?, 蹂댁긽 0, 濡쒓렇)
-- [UI] ?ㅽ뙣 ?쇰뱶諛??ъ슫???띿뒪??
-- [QA] ?ㅽ뙣 ?곗뇙 諛쒖깮 ??UI ?ㅽ뙵 諛⑹?
-
----
-
-## 4.6 ?뚯떇 ?곹깭(Food State: Temperature + Spill)
-### 4.6.1 (Epic) 二쇳뻾 湲곕컲 ?덉쭏 ?쒖뒪??#### (Feature) Temperature 紐⑤뜽(?쒓컙/?댁쟾 ?곹깭/紐⑤뵒?뚯씠??
-- [ENG][DES] Temperature 怨꾩궛???뚮씪誘명꽣瑜?RatingConfig/EconomyConfig? 遺꾨━?섏뿬 FoodConfig濡?愿由??먮뒗 OrderConfig ?뺤옣)
-- [ENG] 湲곕낯 媛먯냼??+ ?대깽???곹뼢(?뺤?/媛??鍮?吏???대깽????Phase D)
-- [UI] HUD???⑤룄 寃뚯씠吏 ?쒖떆
-- [QA] ?꾨젅?꾨젅?댄듃 蹂?숈뿉???숈씪 寃곌낵(?쒓컙 湲곕컲)
-
-#### (Feature) Spill 紐⑤뜽(湲됱“??湲됱젙吏/異⑸룎/???ㅽ뵂 由ъ뒪??
-- [ENG] ?댁쟾 ?대깽??媛먯?:
-  - 議고뼢 蹂?붾웾(angular velocity), 媛먯냽/異⑸룎 ?꾪럡??- [ENG] Spill ?꾩쟻/蹂듦뎄 洹쒖튃(?곗씠?고솕)
-- [ENG] ???ㅻ쾭?덉씠 ?ㅽ뵂 以?由ъ뒪??利앷? 諛섏쁺(?ㅽ븘 誘쇨컧???곸듅)
-- [UI] Spill 寃쎄퀬 ?꾧퀎移??뚮┝
-- [QA] ?쒖쓽?꾩튂 ?딆? ?ㅽ븘 ??＜??諛⑹?(?대옩??荑⑤떎??
-
-#### (Feature) 諛곗넚 ???덉쭏 ?먯닔 ?곗텧
-- [ENG] ?덉쭏 ?먯닔 = f(Temperature, Spill) (?곗씠??湲곕컲 而ㅻ툕/?뚯씠釉?
-- [ENG] ?덉쭏???됲뙋/蹂댁긽??諛섏쁺?섎뒗 ?곌껐???뺤쓽
-- [UI] 寃곌낵/?뺤궛???쒗뭹吏??깃툒???쒖떆
+#### (Feature) 실패 처리(만료/파손/시간 초과 등)
+- [ENG] 실패 원인 enum + 공통 처리 루틴(평판 델타, 보상 0, 로그)
+- [UI] 실패 피드백(사운드/텍스트)
+- [QA] 실패 연쇄 발생 시 UI 스팸 방지
 
 ---
 
-## 4.7 ?됲뙋/?됱젏(Rating System)
-### 4.7.1 (Epic) ?됲뙋 ?명? 洹쒖튃 + 議곌린 醫낅즺(0.0)
-#### (Feature) ?됲뙋 紐⑤뜽 + ?대깽??湲곕컲 ?명? 怨꾩궛
-- [ENG][DES] RatingConfigSO(?먯씤蹂??명?: 留뚮즺, 異⑸룎, Spill, ?덉쭏, ?곗냽 ?깃났 蹂대꼫????
+## 4.6 음식 상태(Food State: Temperature + Spill)
+### 4.6.1 (Epic) 주행 기반 품질 시스템
+#### (Feature) Temperature 모델(시간/운전 상태/모디파이어)
+- [ENG][DES] Temperature 계산식/파라미터를 RatingConfig/EconomyConfig와 분리하여 FoodConfig로 관리(또는 OrderConfig 확장)
+- [ENG] 기본 감소율 + 이벤트 영향(정지/가속/비/지역 이벤트 등 Phase D)
+- [UI] HUD에 온도 게이지 표시
+- [QA] 프레임레이트 변동에도 동일 결과(시간 기반)
+
+#### (Feature) Spill 모델(급조향/급정지/충돌/앱 오픈 리스크)
+- [ENG] 운전 이벤트 감지:
+  - 조향 변화량(angular velocity), 감속/충돌 임펄스
+- [ENG] Spill 누적/복구 규칙(데이터화)
+- [ENG] 앱 오버레이 오픈 중 리스크 증가 반영(스필 민감도 상승)
+- [UI] Spill 경고 임계치 알림
+- [QA] “의도치 않은 스필 폭주” 방지(클램프/쿨다운)
+
+#### (Feature) 배송 시 품질 점수 산출
+- [ENG] 품질 점수 = f(Temperature, Spill) (데이터 기반 커브/테이블)
+- [ENG] 품질이 평판/보상에 반영되는 연결점 정의
+- [UI] 결과/정산에 “품질 등급” 표시
+
+---
+
+## 4.7 평판/평점(Rating System)
+### 4.7.1 (Epic) 평판 델타 규칙 + 조기 종료(0.0)
+#### (Feature) 평판 모델 + 이벤트 기반 델타 계산
+- [ENG][DES] RatingConfigSO(원인별 델타: 만료, 충돌, Spill, 품질, 연속 성공 보너스 등)
 - [ENG] `RatingService`:
   - ApplyDelta(reason, amount)
   - Clamp(0~5)
-  - OnRatingChanged, OnRatingZero ?대깽??- [UI] HUD???됲뙋 ?쒖떆(?レ옄 + ??寃쎄퀬)
-- [QA] ?숈떆???щ윭 ?대깽??諛쒖깮 ???명? ?⑹궛 ?쒖꽌/以묐났 諛⑹?
+  - OnRatingChanged, OnRatingZero 이벤트
+- [UI] HUD에 평판 표시(숫자 + 색/경고)
+- [QA] 동시에 여러 이벤트 발생 시 델타 합산 순서/중복 방지
 
-#### (Feature) ?ㅽ듃由??꾩땐(?곗냽 ?깃났 蹂대꼫??
-- [ENG] ?ㅽ듃由?移댁슫???곗냽 ?깃났 ??蹂대꼫??媛먯뇿)
-- [DES] 蹂대꼫??怨≪꽑 ?곗씠?고솕(怨쇰룄???ㅻ끂?곕낵 諛⑹?)
-- [QA] ?ㅽ뙣 ???ㅽ듃由?由ъ뀑/遺遺??좎? ?뺤콉 寃利?
-#### (Feature) 0.0 利됱떆 ??醫낅즺 + 洹??쒖젏源뚯? ?뺤궛
-- [ENG] RatingZero ??RunSession Ended ?몃━嫄??곌껐(?대깽??
-- [ENG] ?뺤궛? ?쒖셿猷뚮맂 二쇰Ц + 吏꾪뻾 以?泥섎━ ?뺤콉??諛섏쁺
-- [QA] 0.0 ?꾨떖 ?꾨젅?꾩뿉??UI/?ㅻ뵒?????꾪솚 以??ㅻ쪟 ?녿뒗吏
+#### (Feature) 스트릭/완충(연속 성공 보너스)
+- [ENG] 스트릭 카운터(연속 성공 시 보너스/감쇠)
+- [DES] 보너스 곡선 데이터화(과도한 스노우볼 방지)
+- [QA] 실패 후 스트릭 리셋/부분 유지 정책 검증
+
+#### (Feature) 0.0 즉시 런 종료 + 그 시점까지 정산
+- [ENG] RatingZero → RunSession Ended 트리거 연결(이벤트)
+- [ENG] 정산은 “완료된 주문 + 진행 중 처리 정책” 반영
+- [QA] 0.0 도달 프레임에서 UI/오디오/씬 전환 중 오류 없는지
 
 ---
 
-## 4.8 寃쎌젣/硫뷀?(Economy & Meta)
-### 4.8.1 (Epic) ???ы솕/珥??ы솕 遺꾨━ + ?뺤궛
-#### (Feature) ?몄뀡 ?ы솕/硫뷀? ?ы솕 紐⑤뜽
-- [ENG][DES] EconomyConfigSO(湲곕낯 蹂댁긽, ?섏닔猷??⑤꼸?? 硫뷀? ?섏궛 洹쒖튃)
+## 4.8 경제/메타(Economy & Meta)
+### 4.8.1 (Epic) 런 재화/총 재화 분리 + 정산
+#### (Feature) 세션 재화/메타 재화 모델
+- [ENG][DES] EconomyConfigSO(기본 보상, 수수료/패널티, 메타 환산 규칙)
 - [ENG] `EconomyService`:
-  - SessionBalance(??以?
-  - MetaBalance(?곴뎄)
+  - SessionBalance(런 중)
+  - MetaBalance(영구)
   - AddReward(source), ApplyPenalty(reason)
-- [UI] ??HUD ?ы솕 蹂???쇰뱶諛?+?レ옄 ?뚮줈???좎뒪??
-- [QA] ??醫낅즺/議곌린 醫낅즺 紐⑤몢 ?뺤궛 ?쇨?
+- [UI] 런 HUD 재화 변화 피드백(+숫자 플로팅/토스트)
+- [QA] 런 종료/조기 종료 모두 정산 일관
 
-#### (Feature) ??醫낅즺 寃곌낵 ?붾㈃(?뺤궛 ?댁뿭)
-- [UI] 寃곌낵 ?붾㈃:
-  - 珥??섏씡, 二쇰Ц ?깃났/?ㅽ뙣/留뚮즺 ??  - ?됯퇏 ?덉쭏/?됲뙋 蹂??  - ?좏깮???몃옓/?쒕꼫吏 ?붿빟
-- [ENG] ?뺤궛 由ы룷??紐⑤뜽(`RunReport`) ?앹꽦/?꾨떖
-- [QA] ?곗씠???꾨씫/NULL 諛⑹?(??긽 媛?議댁옱)
-
----
-
-### 4.8.2 (Epic) ?낃렇?덉씠???쒖뒪??Phase C)
-#### (Feature) UpgradeSO + ?곸슜(紐⑤뵒?뚯씠?댁? ?듯빀)
-- [ENG][DES] UpgradeSO(媛寃? ?④낵, ?닿툑 議곌굔, ?덈꺼)
-- [ENG] ?낃렇?덉씠???곸슜? ModifierStack???듯빐 ?듭씪
-- [UI] 濡쒕퉬 ?낃렇?덉씠???붾㈃(援щℓ/?곸슜/?ㅻ챸)
-- [QA] 援щℓ ???곗뿉 利됱떆 諛섏쁺/???濡쒕뱶 ?좎?
+#### (Feature) 런 종료 결과 화면(정산 내역)
+- [UI] 결과 화면:
+  - 총 수익, 주문 성공/실패/만료 수
+  - 평균 품질/평판 변화
+  - 선택한 트랙/시너지 요약
+- [ENG] 정산 리포트 모델(`RunReport`) 생성/전달
+- [QA] 데이터 누락/NULL 방지(항상 값 존재)
 
 ---
 
-## 4.9 ?붾뱶/?뱁꽣(World/Sector)
-### 4.9.1 (Epic) ?뱁꽣 ?좉툑/?닿툑 + ???숆린??Phase C)
-#### (Feature) RegionSO + ?뱁꽣 ?곹깭 愿由?- [ENG][DES] RegionSO(?뱁꽣 id, ?닿툑 鍮꾩슜, ?곌껐 愿怨?
-- [ENG] SectorState(locked/unlocked) ???援ъ“
-- [UI] 濡쒕퉬 ?붾뱶 留?理쒖냼: 由ъ뒪???몃뱶 UI)
-- [ENG] ?닿툑 ?대깽?????붾뱶 ?ㅻ툕?앺듃 ?쒖꽦??鍮꾪솢?깊솕 ?곌껐
-- [QA] ???濡쒕뱶 ???뱁꽣 ?곹깭 ?뺥솗??蹂듭썝
+### 4.8.2 (Epic) 업그레이드 시스템(Phase C)
+#### (Feature) UpgradeSO + 적용(모디파이어와 통합)
+- [ENG][DES] UpgradeSO(가격, 효과, 해금 조건, 레벨)
+- [ENG] 업그레이드 적용은 ModifierStack을 통해 통일
+- [UI] 로비 업그레이드 화면(구매/적용/설명)
+- [QA] 구매 후 런에 즉시 반영/저장/로드 유지
 
 ---
 
-## 4.10 UI ?쒖뒪??UI/UX)
-### 4.10.1 (Epic) ??HUD / 二쇰Ц ??/ ?뚯븙 ?좏깮 / 寃곌낵 / 濡쒕퉬
-#### (Feature) UI ?꾪궎?띿쿂(?꾨젅?좏꽣/酉?諛붿씤?? ?뺣┰
-- [UI][ENG] MVVM ?⑦꽩
-- [ENG] Addressables UI 濡쒕뜑(instantiate/release ?몃뱾 愿由?
-- [UI] Safe Area ???紐⑤컮???鍮?
-- [ENG] ?좎뒪???뚮┝ ?ㅽ뙵 諛⑹? ?쒖뒪??荑⑤떎??蹂묓빀)
-
-#### (Feature) ??HUD(?듭떖 ?뺣낫 ?쒕늿)
-- [UI] ?⑥? ?쒓컙, ?됲뙋, ?쒖꽦 二쇰Ц, ?⑤룄/?ㅽ븘, 紐⑤뵒?뚯씠???쒕꼫吏, ?ы솕 ?쒖떆
-- [ENG] ?곗씠??諛붿씤???대깽??援щ룆 湲곕컲)
-- [QA] ??以?HUD ?꾨씫/寃뱀묠/?깅뒫 臾몄젣 泥댄겕
-
-#### (Feature) 二쇰Ц ???ㅻ쾭?덉씠(二쇳뻾 以??대┝, 寃뚯엫? 硫덉텛吏 ?딆쓬)
-- [UI] ?ㅻ쾭?덉씠: ?쒖꽦 二쇰Ц 由ъ뒪???곸꽭/紐⑺몴 ?쒖떆
-- [ENG] ?ㅻ쾭?덉씠 ?ㅽ뵂 ?곹깭 ?뚮옒洹????댁쟾 由ъ뒪???쒖뒪?쒖뿉 ?꾨떖
-- [QA] ?ㅻ쾭?덉씠 ?닿퀬 議곗옉 ???낅젰 異⑸룎(二쇳뻾 ?낅젰/?ㅽ겕濡? 諛⑹?
-
-#### (Feature) ?뚯븙 ?좏깮 紐⑤떖(3??
-- 4.4???ы븿(怨듯넻 UI 而댄룷?뚰듃濡?遺꾨━)
-
-#### (Feature) 濡쒕퉬 UI(硫뷀? ?덈툕)
-- [UI] Run ?쒖옉 踰꾪듉, ?낃렇?덉씠???뱁꽣 吏꾩엯, ?ㅼ젙, 理쒓렐 ??湲곕줉
-- [ENG] Run ?쒖옉 ?붿껌 ??SceneRouter ?몄텧
-- [QA] 濡쒕퉬 ?곹깭媛 ???濡쒕뱶? ?쇱튂
+## 4.9 월드/섹터(World/Sector)
+### 4.9.1 (Epic) 섹터 잠금/해금 + 씬 동기화(Phase C)
+#### (Feature) RegionSO + 섹터 상태 관리
+- [ENG][DES] RegionSO(섹터 id, 해금 비용, 연결 관계)
+- [ENG] SectorState(locked/unlocked) 저장 구조
+- [UI] 로비 월드 맵(최소: 리스트/노드 UI)
+- [ENG] 해금 이벤트 → 월드 오브젝트 활성화/비활성화 연결
+- [QA] 저장/로드 후 섹터 상태 정확히 복원
 
 ---
 
-## 4.11 ?ъ슫???쒖뒪??Sound System)
-### 4.11.1 (Epic) BGM ?덉씠???곹깭 ?좎? + SFX
-#### (Feature) AudioManager(?곸냽) + Addressables 濡쒕뱶
-- [AUDIO][ENG] BGM/SFX/UI 梨꾨꼸 遺꾨━(誘뱀꽌 洹몃９)
-- [ENG] Addressables 濡쒕뱶/罹먯떆/?댁젣 ?뺤콉
-- [ENG] 濡쒕뵫 ?ㅽ뙣 ?대갚(臾댁쓬/湲곕낯 ?대┰)
-- [QA] ???꾪솚 ???ㅻ뵒??吏??以묐났 ?ъ깮 ?놁쓬
+## 4.10 UI 시스템(UI/UX)
+### 4.10.1 (Epic) 런 HUD / 주문 앱 / 음악 선택 / 결과 / 로비
+#### (Feature) UI 아키텍처(프레젠터/뷰/바인딩) 정립
+- [UI][ENG] MVVM 패턴
+- [ENG] Addressables UI 로더(instantiate/release 핸들 관리)
+- [UI] Safe Area 대응(모바일 대비)
+- [ENG] 토스트/알림 스팸 방지 시스템(쿨다운/병합)
 
-#### (Feature) ?뚯븙 ?좏깮 寃곌낵??利됱떆 泥?컖 ?쇰뱶諛?- [AUDIO] ?몃옓蹂??섑뵆(?먮뒗 猷⑦봽) 以鍮?- [ENG] ?좏깮 利됱떆 BGM ?꾪솚/?덉씠??蹂??- [QA] 0:00/3:00/5:00 ?꾪솚 ???대┃/?딄? 理쒖냼???섏씠??
+#### (Feature) 런 HUD(핵심 정보 한눈)
+- [UI] 남은 시간, 평판, 활성 주문, 온도/스필, 모디파이어/시너지, 재화 표시
+- [ENG] 데이터 바인딩(이벤트 구독 기반)
+- [QA] 런 중 HUD 누락/겹침/성능 문제 체크
 
-#### (Feature) ?듭떖 SFX(?섎씫/?ㅽ뙣/寃쎄퀬/?깃났)
-- [AUDIO] UI ?대┃, 寃쎄퀬(?됲뙋/?ㅽ븘), ?깃났/?ㅽ뙣 SFX ?쒖옉
-- [ENG] ?대깽??湲곕컲 SFX ?몃━嫄?留ㅽ븨 ?뚯씠釉?
+#### (Feature) 주문 앱 오버레이(주행 중 열림, 게임은 멈추지 않음)
+- [UI] 오버레이: 활성 주문 리스트/상세/목표 표시
+- [ENG] 오버레이 오픈 상태 플래그 → 운전 리스크 시스템에 전달
+- [QA] 오버레이 열고 조작 시 입력 충돌(주행 입력/스크롤) 방지
+
+#### (Feature) 음악 선택 모달(3회)
+- 4.4에 포함(공통 UI 컴포넌트로 분리)
+
+#### (Feature) 로비 UI(메타 허브)
+- [UI] Run 시작 버튼, 업그레이드/섹터 진입, 설정, 최근 런 기록
+- [ENG] Run 시작 요청 → SceneRouter 호출
+- [QA] 로비 상태가 저장/로드와 일치
+
 ---
 
-## 4.12 ?곗씠??二쇰룄 ?ㅺ퀎(Data/Configs)
-### 4.12.1 (Epic) SO ?명듃 ?꾩꽦 + ?섑뵆 ?곗씠??+ 諛몃윴??援먯껜 媛??#### (Feature) Config SO ?뺤쓽/愿由?- [ENG][DES] RunConfigSO(???쒓컙/?좏깮 ?쒖젏/Last Order)
-- [ENG][DES] OrderConfigSO(?щ’/?섎씫 ?쒗븳/?ㅽ룿)
-- [ENG][DES] RatingConfigSO(?명? 洹쒖튃)
-- [ENG][DES] EconomyConfigSO(蹂댁긽/?⑤꼸???섏궛)
-- [ENG][DES] ?쒕뜲?댄꽣留?援먯껜?댁꽌 諛몃윴??蹂寃썩?寃利?
-#### (Feature) ?곗씠??濡쒕뵫/李몄“ ?쒖?
-- [ENG] 遺?몄뒪?몃옪 Resources?먯꽌 ConfigCatalog(二쇱냼留? 濡쒕뱶 ???ㅼ젣??Addressables ?먮뒗 吏곸젒 李몄“(?좏깮)
-- [ENG] ???쒖옉 ???꾩슂???곗씠??寃利??꾨씫 ???먮윭 UI)
+## 4.11 사운드 시스템(Sound System)
+### 4.11.1 (Epic) BGM 레이어/상태 유지 + SFX
+#### (Feature) AudioManager(영속) + Addressables 로드
+- [AUDIO][ENG] BGM/SFX/UI 채널 분리(믹서 그룹)
+- [ENG] Addressables 로드/캐시/해제 정책
+- [ENG] 로딩 실패 폴백(무음/기본 클립)
+- [QA] 씬 전환 후 오디오 지속/중복 재생 없음
+
+#### (Feature) 음악 선택 결과의 즉시 청각 피드백
+- [AUDIO] 트랙별 샘플(또는 루프) 준비
+- [ENG] 선택 즉시 BGM 전환/레이어 변화
+- [QA] 0:00/3:00/5:00 전환 시 클릭/끊김 최소화(페이드)
+
+#### (Feature) 핵심 SFX(수락/실패/경고/성공)
+- [AUDIO] UI 클릭, 경고(평판/스필), 성공/실패 SFX 제작
+- [ENG] 이벤트 기반 SFX 트리거 매핑 테이블
 
 ---
 
-## 4.13 ?붾젅硫뷀듃由?濡쒓렇/?붾쾭洹?Phase D ?듭떖)
-### 4.13.1 (Epic) ?꾩닔 濡쒓렇 ?섏쭛(遺꾩꽍/諛몃윴??
-#### (Feature) ?꾩닔 濡쒓렇 ?대깽????二쇰Ц/?됲뙋/?뚯븙/?뺤궛)
-- [ENG] 濡쒓렇 ?ㅽ궎留?
-  - RunStart/RunEnd(?먯씤)
+## 4.12 데이터 주도 설계(Data/Configs)
+### 4.12.1 (Epic) SO 세트 완성 + 샘플 데이터 + 밸런스 교체 가능
+#### (Feature) Config SO 정의/관리
+- [ENG][DES] RunConfigSO(런 시간/선택 시점/Last Order)
+- [ENG][DES] OrderConfigSO(슬롯/수락 제한/스폰)
+- [ENG][DES] RatingConfigSO(델타 규칙)
+- [ENG][DES] EconomyConfigSO(보상/패널티/환산)
+- [ENG][DES] “데이터만 교체해서 밸런스 변경” 검증
+
+#### (Feature) 데이터 로딩/참조 표준
+- [ENG] 부트스트랩 Resources에서 ConfigCatalog(주소만) 로드 → 실제는 Addressables 또는 직접 참조(선택)
+- [ENG] 런 시작 시 필요한 데이터 검증(누락 시 에러 UI)
+
+---
+
+## 4.13 텔레메트리/로그/디버그(Phase D 핵심)
+### 4.13.1 (Epic) 필수 로그 수집(분석/밸런스)
+#### (Feature) 필수 로그 이벤트(런/주문/평판/음악/정산)
+- [ENG] 로그 스키마:
+  - RunStart/RunEnd(원인)
   - OfferSpawn/OfferAccept/OfferExpire
   - OrderPickup/OrderDeliver/OrderFail
   - RatingDelta(reason, amount)
   - MusicChoice(trackId)
   - Settlement(summary)
-- [QA] 濡쒓렇媛 怨쇰룄?섍쾶 ?ㅽ뙵?섏? ?딅뒗吏, ?깅뒫 ?곹뼢 理쒖냼??
-#### (Feature) 媛쒕컻???붾쾭洹?UI(?좉?)
-- [ENG][UI] ?꾩옱 紐⑤뵒?뚯씠??紐⑸줉, ?ㅼ떆媛??⑤룄/?ㅽ븘 ?섏튂, ?됲뙋 ?명? ?덉뒪?좊━
-- [QA] 由대━利?鍮뚮뱶?먯꽌 鍮꾪솢?깊솕 ?뺤씤
+- [QA] 로그가 과도하게 스팸되지 않는지, 성능 영향 최소화
+
+#### (Feature) 개발용 디버그 UI(토글)
+- [ENG][UI] 현재 모디파이어 목록, 실시간 온도/스필 수치, 평판 델타 히스토리
+- [QA] 릴리즈 빌드에서 비활성화 확인
 
 ---
 
-## 4.14 ???濡쒕뱶(Save/Load) ??Phase C
-### 4.14.1 (Epic) 硫뷀? 吏꾪뻾 ???#### (Feature) ????곗씠???ㅽ궎留??뺤쓽
+## 4.14 저장/로드(Save/Load) — Phase C
+### 4.14.1 (Epic) 메타 진행 저장
+#### (Feature) 저장 데이터 스키마 정의
 - [ENG] SaveData:
   - MetaBalance
   - UnlockedSectors
   - PurchasedUpgrades + levels
   - Settings(audio, controls)
   - LastRuns summary(optional)
-- [ENG] 踰꾩쟾 愿由?留덉씠洹몃젅?댁뀡) 理쒖냼 援ъ“
+- [ENG] 버전 관리(마이그레이션) 최소 구조
 
-#### (Feature) ???濡쒕뱶 援ы쁽
-- [ENG] 濡쒖뺄 JSON/諛붿씠?덈━ ?좏깮 諛?援ы쁽
-- [QA] ?몄씠釉??먯긽/踰꾩쟾 遺덉씪移??대갚(?덈줈 ?앹꽦/諛깆뾽)
-
----
-
-## 4.15 肄섑뀗痢??쒖옉(理쒖냼 ???뺤옣)
-### 4.15.1 (Epic) ?뚮젅??媛?ν븳 理쒖냼 肄섑뀗痢??명듃
-#### (Feature) ?뚯뒪???붾뱶/?ъ씤??- [ART] ?꾩떆 ?꾩떆 釉붾줉?꾩썐(?꾨줈/肄붾꼫/?μ븷臾?理쒖냼)
-- [ENG] 도로 격자 + 블록(비주행) 월드 규칙에 맞춘 테스트 맵 제작 (건물은 Block 전용)
-- [ENG] 픽업/배송은 건물 내부 고정 포인트 대신 도로 스폰형 InteractPoint 프리팹/마커 사용
-- [QA] ?대퉬 ?놁씠??紐⑹쟻吏 李얠쓣 ???덈뒗 ?섏???媛?쒖꽦(留덉빱/?쒖?)
-
-#### (Feature) ?몃옓/?쒕꼫吏/怨꾩빟 肄섑뀗痢??뺤옣(Phase D)
-- [DES] ?몃옓 20+, ?쒕꼫吏 10+ 紐⑺몴
-- [DES] 怨꾩빟 ????ㅼ뼇??嫄곕━/?꾪뿕/蹂댁긽)
-- [QA] ?좏깮 ?명뼢/?ш린 議고빀 ?щ? ?뚮젅?댄뀒?ㅽ듃
+#### (Feature) 저장/로드 구현
+- [ENG] 로컬 JSON/바이너리 선택 및 구현
+- [QA] 세이브 손상/버전 불일치 폴백(새로 생성/백업)
 
 ---
 
-## 4.16 QA/?섏슜 湲곗?(Acceptance) & ?뚯뒪???쒕굹由ъ삤
-### 4.16.1 (Epic) GDD ?섏슜 湲곗????뚯뒪??耳?댁뒪濡?蹂??#### (Feature) ?듭떖 ?쒕굹由ъ삤(理쒖냼 15媛?
-- [QA] ??7遺??꾩＜
-- [QA] ?뚯븙 ?좏깮 3??pause/resume ?뺤긽
-- [QA] 二쇰Ц 5珥??섎씫 ?쒗븳 ?뺤긽
-- [QA] ?щ’ 3 ?쒗븳 ?뺤긽
-- [QA] ???ㅻ쾭?덉씠 二쇳뻾 以??ㅽ뵂 ??由ъ뒪??利앷? 諛섏쁺
-- [QA] Temperature/Spill???대깽?몄뿉 諛섏쓳
-- [QA] ?됲뙋 0 利됱떆 醫낅즺 + ?뺤궛 ?뺤긽
-- [QA] Addressables UI/Audio 濡쒕뱶/?댁젣 ?꾩닔 ?놁쓬
-- [QA] ???꾪솚 諛섎났 ?덉젙
+## 4.15 콘텐츠 제작(최소 → 확장)
+### 4.15.1 (Epic) 플레이 가능한 최소 콘텐츠 세트
+#### (Feature) 테스트 월드/포인트
+- [ART] 임시 도시 블록아웃(도로/코너/장애물 최소)
+- [ENG] 픽업/배송 포인트 프리팹/마커
+- [QA] 내비 없이도 목적지 찾을 수 있는 수준의 가시성(마커/표지)
+- [ENG] Buildings are placed on blocks only, and pickup/delivery are road-side interact points (nearest-road spawn + F interaction).
+
+#### (Feature) 트랙/시너지/계약 콘텐츠 확장(Phase D)
+- [DES] 트랙 20+, 시너지 10+ 목표
+- [DES] 계약 타입 다양화(거리/위험/보상)
+- [QA] 선택 편향/사기 조합 여부 플레이테스트
+
+---
+
+## 4.16 QA/수용 기준(Acceptance) & 테스트 시나리오
+### 4.16.1 (Epic) GDD 수용 기준을 테스트 케이스로 변환
+#### (Feature) 핵심 시나리오(최소 15개)
+- [QA] 런 7분 완주
+- [QA] 음악 선택 3회 pause/resume 정상
+- [QA] 주문 5초 수락 제한 정상
+- [QA] 슬롯 3 제한 정상
+- [QA] 앱 오버레이 주행 중 오픈 시 리스크 증가 반영
+- [QA] Temperature/Spill이 이벤트에 반응
+- [QA] 평판 0 즉시 종료 + 정산 정상
+- [QA] Addressables UI/Audio 로드/해제 누수 없음
+- [QA] 씬 전환 반복 안정
+
+#### (Feature) 자동화/반자동 도구(선택)
+- [ENG][TOOLS] “런 1회 자동 플레이(간이)” 시뮬레이터(키 이벤트/타이머)
+- [ENG][TOOLS] Addressables 검증/리포트 자동 생성
 
 - [QA] 블록 위 진입 불가 + 도로 스폰형 픽업/배송 상호작용(F) 정상
-
-#### (Feature) ?먮룞??諛섏옄???꾧뎄(?좏깮)
-- [ENG][TOOLS] ?쒕윴 1???먮룞 ?뚮젅??媛꾩씠)???쒕??덉씠?????대깽????대㉧)
-- [ENG][TOOLS] Addressables 寃利?由ы룷???먮룞 ?앹꽦
-
 ---
 
-# 5. Phase蹂??쒖떎?됱슜 泥댄겕由ъ뒪?멤??곗꽑?쒖쐞 ?ы븿)
+# 5. Phase별 “실행용 체크리스트”(우선순위 포함)
 
-## 5.1 Phase A 泥댄겕由ъ뒪??P0留?
-- [P0] Foundation: ?대뜑 援ъ“, Addressables 洹몃９ 怨좎젙, EventBus + GameClock
+## 5.1 Phase A 체크리스트(P0만)
+- [P0] Foundation: 폴더 구조, Addressables 그룹 고정, EventBus + GameClock
 - [P0] CoreScene + SceneRouter + LoadingScene
-- [P0] RunSession(7遺???대㉧, ?곹깭癒몄떊, 醫낅즺/?뺣━)
-- [P0] MusicChoice 1??0:00) + 紐⑤떖 UI + 紐⑤뵒?뚯씠??1媛??곸슜
-- [P0] Order 1媛?怨좎젙 ?뚮줈???섎씫?믫뵿?끸넂諛곗넚?믪젙??
-- [P0] Run HUD(?쒓컙/二쇰Ц ?곹깭/?ы솕 理쒖냼)
-- [P0] ?ㅻ뵒??濡쒕뱶/?ъ깮 1媛?BGM) + UI ?대┃ SFX 1媛?- [P0] 寃곌낵 ?붾㈃ + 濡쒕퉬 蹂듦?
+- [P0] RunSession(7분 타이머, 상태머신, 종료/정리)
+- [P0] MusicChoice 1회(0:00) + 모달 UI + 모디파이어 1개 적용
+- [P0] Order 1개 고정 플로우(수락→픽업→배송→정산)
+- [P0] Run HUD(시간/주문 상태/재화 최소)
+- [P0] 오디오 로드/재생 1개(BGM) + UI 클릭 SFX 1개
+- [P0] 결과 화면 + 로비 복귀
 
-## 5.2 Phase B 泥댄겕由ъ뒪??P0/P1)
-- [P0] ?뚯븙 ?좏깮 3??+ ?쒕꼫吏(理쒖냼 1媛? + ?꾩쟻 紐⑤뵒?뚯씠???ㅽ깮
-- [P0] ?ㅽ띁 ?ㅽ룿/留뚮즺/?щ’3/?섎씫5珥??ㅽ뙣 泥섎━
-- [P0] Temperature + Spill + ?덉쭏 ?먯닔 + ?됲뙋 ?명?
-- [P0] ?됲뙋 0 議곌린 醫낅즺 + ?뺤궛
-- [P1] ???ㅻ쾭?덉씠 UX 媛쒖꽑(紐⑺몴 怨좎젙/?곸꽭蹂닿린)
-- [P1] 寃쎄퀬/?쇰뱶諛?SFX/?좎뒪?? ?뺣━
+## 5.2 Phase B 체크리스트(P0/P1)
+- [P0] 음악 선택 3회 + 시너지(최소 1개) + 누적 모디파이어 스택
+- [P0] 오퍼 스폰/만료/슬롯3/수락5초/실패 처리
+- [P0] Temperature + Spill + 품질 점수 + 평판 델타
+- [P0] 평판 0 조기 종료 + 정산
+- [P1] 앱 오버레이 UX 개선(목표 고정/상세보기)
+- [P1] 경고/피드백(SFX/토스트) 정리
 
-## 5.3 Phase C 泥댄겕由ъ뒪??P0/P1)
-- [P0] Economy 硫뷀?/?몄뀡 遺꾨━ + ?뺤궛 ??硫뷀? 諛섏쁺
-- [P0] Sector ?닿툑 + ?낃렇?덉씠??援щℓ/?곸슜(ModifierStack ?듯빀)
-- [P0] Save/Load(硫뷀? ?곗씠??
-- [P1] 濡쒕퉬 ?붾뱶留?UI 媛쒖꽑(?몃뱶/?좊땲硫붿씠??
+## 5.3 Phase C 체크리스트(P0/P1)
+- [P0] Economy 메타/세션 분리 + 정산 → 메타 반영
+- [P0] Sector 해금 + 업그레이드 구매/적용(ModifierStack 통합)
+- [P0] Save/Load(메타 데이터)
+- [P1] 로비 월드맵 UI 개선(노드/애니메이션)
 
-## 5.4 Phase D 泥댄겕由ъ뒪??P0/P1/P2)
-- [P0] ?붾젅硫뷀듃由?濡쒓렇 ?ㅽ궎留??곸슜 + ?붾쾭洹?UI ?좉?
-- [P0] ?깅뒫 理쒖쟻??alloc ?쒓굅, ?留? Update 理쒖냼??
-- [P0] QA ?쒕굹由ъ삤 ?꾨? ?듦낵
-- [P1] 肄섑뀗痢??뺤옣(?몃옓/?쒕꼫吏/怨꾩빟/?낃렇?덉씠??吏??
-- [P1] UX ?대━??媛?낆꽦/寃쎄퀬/?쒗넗由ъ뼹 理쒖냼)
-- [P2] 鍮뚮뱶/諛고룷 ?뚯씠?꾨씪?? ?щ옒??由ы룷????
+## 5.4 Phase D 체크리스트(P0/P1/P2)
+- [P0] 텔레메트리/로그 스키마 적용 + 디버그 UI 토글
+- [P0] 성능 최적화(alloc 제거, 풀링, Update 최소화)
+- [P0] QA 시나리오 전부 통과
+- [P1] 콘텐츠 확장(트랙/시너지/계약/업그레이드/지역)
+- [P1] UX 폴리시(가독성/경고/튜토리얼 최소)
+- [P2] 빌드/배포 파이프라인, 크래시 리포트 등
+
 ---
 
-## 6. 遺濡? ??븷蹂??쒖씠踰?二??쒖옉??異붿쿇 ?묒뾽 臾띠쓬
-- **ENG ?쒖옉 臾띠쓬**: Addressables ?쒖? ?명똿 ??EventBus/GameClock ??SceneRouter/CoreRoot ??RunSession(??대㉧/?곹깭)  
-- **UI ?쒖옉 臾띠쓬**: HUD ?(?쒓컙/?됲뙋/二쇰Ц ?щ’) ???뚯븙 ?좏깮 紐⑤떖 ??寃곌낵 ?붾㈃  
-- **DES ?쒖옉 臾띠쓬**: Phase A??理쒖냼 SO ?곗씠???몃옓/怨꾩빟/?ㅼ젙) ?묒꽦 + ?명? 洹쒖튃 珥덉븞  
-- **AUDIO ?쒖옉 臾띠쓬**: BGM 2媛??뚯뒪??猷⑦봽) + UI ?대┃/寃쎄퀬 SFX 3醫? 
-- **QA ?쒖옉 臾띠쓬**: Phase A ?섏슜 湲곗? 泥댄겕由ъ뒪??臾몄꽌??+ ?꾪솚 諛섎났/?꾩닔 ?뚯뒪???쒗뵆由?
+## 6. 부록: 역할별 “이번 주 시작” 추천 작업 묶음
+- **ENG 시작 묶음**: Addressables 표준 세팅 → EventBus/GameClock → SceneRouter/CoreRoot → RunSession(타이머/상태)  
+- **UI 시작 묶음**: HUD 틀(시간/평판/주문 슬롯) → 음악 선택 모달 → 결과 화면  
+- **DES 시작 묶음**: Phase A용 최소 SO 데이터(트랙/계약/설정) 작성 + 델타 규칙 초안  
+- **AUDIO 시작 묶음**: BGM 2개(테스트 루프) + UI 클릭/경고 SFX 3종  
+- **QA 시작 묶음**: Phase A 수용 기준 체크리스트 문서화 + 전환 반복/누수 테스트 템플릿
 
