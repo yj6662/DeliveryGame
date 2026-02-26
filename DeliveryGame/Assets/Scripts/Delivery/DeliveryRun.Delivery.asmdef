@@ -1,9 +1,7 @@
 {
   "name": "DeliveryRun.Delivery",
   "rootNamespace": "DeliveryRun.Delivery",
-  "references": [
-    "DeliveryRun.Managers"
-  ],
+  "references": [],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

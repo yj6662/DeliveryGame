@@ -1,7 +1,9 @@
 {
   "name": "DeliveryRun.Editor",
   "rootNamespace": "DeliveryRun.Editor",
-  "references": [],
+  "references": [
+    "DeliveryRun.UI"
+  ],
   "includePlatforms": [
     "Editor"
   ],

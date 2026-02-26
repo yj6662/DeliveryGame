@@ -48,6 +48,30 @@ namespace DeliveryRun.Managers.Core
                 {
                     events.Publish(new ReturnToLobbyRequested());
                 }
+
+                RunSessionManager runSessionDebugManager;
+                if (root.Services.TryGet(out runSessionDebugManager) && runSessionDebugManager != null)
+                {
+                    if (GUILayout.Button("Force End Run"))
+                    {
+                        runSessionDebugManager.ForceEndRun();
+                    }
+
+                    if (GUILayout.Button("+60s"))
+                    {
+                        runSessionDebugManager.DebugAddElapsed(60f);
+                    }
+
+                    if (GUILayout.Button("PauseForChoice"))
+                    {
+                        runSessionDebugManager.DebugEnterChoicePause();
+                    }
+
+                    if (GUILayout.Button("Resume"))
+                    {
+                        runSessionDebugManager.DebugResumeFromChoice();
+                    }
+                }
             }
 
             if (activeScene == SceneNames.LoadingScene)
@@ -93,10 +117,12 @@ namespace DeliveryRun.Managers.Core
             RunSessionManager runSessionManager;
             if (root.Services.TryGet(out runSessionManager) && runSessionManager != null)
             {
-                GUILayout.Label("RunSession Active: " + (runSessionManager.IsActive ? "Y" : "N"));
+                GUILayout.Label("RunSession Active: " + (runSessionManager.HasActiveRun ? "Y" : "N"));
+                GUILayout.Label("Run State: " + runSessionManager.CurrentState);
                 GUILayout.Label(
                     "Run Time: " + Mathf.FloorToInt(runSessionManager.ElapsedSeconds) +
                     " / " + Mathf.FloorToInt(runSessionManager.RunDurationSeconds));
+                GUILayout.Label("Run Remaining: " + Mathf.CeilToInt(runSessionManager.RemainingSeconds) + "s");
             }
 
             RatingManager ratingManager;

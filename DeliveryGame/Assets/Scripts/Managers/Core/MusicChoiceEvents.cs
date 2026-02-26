@@ -1,5 +1,11 @@
 namespace DeliveryRun.Managers.Core
 {
+    public struct MusicChoiceSelected
+    {
+        public int ChoiceIndex;
+        public int OptionIndex;
+    }
+
     public struct MusicChoiceRequested
     {
         public int RunSequence;

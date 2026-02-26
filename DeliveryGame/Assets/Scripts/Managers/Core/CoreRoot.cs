@@ -198,6 +198,8 @@ namespace DeliveryRun.Managers.Core
             AddSubManager(new SceneFlowController());
             AddSubManager(new AudioManager());
             AddSubManager(new SoundManager());
+            AddSubManager(new UiMusicChoiceManager());
+            AddSubManager(new UiRunHudManager());
             AddSubManager(new AddressablesService());
             AddSubManager(new RunSessionManager());
             AddSubManager(new UIManager());
