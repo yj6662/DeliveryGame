@@ -35,6 +35,9 @@ namespace DeliveryRun.Managers.Subs
         private bool _endedPublished;
         private bool _lastOrderStarted;
         private int _runSequence;
+        private float _unexpectedPauseAccum;
+        private bool _unexpectedPauseLogged;
+        private UiRunHudManager _uiRunHudManager;
 
         public override string Name => nameof(RunSessionManager);
         public override int InitOrder => 40;
@@ -74,6 +77,8 @@ namespace DeliveryRun.Managers.Subs
             {
                 dt = 0f;
             }
+
+            RecoverUnexpectedPausedTimescale(dt);
 
             DomainRunSessionState fromState = _session.State;
             int flags = _session.Tick(dt);
@@ -259,6 +264,8 @@ namespace DeliveryRun.Managers.Subs
             _tickPublishAccum = 0f;
             _endedPublished = false;
             _lastOrderStarted = false;
+            _unexpectedPauseAccum = 0f;
+            _unexpectedPauseLogged = false;
 
             _runSequence++;
             _session = new DomainRunSession(RunDurationSecondsConst, ChoiceTimesSeconds, LastOrderStartSecondsConst);
@@ -305,6 +312,8 @@ namespace DeliveryRun.Managers.Subs
             _returnRequested = false;
             _endedPublished = false;
             _lastOrderStarted = false;
+            _unexpectedPauseAccum = 0f;
+            _unexpectedPauseLogged = false;
             RestoreCapturedTimeScale();
         }
 
@@ -467,6 +476,52 @@ namespace DeliveryRun.Managers.Subs
             Time.timeScale = _savedTimeScale;
             _savedTimeScale = 0f;
             _timeScaleCaptured = false;
+        }
+
+        private void RecoverUnexpectedPausedTimescale(float dt)
+        {
+            if (Time.timeScale > 0.0001f)
+            {
+                _unexpectedPauseAccum = 0f;
+                _unexpectedPauseLogged = false;
+                return;
+            }
+
+            bool expectedPause = _session != null && _session.State == DomainRunSessionState.PauseForChoice;
+            if (!expectedPause)
+            {
+                if (_uiRunHudManager == null)
+                {
+                    Services.TryGet(out _uiRunHudManager);
+                }
+
+                expectedPause = _uiRunHudManager != null && _uiRunHudManager.IsPauseMenuOpen;
+            }
+
+            if (expectedPause)
+            {
+                _unexpectedPauseAccum = 0f;
+                _unexpectedPauseLogged = false;
+                return;
+            }
+
+            _unexpectedPauseAccum += dt;
+            if (_unexpectedPauseAccum < 0.45f)
+            {
+                return;
+            }
+
+            Time.timeScale = 1f;
+            _unexpectedPauseAccum = 0f;
+            if (_unexpectedPauseLogged)
+            {
+                return;
+            }
+
+            _unexpectedPauseLogged = true;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.LogWarning("[RunSessionManager] Detected unexpected paused timescale. Auto-restored to 1.");
+#endif
         }
     }
 }

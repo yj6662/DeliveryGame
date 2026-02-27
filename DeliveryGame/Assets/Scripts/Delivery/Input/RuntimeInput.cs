@@ -204,6 +204,10 @@ namespace DeliveryRun.Delivery.Input
         {
             if (_initialized)
             {
+                if (_gameplayMap != null && !_gameplayMap.enabled)
+                {
+                    _gameplayMap.Enable();
+                }
                 return;
             }
 

@@ -263,7 +263,10 @@ namespace DeliveryRun.UI.Run
             {
                 closeButton.interactable = true;
                 closeButton.onClick.RemoveAllListeners();
-                closeButton.onClick.AddListener(Hide);
+                closeButton.onClick.AddListener(() =>
+                {
+                    ConfirmSelection(_selectedIndex >= 0 ? _selectedIndex : 0);
+                });
             }
         }
 

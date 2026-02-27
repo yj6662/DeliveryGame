@@ -132,6 +132,7 @@ namespace DeliveryRun.Managers.Subs
         private Text _newOfferHeaderText;
         private Text _phonePreviewText;
         private Image _newOfferExpiryOverlay;
+        private RectTransform _newOfferExpiryOverlayRect;
         private float _phoneCurrentHeight;
         private float _phoneCurrentLift;
         private float _activePanelCurrentHeight;
@@ -176,6 +177,7 @@ namespace DeliveryRun.Managers.Subs
 
         public override string Name => nameof(UiRunHudManager);
         public override int InitOrder => 36;
+        public bool IsPauseMenuOpen => _pauseOpen;
 
         protected override void OnInitialize()
         {
@@ -812,6 +814,7 @@ namespace DeliveryRun.Managers.Subs
             _newOfferHeaderText = null;
             _phonePreviewText = null;
             _newOfferExpiryOverlay = null;
+            _newOfferExpiryOverlayRect = null;
             _statusGaugeRect = null;
             _statusGaugeNeedleImage = null;
             _statusGaugeSpeedText = null;
@@ -1265,7 +1268,7 @@ namespace DeliveryRun.Managers.Subs
 
         private void UpdateNewOfferProgressOverlay()
         {
-            if (_newOfferExpiryOverlay == null)
+            if (_newOfferExpiryOverlay == null || _newOfferExpiryOverlayRect == null)
             {
                 return;
             }
@@ -1278,7 +1281,10 @@ namespace DeliveryRun.Managers.Subs
                     _newOfferExpiryOverlay.gameObject.SetActive(false);
                 }
 
-                _newOfferExpiryOverlay.fillAmount = 0f;
+                _newOfferExpiryOverlayRect.anchorMin = new Vector2(0f, 1f);
+                _newOfferExpiryOverlayRect.anchorMax = new Vector2(1f, 1f);
+                _newOfferExpiryOverlayRect.offsetMin = Vector2.zero;
+                _newOfferExpiryOverlayRect.offsetMax = Vector2.zero;
                 return;
             }
 
@@ -1288,7 +1294,10 @@ namespace DeliveryRun.Managers.Subs
                 _newOfferExpiryOverlay.gameObject.SetActive(true);
             }
 
-            _newOfferExpiryOverlay.fillAmount = normalized;
+            _newOfferExpiryOverlayRect.anchorMin = new Vector2(0f, 1f - normalized);
+            _newOfferExpiryOverlayRect.anchorMax = new Vector2(1f, 1f);
+            _newOfferExpiryOverlayRect.offsetMin = Vector2.zero;
+            _newOfferExpiryOverlayRect.offsetMax = Vector2.zero;
         }
 
         private void UpdateOfferCountdownFromClock()
@@ -1435,6 +1444,7 @@ namespace DeliveryRun.Managers.Subs
             RectTransform overlayRect = overlayObject.GetComponent<RectTransform>();
             overlayRect.SetParent(offerScreenRect, false);
             AnchorStretch(overlayRect, 0f, 0f, 0f, 0f);
+            _newOfferExpiryOverlayRect = overlayRect;
             _newOfferExpiryOverlay = overlayObject.GetComponent<Image>();
             _newOfferExpiryOverlay.color = new Color(0f, 0f, 0f, 0.96f);
             Sprite overlaySprite = _view.GetPanelSkinSprite();
@@ -1443,10 +1453,7 @@ namespace DeliveryRun.Managers.Subs
                 overlaySprite = Resources.GetBuiltinResource<Sprite>("UI/Skin/Background.psd");
             }
             _newOfferExpiryOverlay.sprite = overlaySprite;
-            _newOfferExpiryOverlay.type = Image.Type.Filled;
-            _newOfferExpiryOverlay.fillMethod = Image.FillMethod.Vertical;
-            _newOfferExpiryOverlay.fillOrigin = (int)Image.OriginVertical.Top;
-            _newOfferExpiryOverlay.fillAmount = 1f;
+            _newOfferExpiryOverlay.type = _newOfferExpiryOverlay.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
             _newOfferExpiryOverlay.raycastTarget = false;
             _newOfferExpiryOverlay.gameObject.SetActive(false);
 
