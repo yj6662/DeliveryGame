@@ -207,6 +207,7 @@ namespace DeliveryRun.Managers.Core
             AddSubManager(new RunDayNightLightingManager());
             AddSubManager(new RunModifierManager());
             AddSubManager(new MetaProgressionManager());
+            AddSubManager(new SectorThemeManager());
             AddSubManager(new PlayerBikeModifierLink());
             AddSubManager(new TrafficSystemManager());
             AddSubManager(new TrafficSignalManager());

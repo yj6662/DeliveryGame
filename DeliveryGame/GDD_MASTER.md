@@ -390,3 +390,61 @@ Priority `P1` (next):
 - Camera occlusion polish for isometric follow (no near-object clipping artifacts).
 - Day-night timeline polish tied to run time progression.
 - Traffic content expansion (vehicle variants, spawn balancing by lane density).
+
+---
+
+## 16) Traffic Rule Sync (2026-02-27)
+
+This section supersedes older traffic notes where behavior detail was ambiguous.
+
+Road topology:
+- RunScene uses deterministic road-grid lanes.
+- Building areas remain non-drivable blocks.
+- Traffic NPC spawn points are selected from road-edge lanes heading inward.
+
+Signal model:
+- Intersections run deterministic 4-phase cycle:
+  - VerticalGreen -> VerticalYellow -> HorizontalGreen -> HorizontalYellow
+- NPC obey stop line on red.
+- Yellow-light uses dilemma-zone behavior:
+  - if already committed near stop line, proceed;
+  - otherwise stop.
+
+NPC movement rules (runtime):
+- Lane-follow only (no off-lane drift).
+- Car-following headway and minimum gap are enforced.
+- Intersection keep-clear rule:
+  - if the next lane entry is blocked, NPC holds before the stop line.
+- Turn choice approximates real driving flow:
+  - weighted selection with straight priority, then right, then left;
+  - U-turn only as last fallback.
+- Turn approach speed is reduced for right/left/U-turn maneuvers.
+
+Validation baseline:
+- `Tools/RunTests_TrafficNpc_PlayMode.cmd`
+- `Tools/RunTests_TrafficSignal_PlayMode.cmd`
+
+---
+
+## 17) Meta & Sector Sync (2026-02-27)
+
+Permanent upgrades (Meta):
+- Added permanent upgrade tracks for:
+  - base speed (`bike_speed`)
+  - turn sensitivity (`bike_turn`)
+  - acceleration (`bike_accel`)
+  - higher high-tier appearance chance for music draft (`music_luck`)
+- Existing permanent tracks for grip/brake/reward remain compatible.
+- Applied via `ModifierStackService` with run-time rebinding at run start.
+
+Sector unlock + themed sector variants:
+- Sector progression now uses `central + 5 themed sectors`:
+  - `rushdistrict`, `frostlands`, `hillcrest`, `stormcoast`, `oldtown`
+- Unlock is total-cash based in meta progression.
+- Selected sector is persisted and can be cycled in Lobby.
+- Sector themes apply gameplay modifiers (Offer TTL/respawn, temperature decay, spill gain, vehicle response, reward tuning).
+- RunScene now includes sector-variant roots (`CityRoot/SectorThemes/*`) and activates the selected one at runtime.
+
+Run UX sync:
+- Minimap now includes gas-station marker rendering (in-map + edge indicator behavior).
+- Pickup/Delivery/Fuel interaction visuals are forced to opaque materials for readability.

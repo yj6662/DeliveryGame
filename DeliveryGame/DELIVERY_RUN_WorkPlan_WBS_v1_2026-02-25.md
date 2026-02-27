@@ -547,3 +547,33 @@ Unity Version: 6000.3.9f1
 ### 7.3 실행 커맨드(회귀 검증)
 - [QA] `Tools/RunTests_TrafficNpc_PlayMode.cmd`
 - [QA] `Tools/RunTests_TrafficSignal_PlayMode.cmd`
+
+### 7.4 Traffic Rule Sync (2026-02-27)
+- [ENG][DONE] Edge-spawn traffic:
+  - NPC spawn lanes are chosen near road boundary and inward heading.
+- [ENG][DONE] Intersection signal compliance:
+  - NPC hard-stop at stop line on red.
+  - Yellow-light dilemma-zone behavior (committed vehicles proceed, otherwise stop).
+- [ENG][DONE] Keep-clear intersection behavior:
+  - if exit lane entry is blocked, NPC waits before crossing node.
+- [ENG][DONE] Realistic turn flow:
+  - weighted turn selection (`Straight > Right > Left`, U-turn fallback only).
+  - approach speed reduction on turning maneuvers.
+- [ENG][QA] Regression commands:
+  - `Tools/RunTests_TrafficNpc_PlayMode.cmd`
+  - `Tools/RunTests_TrafficSignal_PlayMode.cmd`
+
+### 7.5 Meta/Sector Sync (2026-02-27)
+- [ENG][DONE] Permanent upgrade expansion:
+  - speed / turn sensitivity / acceleration / music high-tier chance.
+  - plus existing grip / brake / reward tracks compatibility.
+- [ENG][DONE] Sector unlock expansion:
+  - `central + 5 themed sectors` progression.
+  - selected sector persistence + lobby cycle input.
+- [ENG][DONE] Themed sector runtime application:
+  - Offer TTL / respawn / food temperature decay / spill gain / vehicle response / reward tuning.
+  - RunScene sector variant roots generated and activated by selected sector.
+- [ENG][DONE] Minimap fuel station marker:
+  - gas station anchor marker added to minimap tracking.
+- [ENG][DONE] Interaction visual readability:
+  - pickup/delivery/fuel interact objects now use opaque materials.

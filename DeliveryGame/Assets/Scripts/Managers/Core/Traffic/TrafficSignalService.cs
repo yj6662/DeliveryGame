@@ -105,6 +105,49 @@ namespace DeliveryRun.Managers.Core
             return false;
         }
 
+        public bool TryGetLaneSignal(
+            int nodeId,
+            Vector3 laneForward,
+            out bool isGreen,
+            out bool isYellow,
+            out float remainingSeconds)
+        {
+            isGreen = false;
+            isYellow = false;
+            remainingSeconds = 0f;
+
+            SignalRuntime runtime;
+            if (!_signals.TryGetValue(nodeId, out runtime))
+            {
+                return false;
+            }
+
+            bool isVerticalLane = Mathf.Abs(laneForward.z) >= Mathf.Abs(laneForward.x);
+            if (runtime.Phase == TrafficSignalPhase.VerticalGreen)
+            {
+                isGreen = isVerticalLane;
+                isYellow = false;
+            }
+            else if (runtime.Phase == TrafficSignalPhase.HorizontalGreen)
+            {
+                isGreen = !isVerticalLane;
+                isYellow = false;
+            }
+            else if (runtime.Phase == TrafficSignalPhase.VerticalYellow)
+            {
+                isGreen = false;
+                isYellow = isVerticalLane;
+            }
+            else
+            {
+                isGreen = false;
+                isYellow = !isVerticalLane;
+            }
+
+            remainingSeconds = runtime.RemainingSeconds;
+            return true;
+        }
+
         public bool TryGetState(int nodeId, out TrafficSignalState state)
         {
             SignalRuntime runtime;

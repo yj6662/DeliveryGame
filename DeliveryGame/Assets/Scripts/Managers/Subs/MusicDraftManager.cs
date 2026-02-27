@@ -14,6 +14,7 @@ namespace DeliveryRun.Managers.Subs
         private const int ChoiceCount = 3;
         private const int CommonWeight = 70;
         private const int RareWeight = 25;
+        private const int EpicWeight = 5;
 
         private readonly string[] _pickedTrackIds = new string[ChoiceCount];
         private readonly string[] _draftTrackIds = new string[ChoiceCount];
@@ -22,6 +23,7 @@ namespace DeliveryRun.Managers.Subs
         private MusicDatabaseSO _database;
         private MusicLibraryService _library;
         private MusicTrackSO[] _tracks;
+        private ModifierStackService _stack;
         private System.Random _rng;
 
         private int[] _commonTrackIndices;
@@ -55,6 +57,7 @@ namespace DeliveryRun.Managers.Subs
 
             _library = new MusicLibraryService(_database);
             Services.Register(_library);
+            Services.TryGet(out _stack);
 
             BuildTierIndices();
             _rng = new System.Random(unchecked((int)DateTime.UtcNow.Ticks));
@@ -268,13 +271,40 @@ namespace DeliveryRun.Managers.Subs
 
         private MusicTier RollTier()
         {
+            if (_stack == null)
+            {
+                Services.TryGet(out _stack);
+            }
+
+            float highTierMul = 1f;
+            if (_stack != null)
+            {
+                highTierMul = _stack.GetMul(RunStatId.MusicHighTierChanceMultiplier);
+            }
+
+            highTierMul = Mathf.Clamp(highTierMul, 0.2f, 3f);
+            int rareWeight = Mathf.Clamp(Mathf.RoundToInt(RareWeight * highTierMul), 4, 70);
+            int epicWeight = Mathf.Clamp(Mathf.RoundToInt(EpicWeight * highTierMul), 1, 25);
+            int commonWeight = 100 - rareWeight - epicWeight;
+            if (commonWeight < 5)
+            {
+                commonWeight = 5;
+                int highTotal = 100 - commonWeight;
+                int totalHighBase = rareWeight + epicWeight;
+                if (totalHighBase > 0)
+                {
+                    rareWeight = Mathf.RoundToInt((rareWeight / (float)totalHighBase) * highTotal);
+                    epicWeight = highTotal - rareWeight;
+                }
+            }
+
             int roll = _rng.Next(100);
-            if (roll < CommonWeight)
+            if (roll < commonWeight)
             {
                 return MusicTier.Common;
             }
 
-            if (roll < CommonWeight + RareWeight)
+            if (roll < commonWeight + rareWeight)
             {
                 return MusicTier.Rare;
             }

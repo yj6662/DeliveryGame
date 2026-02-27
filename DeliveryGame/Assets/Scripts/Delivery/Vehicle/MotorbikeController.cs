@@ -65,6 +65,8 @@ namespace DeliveryRun.Delivery.Vehicle
         private float _currentLeanAngle;
         private float _stunRemaining;
 
+        private float _turnSensitivityMul = 1f;
+        private float _accelerationMul = 1f;
         private float _gripMul = 1f;
         private float _brakeMul = 1f;
 
@@ -102,6 +104,16 @@ namespace DeliveryRun.Delivery.Vehicle
         public void SetSpeedMultiplier(float mul)
         {
             SpeedMultiplier = Mathf.Clamp(mul, 0.2f, 3f);
+        }
+
+        public void SetTurnSensitivityMultiplier(float mul)
+        {
+            _turnSensitivityMul = Mathf.Clamp(mul, 0.2f, 3f);
+        }
+
+        public void SetAccelerationMultiplier(float mul)
+        {
+            _accelerationMul = Mathf.Clamp(mul, 0.2f, 3f);
         }
 
         public void SetGripMultiplier(float mul)
@@ -164,7 +176,7 @@ namespace DeliveryRun.Delivery.Vehicle
 
         private void ApplyThrottle(float input, float dt)
         {
-            float effectiveAccel = Mathf.Max(0f, acceleration * SpeedMultiplier);
+            float effectiveAccel = Mathf.Max(0f, acceleration * SpeedMultiplier * _accelerationMul);
             float effectiveMaxSpeed = Mathf.Max(0f, maxMoveSpeed * SpeedMultiplier);
             float effectiveReverseSpeed = Mathf.Max(0f, reverseSpeed);
             float rampDuration = Mathf.Max(0.01f, accelerationSmoothing);
@@ -235,7 +247,7 @@ namespace DeliveryRun.Delivery.Vehicle
                 return;
             }
 
-            float effectiveTurnSpeed = turnSpeed * Mathf.Max(0.2f, _gripMul);
+            float effectiveTurnSpeed = turnSpeed * Mathf.Max(0.2f, _gripMul) * _turnSensitivityMul;
             float maxSpeedForRatio = Mathf.Max(0.01f, maxMoveSpeed * SpeedMultiplier);
             float absSpeed = Mathf.Abs(_currentSpeed);
             float speedRatio = absSpeed / maxSpeedForRatio;

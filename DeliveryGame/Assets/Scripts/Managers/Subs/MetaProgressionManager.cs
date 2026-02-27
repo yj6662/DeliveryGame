@@ -10,19 +10,40 @@ namespace DeliveryRun.Managers.Subs
     {
         private const int MaxUpgradeLevel = 3;
 
-        private static readonly string[] UpgradeIds = { "bike_speed", "bike_grip", "bike_brake", "reward_bonus" };
+        private static readonly string[] UpgradeIds =
+        {
+            "bike_speed",
+            "bike_turn",
+            "bike_accel",
+            "music_luck",
+            "bike_grip",
+            "bike_brake",
+            "reward_bonus"
+        };
+
         private static readonly RunStatId[] UpgradeStats =
         {
             RunStatId.PlayerMoveSpeedMultiplier,
+            RunStatId.BikeTurnSensitivityMultiplier,
+            RunStatId.BikeAccelerationMultiplier,
+            RunStatId.MusicHighTierChanceMultiplier,
             RunStatId.BikeLateralGripMultiplier,
             RunStatId.BikeBrakeForceMultiplier,
             RunStatId.RewardMultiplier
         };
-        private static readonly float[] UpgradePerLevelMulDelta = { 0.06f, 0.05f, 0.05f, 0.04f };
+        private static readonly float[] UpgradePerLevelMulDelta = { 0.06f, 0.08f, 0.07f, 0.15f, 0.05f, 0.05f, 0.04f };
 
-        private static readonly string[] RegionIds = { "harbor", "uptown", "industrial" };
-        private static readonly int[] RegionUnlockCash = { 2000, 5000, 9000 };
-        private static readonly int[] AutoUpgradeLevelCash = { 1500, 4200, 9000 };
+        private static readonly string[] RegionIds =
+        {
+            "rushdistrict",
+            "frostlands",
+            "hillcrest",
+            "stormcoast",
+            "oldtown"
+        };
+
+        private static readonly int[] RegionUnlockCash = { 1200, 3000, 5500, 9000, 14000 };
+        private static readonly int[] AutoUpgradeLevelCash = { 1800, 6200, 15000 };
 
         private readonly List<string> _appliedUpgradeSourceIds = new List<string>(8);
 
@@ -42,6 +63,7 @@ namespace DeliveryRun.Managers.Subs
 
             Subs.Add<RunReportReady>(Events, OnRunReportReady);
             Subs.Add<PermanentUpgradePurchaseRequested>(Events, OnPermanentUpgradePurchaseRequested);
+            Subs.Add<SelectNextRegionRequested>(Events, OnSelectNextRegionRequested);
             Subs.Add<DomainRunSessionStarted>(Events, OnRunStarted);
             Subs.Add<DomainRunSessionEnded>(Events, OnRunEnded);
 
@@ -53,6 +75,7 @@ namespace DeliveryRun.Managers.Subs
 
             EvaluateRegionUnlocks(false);
             EvaluateAutomaticUpgrades(false);
+            Events.Publish(new SelectedRegionChanged { RegionId = _meta.SelectedRegionId });
         }
 
         protected override void OnShutdown()
@@ -117,6 +140,19 @@ namespace DeliveryRun.Managers.Subs
             if (_runActive)
             {
                 ApplyPermanentUpgradesToRun();
+            }
+        }
+
+        private void OnSelectNextRegionRequested(SelectNextRegionRequested evt)
+        {
+            if (_meta == null)
+            {
+                return;
+            }
+
+            if (_meta.SelectNextUnlockedRegion())
+            {
+                Events.Publish(new SelectedRegionChanged { RegionId = _meta.SelectedRegionId });
             }
         }
 

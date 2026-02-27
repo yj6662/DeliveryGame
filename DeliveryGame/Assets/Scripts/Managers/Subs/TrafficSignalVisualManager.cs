@@ -21,6 +21,8 @@ namespace DeliveryRun.Managers.Subs
         }
 
         private const float ScenePollInterval = 0.5f;
+        private const float SignalCornerOffset = 8.5f;
+        private const float SignalBaseYOffset = 0.05f;
 
         private readonly List<SignalVisual> _visuals = new List<SignalVisual>(64);
 
@@ -179,11 +181,11 @@ namespace DeliveryRun.Managers.Subs
 #endif
         }
 
-        private SignalVisual CreateSignalVisual(int nodeId, Vector3 basePosition, Transform parent)
+        private SignalVisual CreateSignalVisual(int nodeId, Vector3 intersectionPosition, Transform parent)
         {
             GameObject signalRoot = new GameObject("Signal_" + nodeId.ToString());
             signalRoot.transform.SetParent(parent, false);
-            signalRoot.transform.position = basePosition + new Vector3(0f, 0.05f, 0f);
+            signalRoot.transform.position = ResolveSignalRoadsidePosition(nodeId, intersectionPosition);
 
             GameObject pole = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             pole.name = "Pole";
@@ -215,6 +217,31 @@ namespace DeliveryRun.Managers.Subs
 
             ApplyPhaseVisual(ref visual, TrafficSignalPhase.VerticalGreen);
             return visual;
+        }
+
+        private static Vector3 ResolveSignalRoadsidePosition(int nodeId, Vector3 intersectionPosition)
+        {
+            int corner = nodeId & 3;
+            float signX = 1f;
+            float signZ = 1f;
+            if (corner == 1)
+            {
+                signX = -1f;
+            }
+            else if (corner == 2)
+            {
+                signX = -1f;
+                signZ = -1f;
+            }
+            else if (corner == 3)
+            {
+                signZ = -1f;
+            }
+
+            return new Vector3(
+                intersectionPosition.x + (signX * SignalCornerOffset),
+                intersectionPosition.y + SignalBaseYOffset,
+                intersectionPosition.z + (signZ * SignalCornerOffset));
         }
 
         private Renderer CreateLamp(Transform parent, string name, Vector3 localPos)

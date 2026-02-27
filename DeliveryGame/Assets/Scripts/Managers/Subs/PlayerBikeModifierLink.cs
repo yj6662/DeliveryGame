@@ -14,6 +14,8 @@ namespace DeliveryRun.Managers.Subs
         private ModifierStackService _stack;
 
         private float _speedMul = 1f;
+        private float _turnMul = 1f;
+        private float _accelMul = 1f;
         private float _gripMul = 1f;
         private float _brakeMul = 1f;
         private float _pollAccum;
@@ -77,6 +79,8 @@ namespace DeliveryRun.Managers.Subs
         private void OnModifiersCleared(RunModifiersCleared evt)
         {
             _speedMul = 1f;
+            _turnMul = 1f;
+            _accelMul = 1f;
             _gripMul = 1f;
             _brakeMul = 1f;
             ApplyToBike();
@@ -139,6 +143,8 @@ namespace DeliveryRun.Managers.Subs
             }
 
             _speedMul = _stack.GetMul(RunStatId.PlayerMoveSpeedMultiplier);
+            _turnMul = _stack.GetMul(RunStatId.BikeTurnSensitivityMultiplier);
+            _accelMul = _stack.GetMul(RunStatId.BikeAccelerationMultiplier);
             _gripMul = _stack.GetMul(RunStatId.BikeLateralGripMultiplier);
             _brakeMul = _stack.GetMul(RunStatId.BikeBrakeForceMultiplier);
         }
@@ -151,6 +157,8 @@ namespace DeliveryRun.Managers.Subs
             }
 
             _bike.SetSpeedMultiplier(_speedMul);
+            _bike.SetTurnSensitivityMultiplier(_turnMul);
+            _bike.SetAccelerationMultiplier(_accelMul);
             _bike.SetGripMultiplier(_gripMul);
             _bike.SetBrakeMultiplier(_brakeMul);
         }
@@ -158,6 +166,8 @@ namespace DeliveryRun.Managers.Subs
         private void ResetBike()
         {
             _speedMul = 1f;
+            _turnMul = 1f;
+            _accelMul = 1f;
             _gripMul = 1f;
             _brakeMul = 1f;
 
@@ -167,6 +177,8 @@ namespace DeliveryRun.Managers.Subs
             }
 
             _bike.SetSpeedMultiplier(1f);
+            _bike.SetTurnSensitivityMultiplier(1f);
+            _bike.SetAccelerationMultiplier(1f);
             _bike.SetGripMultiplier(1f);
             _bike.SetBrakeMultiplier(1f);
         }

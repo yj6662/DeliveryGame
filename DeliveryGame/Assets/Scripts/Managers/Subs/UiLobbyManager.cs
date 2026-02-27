@@ -10,8 +10,26 @@ namespace DeliveryRun.Managers.Subs
     public sealed class UiLobbyManager : SubManagerBase
     {
         private const float ScenePollInterval = 0.25f;
-        private static readonly string[] RegionIds = { "central", "harbor", "uptown", "industrial" };
-        private static readonly string[] UpgradeIds = { "bike_speed", "bike_grip", "bike_brake", "reward_bonus" };
+        private static readonly string[] RegionIds =
+        {
+            "central",
+            "rushdistrict",
+            "frostlands",
+            "hillcrest",
+            "stormcoast",
+            "oldtown"
+        };
+
+        private static readonly string[] UpgradeIds =
+        {
+            "bike_speed",
+            "bike_turn",
+            "bike_accel",
+            "music_luck",
+            "bike_grip",
+            "bike_brake",
+            "reward_bonus"
+        };
 
         private UiPrefabCatalogSO _catalog;
         private AudioManager _audioManager;
@@ -23,6 +41,7 @@ namespace DeliveryRun.Managers.Subs
         private Slider _uiSlider;
         private Text _metaCashText;
         private Text _metaRegionText;
+        private Text _metaSelectedRegionText;
         private Text _metaUpgradeText;
 
         private bool _isLobbyScene;
@@ -44,6 +63,7 @@ namespace DeliveryRun.Managers.Subs
             Subs.Add<SceneTransitionCompleted>(Events, OnSceneTransitionCompleted);
             Subs.Add<MetaBalanceChanged>(Events, OnMetaBalanceChanged);
             Subs.Add<RegionUnlocked>(Events, OnRegionUnlocked);
+            Subs.Add<SelectedRegionChanged>(Events, OnSelectedRegionChanged);
             Subs.Add<PermanentUpgradeChanged>(Events, OnPermanentUpgradeChanged);
 
             HandleSceneChanged(SceneManager.GetActiveScene().name);
@@ -90,6 +110,11 @@ namespace DeliveryRun.Managers.Subs
         }
 
         private void OnRegionUnlocked(RegionUnlocked evt)
+        {
+            RefreshMetaTexts();
+        }
+
+        private void OnSelectedRegionChanged(SelectedRegionChanged evt)
         {
             RefreshMetaTexts();
         }
@@ -195,12 +220,19 @@ namespace DeliveryRun.Managers.Subs
             _metaRegionText.rectTransform.anchoredPosition = new Vector2(0f, -188f);
             _metaRegionText.rectTransform.sizeDelta = new Vector2(0f, 28f);
 
+            _metaSelectedRegionText = CreateText("MetaSelectedRegionText", panelRect, font, 18, TextAnchor.MiddleCenter, new Color(0.78f, 0.88f, 1f, 0.98f));
+            _metaSelectedRegionText.rectTransform.anchorMin = new Vector2(0f, 1f);
+            _metaSelectedRegionText.rectTransform.anchorMax = new Vector2(1f, 1f);
+            _metaSelectedRegionText.rectTransform.pivot = new Vector2(0.5f, 1f);
+            _metaSelectedRegionText.rectTransform.anchoredPosition = new Vector2(0f, -214f);
+            _metaSelectedRegionText.rectTransform.sizeDelta = new Vector2(0f, 28f);
+
             _metaUpgradeText = CreateText("MetaUpgradeText", panelRect, font, 17, TextAnchor.MiddleCenter, new Color(0.78f, 0.88f, 1f, 0.92f));
             _metaUpgradeText.rectTransform.anchorMin = new Vector2(0f, 1f);
             _metaUpgradeText.rectTransform.anchorMax = new Vector2(1f, 1f);
             _metaUpgradeText.rectTransform.pivot = new Vector2(0.5f, 1f);
-            _metaUpgradeText.rectTransform.anchoredPosition = new Vector2(0f, -214f);
-            _metaUpgradeText.rectTransform.sizeDelta = new Vector2(0f, 28f);
+            _metaUpgradeText.rectTransform.anchoredPosition = new Vector2(0f, -240f);
+            _metaUpgradeText.rectTransform.sizeDelta = new Vector2(0f, 48f);
 
             Button startButton = CreateButton("StartRunButton", panelRect, font, "START RUN");
             RectTransform startRect = startButton.GetComponent<RectTransform>();
@@ -220,13 +252,22 @@ namespace DeliveryRun.Managers.Subs
             settingsRect.sizeDelta = new Vector2(250f, 52f);
             settingsButton.onClick.AddListener(OnSettingsClicked);
 
+            Button sectorButton = CreateButton("SectorButton", panelRect, font, "CHANGE SECTOR");
+            RectTransform sectorRect = sectorButton.GetComponent<RectTransform>();
+            sectorRect.anchorMin = new Vector2(0.5f, 0f);
+            sectorRect.anchorMax = new Vector2(0.5f, 0f);
+            sectorRect.pivot = new Vector2(0.5f, 0f);
+            sectorRect.anchoredPosition = new Vector2(0f, 34f);
+            sectorRect.sizeDelta = new Vector2(250f, 48f);
+            sectorButton.onClick.AddListener(OnChangeSectorClicked);
+
             Button exitButton = CreateButton("ExitButton", panelRect, font, "EXIT");
             RectTransform exitRect = exitButton.GetComponent<RectTransform>();
             exitRect.anchorMin = new Vector2(0.5f, 0f);
             exitRect.anchorMax = new Vector2(0.5f, 0f);
             exitRect.pivot = new Vector2(0.5f, 0f);
-            exitRect.anchoredPosition = new Vector2(0f, 34f);
-            exitRect.sizeDelta = new Vector2(250f, 48f);
+            exitRect.anchoredPosition = new Vector2(0f, -20f);
+            exitRect.sizeDelta = new Vector2(250f, 44f);
             exitButton.onClick.AddListener(OnExitClicked);
 
             BuildSettingsPanel(panelRect, font);
@@ -392,6 +433,12 @@ namespace DeliveryRun.Managers.Subs
 #endif
         }
 
+        private void OnChangeSectorClicked()
+        {
+            TryPlayUiClick();
+            Events.Publish(new SelectNextRegionRequested());
+        }
+
         private void OnBgmSliderChanged(float value)
         {
             if (_audioManager == null)
@@ -552,6 +599,7 @@ namespace DeliveryRun.Managers.Subs
             _settingsPanel = null;
             _metaCashText = null;
             _metaRegionText = null;
+            _metaSelectedRegionText = null;
             _metaUpgradeText = null;
 
             if (_root == null)
@@ -565,7 +613,7 @@ namespace DeliveryRun.Managers.Subs
 
         private void RefreshMetaTexts()
         {
-            if (_metaCashText == null || _metaRegionText == null || _metaUpgradeText == null)
+            if (_metaCashText == null || _metaRegionText == null || _metaSelectedRegionText == null || _metaUpgradeText == null)
             {
                 return;
             }
@@ -574,8 +622,9 @@ namespace DeliveryRun.Managers.Subs
             if (_metaService == null)
             {
                 _metaCashText.text = "Total Cash: $0";
-                _metaRegionText.text = "Regions: 1 / 4";
-                _metaUpgradeText.text = "Upgrades: SPD L0 | GRIP L0 | BRK L0 | RWD L0";
+                _metaRegionText.text = "Sectors: 1 / " + RegionIds.Length;
+                _metaSelectedRegionText.text = "Selected: CENTRAL";
+                _metaUpgradeText.text = "Upgrades: SPD L0 | TRN L0 | ACC L0 | LUCK L0";
                 return;
             }
 
@@ -589,12 +638,13 @@ namespace DeliveryRun.Managers.Subs
             }
 
             _metaCashText.text = "Total Cash: $" + _metaService.TotalCash;
-            _metaRegionText.text = "Regions: " + unlockedCount + " / " + RegionIds.Length;
+            _metaRegionText.text = "Sectors: " + unlockedCount + " / " + RegionIds.Length;
+            _metaSelectedRegionText.text = "Selected: " + FormatRegionName(_metaService.SelectedRegionId);
             _metaUpgradeText.text =
                 "Upgrades: SPD L" + _metaService.GetUpgradeLevel(UpgradeIds[0]) +
-                " | GRIP L" + _metaService.GetUpgradeLevel(UpgradeIds[1]) +
-                " | BRK L" + _metaService.GetUpgradeLevel(UpgradeIds[2]) +
-                " | RWD L" + _metaService.GetUpgradeLevel(UpgradeIds[3]);
+                " | TRN L" + _metaService.GetUpgradeLevel(UpgradeIds[1]) +
+                " | ACC L" + _metaService.GetUpgradeLevel(UpgradeIds[2]) +
+                " | LUCK L" + _metaService.GetUpgradeLevel(UpgradeIds[3]);
         }
 
         private void EnsureMetaService()
@@ -605,6 +655,24 @@ namespace DeliveryRun.Managers.Subs
             }
 
             Services.TryGet(out _metaService);
+        }
+
+        private static string FormatRegionName(string regionId)
+        {
+            if (string.IsNullOrEmpty(regionId))
+            {
+                return "CENTRAL";
+            }
+
+            string lower = regionId.ToLowerInvariant();
+            if (lower == "rushdistrict") return "RUSH DISTRICT";
+            if (lower == "frostlands") return "FROSTLANDS";
+            if (lower == "hillcrest") return "HILLCREST";
+            if (lower == "stormcoast") return "STORM COAST";
+            if (lower == "oldtown") return "OLD TOWN";
+            if (lower == "central") return "CENTRAL";
+
+            return lower.ToUpperInvariant();
         }
     }
 }

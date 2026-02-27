@@ -30,7 +30,9 @@ namespace DeliveryRun.Managers.Subs
 
         private const int ChoiceSlots = 3;
         private const int MaxTrackedOrders = 8;
-        private const int MaxMinimapMarkers = 3;
+        private const int OrderMinimapMarkerSlots = 3;
+        private const int GasMinimapMarkerIndex = 3;
+        private const int MaxMinimapMarkers = 4;
         private const int FuelSegmentCount = 10;
 
         private const float PhoneWidth = 352f;
@@ -98,6 +100,8 @@ namespace DeliveryRun.Managers.Subs
         private string _foodOfferId;
 
         private MotorbikeController _player;
+        private OrderBuildingAnchor _gasStationAnchor;
+        private float _gasAnchorSearchAccum;
 
         private readonly bool[] _objectiveMarkerActive = new bool[MaxMinimapMarkers];
         private readonly Vector3[] _objectiveMarkerWorld = new Vector3[MaxMinimapMarkers];
@@ -270,6 +274,8 @@ namespace DeliveryRun.Managers.Subs
             _orderCarryingByOffer.Clear();
             ClearObjectiveMarkers();
             _musicChoiceModalOpen = false;
+            _gasStationAnchor = null;
+            _gasAnchorSearchAccum = 0f;
             ClosePause(true);
             DestroyHud();
         }
@@ -509,7 +515,7 @@ namespace DeliveryRun.Managers.Subs
             _objectiveMarkerWorld[0] = evt.WorldPosition;
             _objectiveMarkerPointTypes[0] = evt.PointType;
             ApplyMarkerColor(0);
-            for (int i = 1; i < MaxMinimapMarkers; i++)
+            for (int i = 1; i < OrderMinimapMarkerSlots; i++)
             {
                 _objectiveMarkerActive[i] = false;
                 _objectiveMarkerWorld[i] = Vector3.zero;
@@ -520,7 +526,7 @@ namespace DeliveryRun.Managers.Subs
 
         private void OnOrderObjectiveMarkersUpdated(OrderObjectiveMarkersUpdated evt)
         {
-            for (int i = 0; i < MaxMinimapMarkers; i++)
+            for (int i = 0; i < OrderMinimapMarkerSlots; i++)
             {
                 _objectiveMarkerActive[i] = false;
                 _objectiveMarkerWorld[i] = Vector3.zero;
@@ -610,6 +616,8 @@ namespace DeliveryRun.Managers.Subs
                 _offerAcceptWindow = false;
                 _previewVisible = false;
                 ClearObjectiveMarkers();
+                _gasStationAnchor = null;
+                _gasAnchorSearchAccum = 0f;
                 ClosePause(true);
                 DestroyHud();
                 return;
@@ -618,6 +626,8 @@ namespace DeliveryRun.Managers.Subs
             _lastWholeSecond = int.MinValue;
             _uiRefreshElapsed = UiRefreshInterval;
             _minimapRefreshElapsed = MinimapRefreshInterval;
+            _gasStationAnchor = null;
+            _gasAnchorSearchAccum = 0f;
             EnsureHudExists();
         }
 
@@ -2198,6 +2208,8 @@ namespace DeliveryRun.Managers.Subs
                 return;
             }
 
+            RefreshGasStationMarker();
+
             Transform p = _player.transform;
             float yaw = p.eulerAngles.y;
             _minimapCamera.transform.SetPositionAndRotation(
@@ -2252,6 +2264,44 @@ namespace DeliveryRun.Managers.Subs
             }
         }
 
+        private void RefreshGasStationMarker()
+        {
+            if (_gasStationAnchor != null && !_gasStationAnchor.gameObject.activeInHierarchy)
+            {
+                _gasStationAnchor = null;
+            }
+
+            _gasAnchorSearchAccum += MinimapRefreshInterval;
+            if (_gasStationAnchor == null && _gasAnchorSearchAccum >= 1f)
+            {
+                _gasAnchorSearchAccum = 0f;
+                OrderBuildingAnchor[] anchors = Object.FindObjectsByType<OrderBuildingAnchor>(FindObjectsSortMode.None);
+                for (int i = 0; i < anchors.Length; i++)
+                {
+                    OrderBuildingAnchor anchor = anchors[i];
+                    if (anchor != null && anchor.Role == OrderBuildingRole.GasStation)
+                    {
+                        _gasStationAnchor = anchor;
+                        break;
+                    }
+                }
+            }
+
+            if (_gasStationAnchor == null)
+            {
+                _objectiveMarkerActive[GasMinimapMarkerIndex] = false;
+                _objectiveMarkerWorld[GasMinimapMarkerIndex] = Vector3.zero;
+                _objectiveMarkerPointTypes[GasMinimapMarkerIndex] = OrderPointType.GasStation;
+                SetMarkerHidden(GasMinimapMarkerIndex);
+                return;
+            }
+
+            _objectiveMarkerActive[GasMinimapMarkerIndex] = true;
+            _objectiveMarkerWorld[GasMinimapMarkerIndex] = _gasStationAnchor.transform.position;
+            _objectiveMarkerPointTypes[GasMinimapMarkerIndex] = OrderPointType.GasStation;
+            ApplyMarkerColor(GasMinimapMarkerIndex);
+        }
+
         private void SetMarkerHidden(int index)
         {
             if (index < 0 || index >= MaxMinimapMarkers)
@@ -2277,6 +2327,12 @@ namespace DeliveryRun.Managers.Subs
 
         private Color GetMarkerColorForType(OrderPointType pointType)
         {
+            if (pointType == OrderPointType.GasStation)
+            {
+                // Gas station marker: green
+                return new Color(0.35f, 1f, 0.45f, 0.98f);
+            }
+
             if (pointType == OrderPointType.Delivery)
             {
                 // Delivery marker: cyan/blue

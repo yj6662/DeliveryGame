@@ -18,6 +18,7 @@ namespace DeliveryRun.Managers.Subs
         private const float SpawnYOffset = 0.3f;
         private const float FuelPerSecond = 26f;
         private const float CostPerSecond = 34f;
+        private static Material s_fuelInteractMaterial;
 
         private FuelService _fuel;
         private EconomyService _economy;
@@ -31,6 +32,7 @@ namespace DeliveryRun.Managers.Subs
         private bool _isRunScene;
         private bool _isRefueling;
         private bool _missingAnchorLogged;
+        private bool _missingRoadLogged;
 
         private float _scenePollAccum;
         private float _costAccum;
@@ -156,6 +158,7 @@ namespace DeliveryRun.Managers.Subs
             _runActive = true;
             _costAccum = 0f;
             _missingAnchorLogged = false;
+            _missingRoadLogged = false;
             PublishRefuelState(false);
             EnsureRuntimeReferences();
             EnsureStationInteractPoint();
@@ -280,7 +283,19 @@ namespace DeliveryRun.Managers.Subs
                 return;
             }
 
-            Vector3 spawnPosition = ResolveRoadSidePosition(_stationAnchor.transform.position);
+            Vector3 spawnPosition;
+            if (!TryResolveRoadSidePosition(_stationAnchor.transform.position, out spawnPosition))
+            {
+                if (!_missingRoadLogged)
+                {
+                    _missingRoadLogged = true;
+                    Debug.LogWarning("[FuelStationManager] RoadSurface query unavailable. Fuel interact point spawn deferred.");
+                }
+
+                return;
+            }
+
+            _missingRoadLogged = false;
             GameObject interactObject = new GameObject("FuelStationInteractPoint");
             interactObject.transform.position = spawnPosition;
             interactObject.transform.rotation = Quaternion.identity;
@@ -310,13 +325,59 @@ namespace DeliveryRun.Managers.Subs
             Renderer renderer = visual.GetComponent<Renderer>();
             if (renderer != null)
             {
-                MaterialPropertyBlock block = new MaterialPropertyBlock();
-                renderer.GetPropertyBlock(block);
                 Color tint = new Color(1f, 0.9f, 0.2f, 1f);
-                block.SetColor("_Color", tint);
-                block.SetColor("_BaseColor", tint);
-                renderer.SetPropertyBlock(block);
+                renderer.sharedMaterial = GetFuelInteractMaterial(tint);
             }
+        }
+
+        private static Material GetFuelInteractMaterial(Color tint)
+        {
+            if (s_fuelInteractMaterial != null)
+            {
+                return s_fuelInteractMaterial;
+            }
+
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+            {
+                shader = Shader.Find("Standard");
+            }
+
+            Material material = new Material(shader);
+            material.name = "FuelInteract_Opaque";
+            material.SetColor("_Color", tint);
+            if (material.HasProperty("_BaseColor"))
+            {
+                material.SetColor("_BaseColor", tint);
+            }
+
+            if (material.HasProperty("_Surface"))
+            {
+                material.SetFloat("_Surface", 0f);
+            }
+
+            if (material.HasProperty("_Mode"))
+            {
+                material.SetFloat("_Mode", 0f);
+            }
+
+            if (material.HasProperty("_ZWrite"))
+            {
+                material.SetFloat("_ZWrite", 1f);
+            }
+
+            if (material.HasProperty("_SrcBlend"))
+            {
+                material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
+            }
+
+            if (material.HasProperty("_DstBlend"))
+            {
+                material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
+            }
+
+            s_fuelInteractMaterial = material;
+            return material;
         }
 
         private void OnFuelInteractRequested(FuelStationInteractPoint point)
@@ -408,10 +469,13 @@ namespace DeliveryRun.Managers.Subs
 
             _player = null;
             _stationAnchor = null;
+            _missingRoadLogged = false;
         }
 
-        private Vector3 ResolveRoadSidePosition(Vector3 reference)
+        private bool TryResolveRoadSidePosition(Vector3 reference, out Vector3 roadSidePosition)
         {
+            roadSidePosition = reference;
+
             if (_roadQuery == null)
             {
                 Services.TryGet(out _roadQuery);
@@ -421,11 +485,11 @@ namespace DeliveryRun.Managers.Subs
             if (_roadQuery != null && _roadQuery.GetNearestRoadPoint(reference, out nearestRoad))
             {
                 nearestRoad.y += SpawnYOffset;
-                return nearestRoad;
+                roadSidePosition = nearestRoad;
+                return true;
             }
 
-            reference.y += SpawnYOffset;
-            return reference;
+            return false;
         }
 
         private static string GetStationDisplayName(OrderBuildingAnchor anchor)

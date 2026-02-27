@@ -365,6 +365,20 @@ namespace DeliveryRun.Managers.Subs
                 return true;
             }
 
+            if (string.Equals(statKey, "bike_turn_mul", StringComparison.Ordinal) ||
+                string.Equals(statKey, "turn_sensitivity_mul", StringComparison.Ordinal))
+            {
+                stat = RunStatId.BikeTurnSensitivityMultiplier;
+                return true;
+            }
+
+            if (string.Equals(statKey, "bike_accel_mul", StringComparison.Ordinal) ||
+                string.Equals(statKey, "acceleration_mul", StringComparison.Ordinal))
+            {
+                stat = RunStatId.BikeAccelerationMultiplier;
+                return true;
+            }
+
             if (string.Equals(statKey, "bike_brake_mul", StringComparison.Ordinal))
             {
                 stat = RunStatId.BikeBrakeForceMultiplier;
@@ -374,6 +388,12 @@ namespace DeliveryRun.Managers.Subs
             if (string.Equals(statKey, "reward_mul", StringComparison.Ordinal))
             {
                 stat = RunStatId.RewardMultiplier;
+                return true;
+            }
+
+            if (string.Equals(statKey, "music_high_tier_mul", StringComparison.Ordinal))
+            {
+                stat = RunStatId.MusicHighTierChanceMultiplier;
                 return true;
             }
 

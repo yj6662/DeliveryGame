@@ -10,6 +10,14 @@ namespace DeliveryRun.Managers.Subs
 {
     public sealed class TrafficNpcManager : SubManagerBase
     {
+        private enum TurnKind
+        {
+            Straight = 0,
+            Right = 1,
+            Left = 2,
+            UTurn = 3
+        }
+
         private sealed class NpcRuntimeState
         {
             public TrafficNpcVehicle Vehicle;
@@ -21,6 +29,8 @@ namespace DeliveryRun.Managers.Subs
             public float DesiredSpeed;
             public bool StopForSignal;
             public int SignalNodeId;
+            public int PlannedNextLaneIndex;
+            public float PlannedTurnSpeedFactor;
         }
 
         private const string CatalogResourcePath = "Bootstrap/TrafficNpcCatalog";
@@ -37,6 +47,13 @@ namespace DeliveryRun.Managers.Subs
         private const float IntersectionApproachBase = 5.5f;
         private const float IntersectionApproachSpeedMul = 0.42f;
         private const float SignalStopBuffer = 0.9f;
+        private const float YellowProceedDistanceMin = 4f;
+        private const float YellowProceedSpeedMul = 0.65f;
+        private const float TurnApproachDistance = 18f;
+        private const float IntersectionExitBlockGap = 5.5f;
+        private const float TurnStraightWeight = 0.62f;
+        private const float TurnRightWeight = 0.25f;
+        private const float TurnLeftWeight = 0.13f;
         private const float EdgeSpawnEpsilon = 1.35f;
         private const float EdgeSpawnFallbackPadding = 0.2f;
 
@@ -346,7 +363,9 @@ namespace DeliveryRun.Managers.Subs
                     Speed = 0f,
                     DesiredSpeed = 0f,
                     StopForSignal = false,
-                    SignalNodeId = -1
+                    SignalNodeId = -1,
+                    PlannedNextLaneIndex = -1,
+                    PlannedTurnSpeedFactor = 1f
                 });
 
                 return;
@@ -421,6 +440,8 @@ namespace DeliveryRun.Managers.Subs
                 if (!_network.TryGetLane(state.LaneIndex, out lane))
                 {
                     state.DesiredSpeed = 0f;
+                    state.PlannedNextLaneIndex = -1;
+                    state.PlannedTurnSpeedFactor = 1f;
                     continue;
                 }
 
@@ -429,6 +450,33 @@ namespace DeliveryRun.Managers.Subs
                 float maxSpeed = state.Vehicle != null ? state.Vehicle.MaxSpeed : speedLimit;
 
                 float desired = Mathf.Min(speedLimit, Mathf.Max(0.1f, maxSpeed), Mathf.Max(0.1f, cruise * 1.25f));
+
+                float remaining = lane.Length - state.DistanceOnLane;
+                TurnKind turnKind;
+                if (!IsNextLaneOption(state.LaneIndex, state.PlannedNextLaneIndex))
+                {
+                    state.PlannedNextLaneIndex = PickNextLane(lane, state.LaneIndex, out turnKind);
+                    state.PlannedTurnSpeedFactor = GetTurnSpeedFactor(turnKind);
+                }
+                else
+                {
+                    TrafficLaneData plannedLane;
+                    if (_network.TryGetLane(state.PlannedNextLaneIndex, out plannedLane))
+                    {
+                        turnKind = ClassifyTurn(lane.Forward, plannedLane.Forward);
+                        state.PlannedTurnSpeedFactor = GetTurnSpeedFactor(turnKind);
+                    }
+                    else
+                    {
+                        state.PlannedTurnSpeedFactor = 1f;
+                    }
+                }
+
+                if (state.PlannedTurnSpeedFactor < 0.999f && remaining <= TurnApproachDistance)
+                {
+                    float turnLimited = speedLimit * state.PlannedTurnSpeedFactor;
+                    desired = Mathf.Min(desired, turnLimited);
+                }
 
                 float gapAhead = FindGapAheadOnSameLane(i, state.LaneIndex, state.DistanceOnLane);
                 if (gapAhead >= 0f)
@@ -441,22 +489,109 @@ namespace DeliveryRun.Managers.Subs
                     }
                 }
 
-                if (_network.IsIntersectionNode(lane.EndNodeId) && _signals != null)
+                if (ShouldHoldForBlockedIntersectionExit(i, state, lane, remaining))
                 {
-                    float remaining = lane.Length - state.DistanceOnLane;
-                    float stopDistance = IntersectionApproachBase + (state.Speed * IntersectionApproachSpeedMul);
-                    bool canEnter = _signals.CanEnter(lane.EndNodeId, lane.Forward);
+                    desired = 0f;
+                }
 
-                    if (!canEnter && remaining <= stopDistance)
-                    {
-                        desired = 0f;
-                        state.StopForSignal = true;
-                        state.SignalNodeId = lane.EndNodeId;
-                    }
+                if (ShouldStopForSignal(state, lane, remaining, out _))
+                {
+                    desired = 0f;
+                    state.StopForSignal = true;
+                    state.SignalNodeId = lane.EndNodeId;
                 }
 
                 state.DesiredSpeed = Mathf.Max(0f, desired);
             }
+        }
+
+        private bool IsNextLaneOption(int currentLaneIndex, int laneIndex)
+        {
+            if (laneIndex < 0)
+            {
+                return false;
+            }
+
+            int count = _network.GetNextLaneCount(currentLaneIndex);
+            if (count <= 0)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                int candidate;
+                if (!_network.TryGetNextLane(currentLaneIndex, i, out candidate))
+                {
+                    continue;
+                }
+
+                if (candidate == laneIndex)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool ShouldHoldForBlockedIntersectionExit(
+            int selfIndex,
+            NpcRuntimeState state,
+            TrafficLaneData lane,
+            float remaining)
+        {
+            if (!_network.IsIntersectionNode(lane.EndNodeId))
+            {
+                return false;
+            }
+
+            if (state.PlannedNextLaneIndex < 0)
+            {
+                return false;
+            }
+
+            float holdDistance = IntersectionApproachBase + (state.Speed * 0.35f);
+            if (remaining > holdDistance)
+            {
+                return false;
+            }
+
+            return IsLaneEntryBlocked(selfIndex, state.PlannedNextLaneIndex, IntersectionExitBlockGap);
+        }
+
+        private bool IsLaneEntryBlocked(int selfIndex, int laneIndex, float requiredGap)
+        {
+            if (laneIndex < 0)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < _states.Count; i++)
+            {
+                if (i == selfIndex)
+                {
+                    continue;
+                }
+
+                NpcRuntimeState other = _states[i];
+                if (other == null || other.Transform == null)
+                {
+                    continue;
+                }
+
+                if (other.LaneIndex != laneIndex)
+                {
+                    continue;
+                }
+
+                if (other.DistanceOnLane < requiredGap)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private float FindGapAheadOnSameLane(int selfIndex, int laneIndex, float selfDistance)
@@ -521,21 +656,74 @@ namespace DeliveryRun.Managers.Subs
 
                 if (state.StopForSignal)
                 {
-                    float stopDistanceOnLane = lane.Length - SignalStopBuffer;
-                    if (state.DistanceOnLane >= stopDistanceOnLane)
+                    bool canEnterNow = true;
+                    if (_signals != null && _network.IsIntersectionNode(lane.EndNodeId))
                     {
-                        state.DistanceOnLane = stopDistanceOnLane;
-                        state.Speed = 0f;
+                        bool isGreen;
+                        bool isYellow;
+                        float _unused;
+                        if (_signals.TryGetLaneSignal(lane.EndNodeId, lane.Forward, out isGreen, out isYellow, out _unused))
+                        {
+                            if (isGreen)
+                            {
+                                canEnterNow = true;
+                            }
+                            else if (isYellow)
+                            {
+                                float stopLine = Mathf.Max(0f, lane.Length - SignalStopBuffer);
+                                bool alreadyRolling = state.Speed > 1.25f;
+                                bool alreadyBeyondStopLine = state.DistanceOnLane >= stopLine - 0.2f;
+                                canEnterNow = alreadyRolling && alreadyBeyondStopLine;
+                            }
+                            else
+                            {
+                                canEnterNow = false;
+                            }
+                        }
+                        else
+                        {
+                            canEnterNow = _signals.CanEnter(lane.EndNodeId, lane.Forward);
+                        }
+                    }
+
+                    if (canEnterNow)
+                    {
+                        state.StopForSignal = false;
+                        state.SignalNodeId = -1;
+                    }
+                    else
+                    {
+                        float stopDistanceOnLane = Mathf.Max(0f, lane.Length - SignalStopBuffer);
+                        if (state.DistanceOnLane >= stopDistanceOnLane)
+                        {
+                            state.DistanceOnLane = stopDistanceOnLane;
+                            state.Speed = 0f;
+                        }
                     }
                 }
 
                 int safety = 0;
                 while (state.DistanceOnLane >= lane.Length && safety < 6)
                 {
+                    float remaining = 0f;
+                    if (ShouldStopForSignal(state, lane, remaining, out _))
+                    {
+                        state.StopForSignal = true;
+                        state.SignalNodeId = lane.EndNodeId;
+                        state.DistanceOnLane = Mathf.Max(0f, lane.Length - SignalStopBuffer);
+                        state.Speed = 0f;
+                        break;
+                    }
+
                     safety++;
                     state.DistanceOnLane -= lane.Length;
 
-                    int nextLane = PickNextLane(lane, state.LaneIndex);
+                    int nextLane = state.PlannedNextLaneIndex;
+                    if (!IsNextLaneOption(state.LaneIndex, nextLane))
+                    {
+                        nextLane = PickNextLane(lane, state.LaneIndex, out _);
+                    }
+
                     if (nextLane < 0)
                     {
                         ReassignToRandomLane(state);
@@ -543,9 +731,20 @@ namespace DeliveryRun.Managers.Subs
                         break;
                     }
 
+                    if (IsLaneEntryBlocked(i, nextLane, IntersectionExitBlockGap))
+                    {
+                        state.StopForSignal = false;
+                        state.SignalNodeId = -1;
+                        state.DistanceOnLane = Mathf.Max(0f, lane.Length - SignalStopBuffer);
+                        state.Speed = 0f;
+                        break;
+                    }
+
                     state.LaneIndex = nextLane;
                     state.StopForSignal = false;
                     state.SignalNodeId = -1;
+                    state.PlannedNextLaneIndex = -1;
+                    state.PlannedTurnSpeedFactor = 1f;
 
                     if (!_network.TryGetLane(state.LaneIndex, out lane))
                     {
@@ -576,16 +775,73 @@ namespace DeliveryRun.Managers.Subs
             }
         }
 
-        private int PickNextLane(TrafficLaneData currentLane, int currentLaneIndex)
+        private bool ShouldStopForSignal(
+            NpcRuntimeState state,
+            TrafficLaneData lane,
+            float remainingDistanceToStopLine,
+            out float stopDistanceOnLane)
         {
+            stopDistanceOnLane = Mathf.Max(0f, lane.Length - SignalStopBuffer);
+            if (_signals == null || !_network.IsIntersectionNode(lane.EndNodeId))
+            {
+                return false;
+            }
+
+            bool isGreen;
+            bool isYellow;
+            float phaseRemaining;
+            bool hasLaneSignal = _signals.TryGetLaneSignal(
+                lane.EndNodeId,
+                lane.Forward,
+                out isGreen,
+                out isYellow,
+                out phaseRemaining);
+
+            if (!hasLaneSignal)
+            {
+                return !_signals.CanEnter(lane.EndNodeId, lane.Forward);
+            }
+
+            if (isGreen)
+            {
+                return false;
+            }
+
+            if (isYellow)
+            {
+                float proceedDistance = YellowProceedDistanceMin + (state.Speed * YellowProceedSpeedMul);
+                bool alreadyCommitted = remainingDistanceToStopLine <= proceedDistance;
+                bool yellowEndingSoon = phaseRemaining <= 0.25f && remainingDistanceToStopLine <= proceedDistance * 1.25f;
+                return !(alreadyCommitted || yellowEndingSoon);
+            }
+
+            if (state.StopForSignal && state.SignalNodeId == lane.EndNodeId)
+            {
+                return true;
+            }
+
+            float approachDistance = IntersectionApproachBase + (state.Speed * IntersectionApproachSpeedMul);
+            return remainingDistanceToStopLine <= approachDistance;
+        }
+
+        private int PickNextLane(TrafficLaneData currentLane, int currentLaneIndex, out TurnKind chosenTurn)
+        {
+            chosenTurn = TurnKind.Straight;
+
             int optionCount = _network.GetNextLaneCount(currentLaneIndex);
             if (optionCount <= 0)
             {
                 return -1;
             }
 
-            int bestLane = -1;
-            float bestScore = float.NegativeInfinity;
+            int straightLane = -1;
+            int rightLane = -1;
+            int leftLane = -1;
+            int fallbackLane = -1;
+            float straightBest = float.NegativeInfinity;
+            float rightBest = float.NegativeInfinity;
+            float leftBest = float.NegativeInfinity;
+            float fallbackBest = float.NegativeInfinity;
 
             for (int option = 0; option < optionCount; option++)
             {
@@ -606,29 +862,137 @@ namespace DeliveryRun.Managers.Subs
                     continue;
                 }
 
+                TurnKind turnKind = ClassifyTurn(currentLane.Forward, candidate.Forward);
                 float dot = Vector3.Dot(currentLane.Forward, candidate.Forward);
-                float score = dot * 2.2f;
-                score += (Next01() - 0.5f) * 0.35f;
+                float score = dot * 2.25f + ((Next01() - 0.5f) * 0.25f);
 
-                if (score > bestScore)
+                if (turnKind == TurnKind.Straight)
                 {
-                    bestScore = score;
-                    bestLane = candidateIndex;
+                    if (score > straightBest)
+                    {
+                        straightBest = score;
+                        straightLane = candidateIndex;
+                    }
+                }
+                else if (turnKind == TurnKind.Right)
+                {
+                    if (score > rightBest)
+                    {
+                        rightBest = score;
+                        rightLane = candidateIndex;
+                    }
+                }
+                else if (turnKind == TurnKind.Left)
+                {
+                    if (score > leftBest)
+                    {
+                        leftBest = score;
+                        leftLane = candidateIndex;
+                    }
+                }
+                else
+                {
+                    if (score > fallbackBest)
+                    {
+                        fallbackBest = score;
+                        fallbackLane = candidateIndex;
+                    }
                 }
             }
 
-            if (bestLane >= 0)
+            float roll = Next01();
+            if (straightLane >= 0 && roll < TurnStraightWeight)
             {
-                return bestLane;
+                chosenTurn = TurnKind.Straight;
+                return straightLane;
+            }
+
+            if (rightLane >= 0 && roll < (TurnStraightWeight + TurnRightWeight))
+            {
+                chosenTurn = TurnKind.Right;
+                return rightLane;
+            }
+
+            if (leftLane >= 0 && roll < (TurnStraightWeight + TurnRightWeight + TurnLeftWeight))
+            {
+                chosenTurn = TurnKind.Left;
+                return leftLane;
+            }
+
+            if (straightLane >= 0)
+            {
+                chosenTurn = TurnKind.Straight;
+                return straightLane;
+            }
+
+            if (rightLane >= 0)
+            {
+                chosenTurn = TurnKind.Right;
+                return rightLane;
+            }
+
+            if (leftLane >= 0)
+            {
+                chosenTurn = TurnKind.Left;
+                return leftLane;
+            }
+
+            if (fallbackLane >= 0)
+            {
+                chosenTurn = TurnKind.UTurn;
+                return fallbackLane;
             }
 
             int fallback;
             if (_network.TryGetNextLane(currentLaneIndex, 0, out fallback))
             {
+                chosenTurn = TurnKind.Straight;
                 return fallback;
             }
 
             return -1;
+        }
+
+        private static TurnKind ClassifyTurn(Vector3 fromForward, Vector3 toForward)
+        {
+            float dot = Vector3.Dot(fromForward, toForward);
+            if (dot >= 0.78f)
+            {
+                return TurnKind.Straight;
+            }
+
+            if (dot <= -0.22f)
+            {
+                return TurnKind.UTurn;
+            }
+
+            float crossY = Vector3.Cross(fromForward, toForward).y;
+            if (crossY < 0f)
+            {
+                return TurnKind.Right;
+            }
+
+            return TurnKind.Left;
+        }
+
+        private static float GetTurnSpeedFactor(TurnKind turnKind)
+        {
+            if (turnKind == TurnKind.Right)
+            {
+                return 0.74f;
+            }
+
+            if (turnKind == TurnKind.Left)
+            {
+                return 0.64f;
+            }
+
+            if (turnKind == TurnKind.UTurn)
+            {
+                return 0.52f;
+            }
+
+            return 1f;
         }
 
         private void ReassignToRandomLane(NpcRuntimeState state)
@@ -640,6 +1004,8 @@ namespace DeliveryRun.Managers.Subs
                 state.DistanceOnLane = 0f;
                 state.StopForSignal = false;
                 state.SignalNodeId = -1;
+                state.PlannedNextLaneIndex = -1;
+                state.PlannedTurnSpeedFactor = 1f;
                 return;
             }
 
@@ -664,6 +1030,8 @@ namespace DeliveryRun.Managers.Subs
                 state.DesiredSpeed = 0f;
                 state.StopForSignal = false;
                 state.SignalNodeId = -1;
+                state.PlannedNextLaneIndex = -1;
+                state.PlannedTurnSpeedFactor = 1f;
 
                 if (state.Transform != null)
                 {
@@ -686,6 +1054,8 @@ namespace DeliveryRun.Managers.Subs
             state.DesiredSpeed = 0f;
             state.StopForSignal = false;
             state.SignalNodeId = -1;
+            state.PlannedNextLaneIndex = -1;
+            state.PlannedTurnSpeedFactor = 1f;
         }
 
         private void CleanupDestroyedStates()

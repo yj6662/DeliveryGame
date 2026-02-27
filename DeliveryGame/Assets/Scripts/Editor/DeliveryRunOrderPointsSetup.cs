@@ -42,8 +42,7 @@ namespace DeliveryRun.Editor
                 OrderPointType.Pickup,
                 "P1",
                 "PICKUP: Burger Shop",
-                PickupPosition,
-                new Color(0.2f, 0.9f, 0.3f, 1f));
+                PickupPosition);
 
             EnsurePoint(
                 root.transform,
@@ -51,8 +50,7 @@ namespace DeliveryRun.Editor
                 OrderPointType.Delivery,
                 "D1",
                 "DELIVER: Apartment",
-                DeliveryPosition,
-                new Color(0.2f, 0.45f, 1f, 1f));
+                DeliveryPosition);
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
@@ -66,8 +64,7 @@ namespace DeliveryRun.Editor
             OrderPointType pointType,
             string pointId,
             string displayName,
-            Vector3 position,
-            Color markerColor)
+            Vector3 position)
         {
             Transform existing = root.Find(objectName);
             GameObject pointObject = existing != null ? existing.gameObject : new GameObject(objectName);
@@ -92,48 +89,11 @@ namespace DeliveryRun.Editor
             trigger.radius = 4f;
             trigger.isTrigger = true;
             trigger.center = Vector3.zero;
-
-            EnsureMarker(pointObject.transform, markerColor);
-        }
-
-        private static void EnsureMarker(Transform parent, Color color)
-        {
-            const string markerName = "Marker";
-
-            Transform markerTransform = parent.Find(markerName);
-            GameObject marker;
-            if (markerTransform == null)
+            Transform markerTransform = pointObject.transform.Find("Marker");
+            if (markerTransform != null)
             {
-                marker = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                marker.name = markerName;
-                marker.transform.SetParent(parent, false);
+                Object.DestroyImmediate(markerTransform.gameObject);
             }
-            else
-            {
-                marker = markerTransform.gameObject;
-            }
-
-            marker.transform.localPosition = new Vector3(0f, 0.2f, 0f);
-            marker.transform.localRotation = Quaternion.identity;
-            marker.transform.localScale = new Vector3(1.8f, 0.2f, 1.8f);
-
-            Collider markerCollider = marker.GetComponent<Collider>();
-            if (markerCollider != null)
-            {
-                Object.DestroyImmediate(markerCollider);
-            }
-
-            Renderer renderer = marker.GetComponent<Renderer>();
-            if (renderer == null)
-            {
-                return;
-            }
-
-            var propertyBlock = new MaterialPropertyBlock();
-            renderer.GetPropertyBlock(propertyBlock);
-            propertyBlock.SetColor("_Color", color);
-            propertyBlock.SetColor("_BaseColor", color);
-            renderer.SetPropertyBlock(propertyBlock);
         }
 
         private static string ResolveRunScenePath()

@@ -97,6 +97,9 @@ namespace DeliveryRun.Managers.Subs
             new FoodDefinition("coffee", "Coffee", 1.30f, 1.25f)
         };
 
+        private static Material s_pickupInteractMaterial;
+        private static Material s_deliveryInteractMaterial;
+
         private readonly List<ActiveOrder> _activeOrders = new List<ActiveOrder>(8);
         private readonly List<OrderBuildingAnchor> _restaurantAnchors = new List<OrderBuildingAnchor>(32);
         private readonly List<OrderBuildingAnchor> _destinationAnchors = new List<OrderBuildingAnchor>(96);
@@ -997,13 +1000,71 @@ namespace DeliveryRun.Managers.Subs
                 Color tint = pointType == OrderPointType.Pickup
                     ? new Color(0.2f, 0.9f, 0.3f, 1f)
                     : new Color(0.2f, 0.45f, 1f, 1f);
-
-                MaterialPropertyBlock block = new MaterialPropertyBlock();
-                renderer.GetPropertyBlock(block);
-                block.SetColor("_Color", tint);
-                block.SetColor("_BaseColor", tint);
-                renderer.SetPropertyBlock(block);
+                renderer.sharedMaterial = GetInteractVisualMaterial(pointType, tint);
             }
+        }
+
+        private static Material GetInteractVisualMaterial(OrderPointType pointType, Color tint)
+        {
+            Material cached = pointType == OrderPointType.Pickup
+                ? s_pickupInteractMaterial
+                : s_deliveryInteractMaterial;
+            if (cached != null)
+            {
+                return cached;
+            }
+
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+            {
+                shader = Shader.Find("Standard");
+            }
+
+            Material material = new Material(shader);
+            material.name = pointType == OrderPointType.Pickup
+                ? "OrderInteract_Pickup_Opaque"
+                : "OrderInteract_Delivery_Opaque";
+            material.SetColor("_Color", tint);
+            if (material.HasProperty("_BaseColor"))
+            {
+                material.SetColor("_BaseColor", tint);
+            }
+
+            if (material.HasProperty("_Surface"))
+            {
+                material.SetFloat("_Surface", 0f);
+            }
+
+            if (material.HasProperty("_Mode"))
+            {
+                material.SetFloat("_Mode", 0f);
+            }
+
+            if (material.HasProperty("_ZWrite"))
+            {
+                material.SetFloat("_ZWrite", 1f);
+            }
+
+            if (material.HasProperty("_SrcBlend"))
+            {
+                material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
+            }
+
+            if (material.HasProperty("_DstBlend"))
+            {
+                material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
+            }
+
+            if (pointType == OrderPointType.Pickup)
+            {
+                s_pickupInteractMaterial = material;
+            }
+            else
+            {
+                s_deliveryInteractMaterial = material;
+            }
+
+            return material;
         }
 
         private void OnInteractPointRequested(OrderInteractPoint interactPoint)
