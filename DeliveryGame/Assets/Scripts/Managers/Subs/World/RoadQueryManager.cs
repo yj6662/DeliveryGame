@@ -51,7 +51,10 @@ namespace DeliveryRun.Managers.Subs
 
             if (_roadColliders.Count == 0)
             {
-                return false;
+                if (!RefreshRoadCache())
+                {
+                    return false;
+                }
             }
 
             bool found = false;
@@ -84,6 +87,22 @@ namespace DeliveryRun.Managers.Subs
             }
 
             return found;
+        }
+
+        public bool RefreshRoadCache()
+        {
+            bool isRunScene = SceneManager.GetActiveScene().name == SceneNames.RunScene;
+            if (!isRunScene)
+            {
+                _roadColliders.Clear();
+                _missingRoadLogged = false;
+                _isRunScene = false;
+                return false;
+            }
+
+            RebuildRoadCache();
+            _isRunScene = true;
+            return _roadColliders.Count > 0;
         }
 
         private void OnSceneTransitionStarted(SceneTransitionStarted evt)

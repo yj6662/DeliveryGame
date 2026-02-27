@@ -482,11 +482,15 @@ namespace DeliveryRun.Managers.Subs
             }
 
             Vector3 nearestRoad;
-            if (_roadQuery != null && _roadQuery.GetNearestRoadPoint(reference, out nearestRoad))
+            if (_roadQuery != null)
             {
-                nearestRoad.y += SpawnYOffset;
-                roadSidePosition = nearestRoad;
-                return true;
+                _roadQuery.RefreshRoadCache();
+                if (_roadQuery.GetNearestRoadPoint(reference, out nearestRoad))
+                {
+                    nearestRoad.y += SpawnYOffset;
+                    roadSidePosition = nearestRoad;
+                    return true;
+                }
             }
 
             return false;

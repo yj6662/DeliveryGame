@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using DeliveryRun;
 using DeliveryRun.Managers.Core;
+using DeliveryRun.Managers.Subs;
 using DeliveryRun.UI.Run;
 using NUnit.Framework;
 using UnityEngine;
@@ -56,7 +57,7 @@ namespace DeliveryRun.PlayModeTests
                     SceneTimeout,
                     "Run scene loaded");
 
-                yield return DismissMusicModalIfNeeded();
+                yield return DismissMusicModalIfNeeded(root, events);
                 yield return WaitFor(() => Time.timeScale > 0.5f, 4f, "Timescale resumed");
 
                 yield return WaitFor(
@@ -205,7 +206,7 @@ namespace DeliveryRun.PlayModeTests
             return null;
         }
 
-        private static IEnumerator DismissMusicModalIfNeeded()
+        private static IEnumerator DismissMusicModalIfNeeded(CoreRoot root, EventBus events)
         {
             float start = Time.realtimeSinceStartup;
             while (Time.realtimeSinceStartup - start <= 6f)
@@ -214,12 +215,42 @@ namespace DeliveryRun.PlayModeTests
                     UnityEngine.Object.FindFirstObjectByType<MusicSelectionModalView>(FindObjectsInactive.Include);
                 if (modal != null)
                 {
-                    Button button = FindFirstSelectButton(modal);
+                    if (modal.IsReadyForSelectionForTests && modal.ConfirmSelectionForTests(0))
+                    {
+                        yield return null;
+                        yield break;
+                    }
+
+                    Button button = FindFirstInteractiveButton(modal);
                     if (button != null)
                     {
                         button.onClick.Invoke();
+                        yield return null;
                         yield break;
                     }
+
+                    if (root != null && root.Services != null)
+                    {
+                        RunSessionManager runSessionManager;
+                        if (root.Services.TryGet(out runSessionManager) && runSessionManager != null)
+                        {
+                            runSessionManager.ResumeFromChoice();
+                        }
+                    }
+
+                    if (events != null)
+                    {
+                        events.Publish(new MusicChoiceModalStateChanged { IsOpen = false });
+                        events.Publish(new MusicChoiceSelected
+                        {
+                            ChoiceIndex = 0,
+                            OptionIndex = 0,
+                            TrackId = string.Empty,
+                            GenreId = string.Empty
+                        });
+                    }
+
+                    yield return null;
                 }
 
                 if (Time.timeScale > 0.5f)
@@ -231,7 +262,7 @@ namespace DeliveryRun.PlayModeTests
             }
         }
 
-        private static Button FindFirstSelectButton(MusicSelectionModalView modal)
+        private static Button FindFirstInteractiveButton(MusicSelectionModalView modal)
         {
             Button[] buttons = modal.GetComponentsInChildren<Button>(true);
             for (int i = 0; i < buttons.Length; i++)
@@ -242,13 +273,12 @@ namespace DeliveryRun.PlayModeTests
                     continue;
                 }
 
-                Text label = button.GetComponentInChildren<Text>(true);
-                if (label == null || string.IsNullOrEmpty(label.text))
+                if (!button.interactable)
                 {
                     continue;
                 }
 
-                if (label.text.IndexOf("Select", StringComparison.OrdinalIgnoreCase) >= 0)
+                if (button.gameObject.activeInHierarchy)
                 {
                     return button;
                 }

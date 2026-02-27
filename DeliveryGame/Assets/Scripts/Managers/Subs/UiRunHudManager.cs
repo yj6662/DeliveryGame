@@ -10,6 +10,7 @@ using DeliveryRun.Music;
 using DeliveryRun.UI;
 using DeliveryRun.UI.Run;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
@@ -157,6 +158,10 @@ namespace DeliveryRun.Managers.Subs
         private float _currentOfferDuration;
         private bool _offerAcceptWindow;
         private bool _previewVisible;
+        private double _offerUiExpireAt;
+        private bool _offerUiPauseActive;
+        private double _offerUiPauseStartedAt;
+        private int _offerUiLastTenth;
 
         private int _activeOrderCount;
         private int _sessionBalance;
@@ -167,6 +172,7 @@ namespace DeliveryRun.Managers.Subs
         private bool _pauseOpen;
         private bool _pauseCaptured;
         private float _pauseSavedScale;
+        private bool _minimapUnsupportedLogged;
 
         public override string Name => nameof(UiRunHudManager);
         public override int InitOrder => 36;
@@ -229,6 +235,7 @@ namespace DeliveryRun.Managers.Subs
             }
 
             HandleOfferAcceptInput();
+            UpdateOfferCountdownFromClock();
             UpdatePhonePanel(unscaledDeltaTime);
 
             _uiRefreshElapsed += unscaledDeltaTime;
@@ -269,6 +276,10 @@ namespace DeliveryRun.Managers.Subs
             _previewVisible = false;
             _currentOfferRemaining = 0f;
             _currentOfferDuration = 0f;
+            _offerUiExpireAt = 0d;
+            _offerUiPauseActive = false;
+            _offerUiPauseStartedAt = 0d;
+            _offerUiLastTenth = -1;
             _foodOfferId = null;
             _hasFoodState = false;
             _orderCarryingByOffer.Clear();
@@ -310,6 +321,10 @@ namespace DeliveryRun.Managers.Subs
             _previewVisible = false;
             _currentOfferRemaining = 0f;
             _currentOfferDuration = 0f;
+            _offerUiExpireAt = 0d;
+            _offerUiPauseActive = false;
+            _offerUiPauseStartedAt = 0d;
+            _offerUiLastTenth = -1;
             _musicChoiceModalOpen = false;
             _activeOrderCount = 0;
             _offerPickupNames.Clear();
@@ -350,6 +365,38 @@ namespace DeliveryRun.Managers.Subs
         private void OnMusicChoiceModalStateChanged(MusicChoiceModalStateChanged evt)
         {
             _musicChoiceModalOpen = evt.IsOpen;
+
+            if (!_offerAcceptWindow || !_previewVisible)
+            {
+                _offerUiPauseActive = false;
+                _offerUiPauseStartedAt = 0d;
+                return;
+            }
+
+            if (evt.IsOpen)
+            {
+                if (_offerUiPauseActive)
+                {
+                    return;
+                }
+
+                _offerUiPauseActive = true;
+                _offerUiPauseStartedAt = Clock.Now;
+                return;
+            }
+
+            if (!_offerUiPauseActive)
+            {
+                return;
+            }
+
+            _offerUiPauseActive = false;
+            double pausedSeconds = Clock.Now - _offerUiPauseStartedAt;
+            _offerUiPauseStartedAt = 0d;
+            if (pausedSeconds > 0d && _offerUiExpireAt > 0d)
+            {
+                _offerUiExpireAt += pausedSeconds;
+            }
         }
 
         private void OnSpeedMultiplierChanged(PlayerMoveSpeedMultiplierChanged evt)
@@ -392,6 +439,10 @@ namespace DeliveryRun.Managers.Subs
             _currentOfferDuration = Mathf.Max(0.01f, evt.TtlSeconds);
             _offerAcceptWindow = true;
             _previewVisible = true;
+            _offerUiPauseActive = false;
+            _offerUiPauseStartedAt = 0d;
+            _offerUiLastTenth = Mathf.FloorToInt(_currentOfferRemaining * 10f);
+            _offerUiExpireAt = Clock.Now + evt.TtlSeconds;
             _phoneDirty = true;
         }
 
@@ -403,6 +454,7 @@ namespace DeliveryRun.Managers.Subs
             }
 
             _currentOfferRemaining = evt.RemainingSeconds;
+            _offerUiLastTenth = Mathf.FloorToInt(_currentOfferRemaining * 10f);
             if (_previewVisible)
             {
                 _phoneDirty = true;
@@ -419,6 +471,10 @@ namespace DeliveryRun.Managers.Subs
             _offerAcceptWindow = false;
             _previewVisible = false;
             _currentOfferRemaining = 0f;
+            _offerUiExpireAt = 0d;
+            _offerUiPauseActive = false;
+            _offerUiPauseStartedAt = 0d;
+            _offerUiLastTenth = -1;
             RemoveActiveOrder(evt.OfferId);
             _offerPickupNames.Remove(evt.OfferId);
             _offerDeliveryNames.Remove(evt.OfferId);
@@ -432,6 +488,10 @@ namespace DeliveryRun.Managers.Subs
             {
                 _offerAcceptWindow = false;
                 _previewVisible = false;
+                _offerUiExpireAt = 0d;
+                _offerUiPauseActive = false;
+                _offerUiPauseStartedAt = 0d;
+                _offerUiLastTenth = -1;
             }
 
             string pickupName;
@@ -463,6 +523,10 @@ namespace DeliveryRun.Managers.Subs
             {
                 _offerAcceptWindow = false;
                 _previewVisible = false;
+                _offerUiExpireAt = 0d;
+                _offerUiPauseActive = false;
+                _offerUiPauseStartedAt = 0d;
+                _offerUiLastTenth = -1;
             }
 
             int baseReward;
@@ -1227,6 +1291,30 @@ namespace DeliveryRun.Managers.Subs
             _newOfferExpiryOverlay.fillAmount = normalized;
         }
 
+        private void UpdateOfferCountdownFromClock()
+        {
+            if (!_offerAcceptWindow || !_previewVisible || _offerUiPauseActive || _offerUiExpireAt <= 0d)
+            {
+                return;
+            }
+
+            double remainingSeconds = _offerUiExpireAt - Clock.Now;
+            if (remainingSeconds < 0d)
+            {
+                remainingSeconds = 0d;
+            }
+
+            float remainingFloat = (float)remainingSeconds;
+            int tenth = Mathf.FloorToInt(remainingFloat * 10f);
+            if (tenth != _offerUiLastTenth)
+            {
+                _offerUiLastTenth = tenth;
+                _phoneDirty = true;
+            }
+
+            _currentOfferRemaining = remainingFloat;
+        }
+
         private void BuildPhoneUi()
         {
             if (_view == null)
@@ -1349,6 +1437,12 @@ namespace DeliveryRun.Managers.Subs
             AnchorStretch(overlayRect, 0f, 0f, 0f, 0f);
             _newOfferExpiryOverlay = overlayObject.GetComponent<Image>();
             _newOfferExpiryOverlay.color = new Color(0f, 0f, 0f, 0.96f);
+            Sprite overlaySprite = _view.GetPanelSkinSprite();
+            if (overlaySprite == null)
+            {
+                overlaySprite = Resources.GetBuiltinResource<Sprite>("UI/Skin/Background.psd");
+            }
+            _newOfferExpiryOverlay.sprite = overlaySprite;
             _newOfferExpiryOverlay.type = Image.Type.Filled;
             _newOfferExpiryOverlay.fillMethod = Image.FillMethod.Vertical;
             _newOfferExpiryOverlay.fillOrigin = (int)Image.OriginVertical.Top;
@@ -2143,6 +2237,27 @@ namespace DeliveryRun.Managers.Subs
         }
         private void EnsureMinimapCamera()
         {
+            bool graphicsUnsupported = SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null;
+            if (graphicsUnsupported)
+            {
+                if (!_minimapUnsupportedLogged)
+                {
+                    _minimapUnsupportedLogged = true;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                    Debug.LogWarning("[UiRunHudManager] Minimap render texture disabled on unsupported graphics device.");
+#endif
+                }
+
+                if (_minimapRawImage != null)
+                {
+                    _minimapRawImage.texture = null;
+                    _minimapRawImage.gameObject.SetActive(false);
+                }
+
+                return;
+            }
+
+            _minimapUnsupportedLogged = false;
             if (_minimapCamera == null)
             {
                 GameObject cameraObject = GameObject.Find("RunMiniMapCamera");
@@ -2185,6 +2300,10 @@ namespace DeliveryRun.Managers.Subs
             }
 
             _minimapCamera.targetTexture = _minimapRt;
+            if (_minimapRawImage != null)
+            {
+                _minimapRawImage.gameObject.SetActive(true);
+            }
         }
 
         private void RefreshMinimap()
@@ -2459,6 +2578,10 @@ namespace DeliveryRun.Managers.Subs
             _currentOfferReward = 0;
             _currentOfferRemaining = 0f;
             _currentOfferDuration = 0f;
+            _offerUiExpireAt = 0d;
+            _offerUiPauseActive = false;
+            _offerUiPauseStartedAt = 0d;
+            _offerUiLastTenth = -1;
             _activeOrderCount = 0;
             _sessionBalance = 0;
             _sessionBonus = 0;
@@ -2473,6 +2596,7 @@ namespace DeliveryRun.Managers.Subs
             _offerDeliveryNames.Clear();
             _offerBaseRewards.Clear();
             _orderCarryingByOffer.Clear();
+            _minimapUnsupportedLogged = false;
             for (int i = 0; i < ChoiceSlots; i++)
             {
                 _pickedGenreByChoice[i] = null;
