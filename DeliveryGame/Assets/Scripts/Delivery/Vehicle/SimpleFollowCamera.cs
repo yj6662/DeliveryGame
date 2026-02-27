@@ -11,7 +11,7 @@ namespace DeliveryRun.Delivery.Vehicle
         [SerializeField] private Rigidbody targetRb;
 
         [Header("Position")]
-        [SerializeField] private float heightOffset = 10f;
+        [SerializeField] private float heightOffset = 13f;
         [SerializeField] private float followDistance = 7f;
         [SerializeField] private float smoothTime = 0.15f;
 
@@ -37,8 +37,8 @@ namespace DeliveryRun.Delivery.Vehicle
         [SerializeField] private float minDistanceFromTarget = 2f;
         [SerializeField] private float collisionBackoffStep = 0.35f;
         [SerializeField] private int collisionResolveSteps = 8;
-        [SerializeField] private float nearClipWhenOccluded = 0f;
-        [SerializeField] private float defaultNearClip = 0f;
+        [SerializeField] private float nearClipWhenOccluded = 0.001f;
+        [SerializeField] private float defaultNearClip = 0.001f;
 
         [Header("Auto Find")]
         [SerializeField] private bool autoFindPlayer = true;
@@ -258,7 +258,8 @@ namespace DeliveryRun.Delivery.Vehicle
                 }
             }
 
-            float clamped = Mathf.Clamp(nearClip, 0f, 0.5f);
+            // Keep near clip very small to avoid aggressive near-plane slicing in isometric close passes.
+            float clamped = Mathf.Clamp(nearClip, 0.001f, 0.5f);
             if (Mathf.Abs(_cam.nearClipPlane - clamped) > 0.0001f)
             {
                 _cam.nearClipPlane = clamped;

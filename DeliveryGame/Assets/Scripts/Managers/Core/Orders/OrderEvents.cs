@@ -51,6 +51,13 @@ namespace DeliveryRun.Managers.Core
         public int Reward;
     }
 
+    public struct OrderTimedOut
+    {
+        public string OfferId;
+        public string FoodName;
+        public float LimitSeconds;
+    }
+
     public struct AcceptOfferRequested
     {
         public string OfferId;

@@ -14,6 +14,7 @@ namespace DeliveryRun.Delivery.Orders
         [SerializeField] private OrderBuildingRole role = OrderBuildingRole.Restaurant;
         [SerializeField] private string anchorId = string.Empty;
         [SerializeField] private string displayName = string.Empty;
+        [SerializeField] private string regionId = "central";
 
         public OrderBuildingRole Role
         {
@@ -31,6 +32,12 @@ namespace DeliveryRun.Delivery.Orders
         {
             get => displayName;
             set => displayName = value;
+        }
+
+        public string RegionId
+        {
+            get => string.IsNullOrEmpty(regionId) ? "central" : regionId;
+            set => regionId = string.IsNullOrEmpty(value) ? "central" : value;
         }
     }
 }

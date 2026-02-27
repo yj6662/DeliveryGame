@@ -185,7 +185,7 @@
 ### 6.1 Scene 구조
 - `Assets/Scenes/Core/` : CoreScene (영속 매니저)
 - `Assets/Scenes/Lobby/` : LobbyScene (메타 허브)
-- `Assets/Scenes/Run/` : RunScene/TestRunScene (실제 플레이)
+- `Assets/Scenes/Run/` : RunScene (실제 플레이)
 - `Assets/Scenes/Loading/` : LoadingScene (전환 시각화)
 
 ### 6.2 Script 구조
@@ -448,3 +448,24 @@ Sector unlock + themed sector variants:
 Run UX sync:
 - Minimap now includes gas-station marker rendering (in-map + edge indicator behavior).
 - Pickup/Delivery/Fuel interaction visuals are forced to opaque materials for readability.
+
+---
+
+## 18) Runtime Stability Sync (2026-02-28)
+
+- WorldSpace order timer UI follow:
+  - Order timer stack above player is now updated every frame for transform follow.
+  - Text/color content refresh remains throttled (0.1s) to keep allocation and UI cost low.
+- Block non-drivable enforcement:
+  - Run world block platforms include dedicated side collision walls to prevent climbing from roads.
+  - Canonical rule 유지: roads only drivable, blocks building-only non-drivable.
+- Region progression reset policy:
+  - Meta progression now has schema versioning.
+  - On schema mismatch, region unlock state / best-run values / upgrades / total cash are reset to defaults.
+  - Default state after reset: `central` unlocked only, selected region=`central`, total cash=0.
+- Order region filtering:
+  - Offers are generated only from anchors in the currently selected and unlocked run region.
+  - Cross-region fallback for restaurant/destination selection is disabled.
+- Road-only interact spawn safety:
+  - Pickup/Delivery interact points are created only when a nearest road point is resolvable.
+  - If road query is temporarily unavailable, spawn is deferred and retried (no block-top fallback spawn).

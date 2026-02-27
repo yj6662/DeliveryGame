@@ -33,16 +33,6 @@ namespace DeliveryRun.Managers.Subs
         };
         private static readonly float[] UpgradePerLevelMulDelta = { 0.06f, 0.08f, 0.07f, 0.15f, 0.05f, 0.05f, 0.04f };
 
-        private static readonly string[] RegionIds =
-        {
-            "rushdistrict",
-            "frostlands",
-            "hillcrest",
-            "stormcoast",
-            "oldtown"
-        };
-
-        private static readonly int[] RegionUnlockCash = { 1200, 3000, 5500, 9000, 14000 };
         private static readonly int[] AutoUpgradeLevelCash = { 1800, 6200, 15000 };
 
         private readonly List<string> _appliedUpgradeSourceIds = new List<string>(8);
@@ -64,6 +54,7 @@ namespace DeliveryRun.Managers.Subs
             Subs.Add<RunReportReady>(Events, OnRunReportReady);
             Subs.Add<PermanentUpgradePurchaseRequested>(Events, OnPermanentUpgradePurchaseRequested);
             Subs.Add<SelectNextRegionRequested>(Events, OnSelectNextRegionRequested);
+            Subs.Add<UnlockRegionRequested>(Events, OnUnlockRegionRequested);
             Subs.Add<DomainRunSessionStarted>(Events, OnRunStarted);
             Subs.Add<DomainRunSessionEnded>(Events, OnRunEnded);
 
@@ -73,9 +64,9 @@ namespace DeliveryRun.Managers.Subs
                 Delta = 0
             });
 
-            EvaluateRegionUnlocks(false);
             EvaluateAutomaticUpgrades(false);
             Events.Publish(new SelectedRegionChanged { RegionId = _meta.SelectedRegionId });
+            PublishNextRegionUnlockStatus();
         }
 
         protected override void OnShutdown()
@@ -86,21 +77,23 @@ namespace DeliveryRun.Managers.Subs
 
         private void OnRunReportReady(RunReportReady evt)
         {
+            string runRegion = string.IsNullOrEmpty(evt.Report.RegionId) ? _meta.SelectedRegionId : evt.Report.RegionId;
+            _meta.RegisterRegionRunResult(runRegion, evt.Report.EarnedCash, evt.Report.EndRating);
+
             int delta = evt.Report.EarnedCash;
-            if (delta <= 0)
+            if (delta > 0)
             {
-                return;
+                _meta.AddTotalCash(delta);
+                Events.Publish(new MetaBalanceChanged
+                {
+                    TotalCash = _meta.TotalCash,
+                    Delta = delta
+                });
+
+                EvaluateAutomaticUpgrades(true);
             }
 
-            _meta.AddTotalCash(delta);
-            Events.Publish(new MetaBalanceChanged
-            {
-                TotalCash = _meta.TotalCash,
-                Delta = delta
-            });
-
-            EvaluateRegionUnlocks(true);
-            EvaluateAutomaticUpgrades(true);
+            PublishNextRegionUnlockStatus();
         }
 
         private void OnPermanentUpgradePurchaseRequested(PermanentUpgradePurchaseRequested evt)
@@ -141,6 +134,8 @@ namespace DeliveryRun.Managers.Subs
             {
                 ApplyPermanentUpgradesToRun();
             }
+
+            PublishNextRegionUnlockStatus();
         }
 
         private void OnSelectNextRegionRequested(SelectNextRegionRequested evt)
@@ -154,6 +149,94 @@ namespace DeliveryRun.Managers.Subs
             {
                 Events.Publish(new SelectedRegionChanged { RegionId = _meta.SelectedRegionId });
             }
+        }
+
+        private void OnUnlockRegionRequested(UnlockRegionRequested evt)
+        {
+            if (_meta == null)
+            {
+                return;
+            }
+
+            string regionId = evt.RegionId;
+            if (string.IsNullOrEmpty(regionId))
+            {
+                if (!RegionProgressionCatalog.TryGetNextLockedRegion(_meta, out regionId))
+                {
+                    PublishNextRegionUnlockStatus();
+                    return;
+                }
+            }
+
+            RegionUnlockRule rule;
+            if (!RegionProgressionCatalog.TryGetRule(regionId, out rule))
+            {
+                Events.Publish(new RegionUnlockFailed
+                {
+                    RegionId = regionId,
+                    Reason = "unknown_region"
+                });
+                PublishNextRegionUnlockStatus();
+                return;
+            }
+
+            if (_meta.IsRegionUnlocked(rule.RegionId))
+            {
+                PublishNextRegionUnlockStatus();
+                return;
+            }
+
+            if (!_meta.IsRegionUnlocked(rule.PreviousRegionId))
+            {
+                Events.Publish(new RegionUnlockFailed
+                {
+                    RegionId = rule.RegionId,
+                    Reason = "previous_region_locked"
+                });
+                PublishNextRegionUnlockStatus();
+                return;
+            }
+
+            int bestCash = _meta.GetBestRunCash(rule.PreviousRegionId);
+            float bestRating = _meta.GetBestRunRating(rule.PreviousRegionId);
+            if (bestCash < rule.RequiredRunCash || bestRating < rule.RequiredRunRating)
+            {
+                Events.Publish(new RegionUnlockFailed
+                {
+                    RegionId = rule.RegionId,
+                    Reason = "requirements_not_met"
+                });
+                PublishNextRegionUnlockStatus();
+                return;
+            }
+
+            if (!_meta.TrySpendTotalCash(rule.UnlockCost))
+            {
+                Events.Publish(new RegionUnlockFailed
+                {
+                    RegionId = rule.RegionId,
+                    Reason = "not_enough_cash"
+                });
+                PublishNextRegionUnlockStatus();
+                return;
+            }
+
+            if (_meta.UnlockRegion(rule.RegionId))
+            {
+                Events.Publish(new MetaBalanceChanged
+                {
+                    TotalCash = _meta.TotalCash,
+                    Delta = -rule.UnlockCost
+                });
+
+                Events.Publish(new RegionUnlocked
+                {
+                    RegionId = rule.RegionId,
+                    RequiredTotalCash = rule.UnlockCost
+                });
+            }
+
+            PublishNextRegionUnlockStatus();
         }
 
         private void OnRunStarted(DomainRunSessionStarted evt)
@@ -213,32 +296,6 @@ namespace DeliveryRun.Managers.Subs
             _appliedUpgradeSourceIds.Clear();
         }
 
-        private void EvaluateRegionUnlocks(bool publishEvents)
-        {
-            int total = _meta.TotalCash;
-            for (int i = 0; i < RegionIds.Length; i++)
-            {
-                if (total < RegionUnlockCash[i])
-                {
-                    continue;
-                }
-
-                if (!_meta.UnlockRegion(RegionIds[i]))
-                {
-                    continue;
-                }
-
-                if (publishEvents)
-                {
-                    Events.Publish(new RegionUnlocked
-                    {
-                        RegionId = RegionIds[i],
-                        RequiredTotalCash = RegionUnlockCash[i]
-                    });
-                }
-            }
-        }
-
         private void EvaluateAutomaticUpgrades(bool publishEvents)
         {
             int total = _meta.TotalCash;
@@ -286,6 +343,53 @@ namespace DeliveryRun.Managers.Subs
             {
                 ApplyPermanentUpgradesToRun();
             }
+        }
+
+        private void PublishNextRegionUnlockStatus()
+        {
+            if (_meta == null)
+            {
+                return;
+            }
+
+            string nextRegionId;
+            if (!RegionProgressionCatalog.TryGetNextLockedRegion(_meta, out nextRegionId))
+            {
+                Events.Publish(new RegionUnlockStatusChanged
+                {
+                    RegionId = string.Empty
+                });
+                return;
+            }
+
+            RegionUnlockRule rule;
+            if (!RegionProgressionCatalog.TryGetRule(nextRegionId, out rule))
+            {
+                return;
+            }
+
+            int bestRunCash = _meta.GetBestRunCash(rule.PreviousRegionId);
+            float bestRunRating = _meta.GetBestRunRating(rule.PreviousRegionId);
+            bool previousUnlocked = _meta.IsRegionUnlocked(rule.PreviousRegionId);
+            bool meetsPerformance = previousUnlocked &&
+                                    bestRunCash >= rule.RequiredRunCash &&
+                                    bestRunRating >= rule.RequiredRunRating;
+            bool canAfford = _meta.TotalCash >= rule.UnlockCost;
+
+            Events.Publish(new RegionUnlockStatusChanged
+            {
+                RegionId = rule.RegionId,
+                PreviousRegionId = rule.PreviousRegionId,
+                UnlockCost = rule.UnlockCost,
+                RequiredRunCash = rule.RequiredRunCash,
+                RequiredRunRating = rule.RequiredRunRating,
+                BestRunCashInPrevious = bestRunCash,
+                BestRunRatingInPrevious = bestRunRating,
+                PreviousRegionUnlocked = previousUnlocked,
+                MeetsPerformance = meetsPerformance,
+                CanAfford = canAfford,
+                CanUnlockNow = meetsPerformance && canAfford
+            });
         }
 
         private static int GetUpgradePrice(int targetLevel)

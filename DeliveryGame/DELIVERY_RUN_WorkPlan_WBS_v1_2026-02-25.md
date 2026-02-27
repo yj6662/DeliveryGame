@@ -577,3 +577,20 @@ Unity Version: 6000.3.9f1
   - gas station anchor marker added to minimap tracking.
 - [ENG][DONE] Interaction visual readability:
   - pickup/delivery/fuel interact objects now use opaque materials.
+
+### 7.6 Runtime Fix Sync (2026-02-28)
+- [ENG][DONE] WorldSpace order timer follow smoothing:
+  - player-head timer stack transform follow moved to per-frame update.
+  - timer text/color update remains low-frequency for stability.
+- [ENG][DONE] Block climb prevention:
+  - block edge collision walls added during world generation.
+  - player road-only rule reinforced.
+- [ENG][DONE] Region progression reset:
+  - schema-version based meta reset added.
+  - region unlock/cash/upgrades baseline reset to central-only start.
+- [ENG][DONE] Order region filtering hardening:
+  - offers now use selected + unlocked region anchors only.
+  - cross-region fallback disabled.
+- [ENG][DONE] Road-only interact spawn:
+  - pickup/delivery interact points spawn only on nearest road.
+  - unresolved road query -> deferred retry (no block-position fallback).

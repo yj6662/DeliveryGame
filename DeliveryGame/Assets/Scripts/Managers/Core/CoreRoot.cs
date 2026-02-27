@@ -199,7 +199,7 @@ namespace DeliveryRun.Managers.Core
             AddSubManager(new AudioManager());
             AddSubManager(new SoundManager());
             AddSubManager(new MusicDraftManager());
-            AddSubManager(new UiLobbyManager());
+            AddSubManager(new LobbyHubManager());
             AddSubManager(new UiMusicChoiceManager());
             AddSubManager(new UiRunHudManager());
             AddSubManager(new AddressablesService());
@@ -208,6 +208,7 @@ namespace DeliveryRun.Managers.Core
             AddSubManager(new RunModifierManager());
             AddSubManager(new MetaProgressionManager());
             AddSubManager(new SectorThemeManager());
+            AddSubManager(new RegionGateManager());
             AddSubManager(new PlayerBikeModifierLink());
             AddSubManager(new TrafficSystemManager());
             AddSubManager(new TrafficSignalManager());

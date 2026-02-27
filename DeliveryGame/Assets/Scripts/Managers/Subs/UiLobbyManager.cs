@@ -17,7 +17,8 @@ namespace DeliveryRun.Managers.Subs
             "frostlands",
             "hillcrest",
             "stormcoast",
-            "oldtown"
+            "oldtown",
+            "seaside"
         };
 
         private static readonly string[] UpgradeIds =
@@ -43,6 +44,10 @@ namespace DeliveryRun.Managers.Subs
         private Text _metaRegionText;
         private Text _metaSelectedRegionText;
         private Text _metaUpgradeText;
+        private Text _metaUnlockText;
+        private Button _unlockRegionButton;
+        private Text _unlockRegionButtonLabel;
+        private string _pendingUnlockRegionId;
 
         private bool _isLobbyScene;
         private float _scenePollElapsed;
@@ -63,6 +68,8 @@ namespace DeliveryRun.Managers.Subs
             Subs.Add<SceneTransitionCompleted>(Events, OnSceneTransitionCompleted);
             Subs.Add<MetaBalanceChanged>(Events, OnMetaBalanceChanged);
             Subs.Add<RegionUnlocked>(Events, OnRegionUnlocked);
+            Subs.Add<RegionUnlockStatusChanged>(Events, OnRegionUnlockStatusChanged);
+            Subs.Add<RegionUnlockFailed>(Events, OnRegionUnlockFailed);
             Subs.Add<SelectedRegionChanged>(Events, OnSelectedRegionChanged);
             Subs.Add<PermanentUpgradeChanged>(Events, OnPermanentUpgradeChanged);
 
@@ -115,6 +122,16 @@ namespace DeliveryRun.Managers.Subs
         }
 
         private void OnSelectedRegionChanged(SelectedRegionChanged evt)
+        {
+            RefreshMetaTexts();
+        }
+
+        private void OnRegionUnlockStatusChanged(RegionUnlockStatusChanged evt)
+        {
+            RefreshMetaTexts();
+        }
+
+        private void OnRegionUnlockFailed(RegionUnlockFailed evt)
         {
             RefreshMetaTexts();
         }
@@ -234,6 +251,14 @@ namespace DeliveryRun.Managers.Subs
             _metaUpgradeText.rectTransform.anchoredPosition = new Vector2(0f, -240f);
             _metaUpgradeText.rectTransform.sizeDelta = new Vector2(0f, 48f);
 
+            _metaUnlockText = CreateText("MetaUnlockText", panelRect, font, 16, TextAnchor.UpperCenter, new Color(0.94f, 0.96f, 1f, 0.95f));
+            _metaUnlockText.rectTransform.anchorMin = new Vector2(0f, 1f);
+            _metaUnlockText.rectTransform.anchorMax = new Vector2(1f, 1f);
+            _metaUnlockText.rectTransform.pivot = new Vector2(0.5f, 1f);
+            _metaUnlockText.rectTransform.anchoredPosition = new Vector2(0f, -286f);
+            _metaUnlockText.rectTransform.sizeDelta = new Vector2(0f, 58f);
+            _metaUnlockText.lineSpacing = 1.04f;
+
             Button startButton = CreateButton("StartRunButton", panelRect, font, "START RUN");
             RectTransform startRect = startButton.GetComponent<RectTransform>();
             startRect.anchorMin = new Vector2(0.5f, 0f);
@@ -261,12 +286,22 @@ namespace DeliveryRun.Managers.Subs
             sectorRect.sizeDelta = new Vector2(250f, 48f);
             sectorButton.onClick.AddListener(OnChangeSectorClicked);
 
+            _unlockRegionButton = CreateButton("UnlockRegionButton", panelRect, font, "UNLOCK REGION");
+            RectTransform unlockRect = _unlockRegionButton.GetComponent<RectTransform>();
+            unlockRect.anchorMin = new Vector2(0.5f, 0f);
+            unlockRect.anchorMax = new Vector2(0.5f, 0f);
+            unlockRect.pivot = new Vector2(0.5f, 0f);
+            unlockRect.anchoredPosition = new Vector2(0f, -20f);
+            unlockRect.sizeDelta = new Vector2(250f, 44f);
+            _unlockRegionButton.onClick.AddListener(OnUnlockRegionClicked);
+            _unlockRegionButtonLabel = _unlockRegionButton.GetComponentInChildren<Text>();
+
             Button exitButton = CreateButton("ExitButton", panelRect, font, "EXIT");
             RectTransform exitRect = exitButton.GetComponent<RectTransform>();
             exitRect.anchorMin = new Vector2(0.5f, 0f);
             exitRect.anchorMax = new Vector2(0.5f, 0f);
             exitRect.pivot = new Vector2(0.5f, 0f);
-            exitRect.anchoredPosition = new Vector2(0f, -20f);
+            exitRect.anchoredPosition = new Vector2(0f, -72f);
             exitRect.sizeDelta = new Vector2(250f, 44f);
             exitButton.onClick.AddListener(OnExitClicked);
 
@@ -439,6 +474,20 @@ namespace DeliveryRun.Managers.Subs
             Events.Publish(new SelectNextRegionRequested());
         }
 
+        private void OnUnlockRegionClicked()
+        {
+            if (string.IsNullOrEmpty(_pendingUnlockRegionId))
+            {
+                return;
+            }
+
+            TryPlayUiClick();
+            Events.Publish(new UnlockRegionRequested
+            {
+                RegionId = _pendingUnlockRegionId
+            });
+        }
+
         private void OnBgmSliderChanged(float value)
         {
             if (_audioManager == null)
@@ -601,6 +650,10 @@ namespace DeliveryRun.Managers.Subs
             _metaRegionText = null;
             _metaSelectedRegionText = null;
             _metaUpgradeText = null;
+            _metaUnlockText = null;
+            _unlockRegionButton = null;
+            _unlockRegionButtonLabel = null;
+            _pendingUnlockRegionId = null;
 
             if (_root == null)
             {
@@ -613,7 +666,7 @@ namespace DeliveryRun.Managers.Subs
 
         private void RefreshMetaTexts()
         {
-            if (_metaCashText == null || _metaRegionText == null || _metaSelectedRegionText == null || _metaUpgradeText == null)
+            if (_metaCashText == null || _metaRegionText == null || _metaSelectedRegionText == null || _metaUpgradeText == null || _metaUnlockText == null)
             {
                 return;
             }
@@ -625,6 +678,10 @@ namespace DeliveryRun.Managers.Subs
                 _metaRegionText.text = "Sectors: 1 / " + RegionIds.Length;
                 _metaSelectedRegionText.text = "Selected: CENTRAL";
                 _metaUpgradeText.text = "Upgrades: SPD L0 | TRN L0 | ACC L0 | LUCK L0";
+                _metaUnlockText.text = "Unlock info unavailable.";
+                _pendingUnlockRegionId = null;
+                if (_unlockRegionButton != null) _unlockRegionButton.interactable = false;
+                if (_unlockRegionButtonLabel != null) _unlockRegionButtonLabel.text = "UNLOCK REGION";
                 return;
             }
 
@@ -645,6 +702,61 @@ namespace DeliveryRun.Managers.Subs
                 " | TRN L" + _metaService.GetUpgradeLevel(UpgradeIds[1]) +
                 " | ACC L" + _metaService.GetUpgradeLevel(UpgradeIds[2]) +
                 " | LUCK L" + _metaService.GetUpgradeLevel(UpgradeIds[3]);
+
+            RegionUnlockRule rule;
+            if (!RegionProgressionCatalog.TryGetNextLockedRegion(_metaService, out _pendingUnlockRegionId) ||
+                !RegionProgressionCatalog.TryGetRule(_pendingUnlockRegionId, out rule))
+            {
+                _metaUnlockText.text = "All sectors unlocked.";
+                if (_unlockRegionButton != null) _unlockRegionButton.interactable = false;
+                if (_unlockRegionButtonLabel != null) _unlockRegionButtonLabel.text = "ALL UNLOCKED";
+                _pendingUnlockRegionId = null;
+                return;
+            }
+
+            int bestCash = _metaService.GetBestRunCash(rule.PreviousRegionId);
+            float bestRating = _metaService.GetBestRunRating(rule.PreviousRegionId);
+            bool previousUnlocked = _metaService.IsRegionUnlocked(rule.PreviousRegionId);
+            bool meetsPerformance = previousUnlocked &&
+                                    bestCash >= rule.RequiredRunCash &&
+                                    bestRating >= rule.RequiredRunRating;
+            bool canAfford = _metaService.TotalCash >= rule.UnlockCost;
+            bool canUnlock = meetsPerformance && canAfford;
+
+            if (!previousUnlocked)
+            {
+                _metaUnlockText.text =
+                    "Unlock " + FormatRegionName(rule.RegionId) + ": clear " + FormatRegionName(rule.PreviousRegionId) + " first.";
+            }
+            else
+            {
+                _metaUnlockText.text =
+                    "Unlock " + FormatRegionName(rule.RegionId) +
+                    " | Prev best $" + bestCash + " (need $" + rule.RequiredRunCash + ")" +
+                    " | R " + bestRating.ToString("0.0") + " (need " + rule.RequiredRunRating.ToString("0.0") + ")" +
+                    " | Cost $" + rule.UnlockCost;
+            }
+
+            if (_unlockRegionButton != null)
+            {
+                _unlockRegionButton.interactable = canUnlock;
+            }
+
+            if (_unlockRegionButtonLabel != null)
+            {
+                if (canUnlock)
+                {
+                    _unlockRegionButtonLabel.text = "UNLOCK " + FormatRegionName(rule.RegionId);
+                }
+                else if (!canAfford)
+                {
+                    _unlockRegionButtonLabel.text = "NEED CASH $" + rule.UnlockCost;
+                }
+                else
+                {
+                    _unlockRegionButtonLabel.text = "REQUIREMENTS LOCKED";
+                }
+            }
         }
 
         private void EnsureMetaService()
@@ -670,6 +782,7 @@ namespace DeliveryRun.Managers.Subs
             if (lower == "hillcrest") return "HILLCREST";
             if (lower == "stormcoast") return "STORM COAST";
             if (lower == "oldtown") return "OLD TOWN";
+            if (lower == "seaside") return "SEASIDE";
             if (lower == "central") return "CENTRAL";
 
             return lower.ToUpperInvariant();

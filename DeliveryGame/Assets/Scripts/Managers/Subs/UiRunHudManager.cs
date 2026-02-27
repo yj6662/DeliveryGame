@@ -5,6 +5,7 @@ using DeliveryRun;
 using DeliveryRun.Delivery.Orders;
 using DeliveryRun.Delivery.Input;
 using DeliveryRun.Delivery.Vehicle;
+using DeliveryRun.Delivery.World;
 using DeliveryRun.Managers.Core;
 using DeliveryRun.Music;
 using DeliveryRun.UI;
@@ -35,6 +36,7 @@ namespace DeliveryRun.Managers.Subs
         private const int GasMinimapMarkerIndex = 3;
         private const int MaxMinimapMarkers = 4;
         private const int FuelSegmentCount = 10;
+        private const int MaxWorldOrderTimerSlots = 3;
 
         private const float PhoneWidth = 352f;
         private const float PhoneBaseHeight = 92f;
@@ -75,6 +77,7 @@ namespace DeliveryRun.Managers.Subs
         private AudioManager _audioManager;
         private MusicLibraryService _musicLibrary;
         private ModifierStackService _modifierStack;
+        private OrderFlowManager _orderFlowManager;
 
         private GameObject _hudInstance;
         private RunHudView _view;
@@ -109,6 +112,7 @@ namespace DeliveryRun.Managers.Subs
         private readonly OrderPointType[] _objectiveMarkerPointTypes = new OrderPointType[MaxMinimapMarkers];
 
         private Camera _minimapCamera;
+        private Camera _worldUiCamera;
         private RenderTexture _minimapRt;
         private Sprite _circleMaskSprite;
         private Sprite _circleRingSprite;
@@ -151,6 +155,14 @@ namespace DeliveryRun.Managers.Subs
         private Text _trackListText;
         private readonly Image[] _trackStackSlotImages = new Image[ChoiceSlots];
 
+        private GameObject _worldOrderTimerRoot;
+        private Canvas _worldOrderTimerCanvas;
+        private readonly RectTransform[] _worldOrderTimerRows = new RectTransform[MaxWorldOrderTimerSlots];
+        private readonly Image[] _worldOrderTimerRowImages = new Image[MaxWorldOrderTimerSlots];
+        private readonly Image[] _worldOrderTimerFillImages = new Image[MaxWorldOrderTimerSlots];
+        private readonly OrderFlowManager.ActiveOrderTimerView[] _worldOrderTimerViews =
+            new OrderFlowManager.ActiveOrderTimerView[MaxWorldOrderTimerSlots];
+
         private string _currentOfferId;
         private string _currentPickupName;
         private string _currentDeliveryName;
@@ -186,6 +198,7 @@ namespace DeliveryRun.Managers.Subs
             Services.TryGet(out _audioManager);
             Services.TryGet(out _musicLibrary);
             Services.TryGet(out _modifierStack);
+            Services.TryGet(out _orderFlowManager);
 
             ResetState();
 
@@ -205,6 +218,7 @@ namespace DeliveryRun.Managers.Subs
             Subs.Add<OfferAccepted>(Events, OnOfferAccepted);
             Subs.Add<OrderPickupReached>(Events, OnOrderPickupReached);
             Subs.Add<OrderCompleted>(Events, OnOrderCompleted);
+            Subs.Add<OrderTimedOut>(Events, OnOrderTimedOut);
             Subs.Add<OrderObjectiveUpdated>(Events, OnOrderObjectiveUpdated);
             Subs.Add<OrderObjectiveMarkerUpdated>(Events, OnOrderObjectiveMarkerUpdated);
             Subs.Add<OrderObjectiveMarkersUpdated>(Events, OnOrderObjectiveMarkersUpdated);
@@ -239,6 +253,7 @@ namespace DeliveryRun.Managers.Subs
             HandleOfferAcceptInput();
             UpdateOfferCountdownFromClock();
             UpdatePhonePanel(unscaledDeltaTime);
+            UpdateWorldOrderTimerTransform();
 
             _uiRefreshElapsed += unscaledDeltaTime;
             if (_uiRefreshElapsed >= UiRefreshInterval)
@@ -248,6 +263,7 @@ namespace DeliveryRun.Managers.Subs
                 RefreshStatusHud();
                 ApplyCashLabel();
                 RebuildPhoneTextIfNeeded();
+                RefreshWorldOrderTimerUi();
             }
 
             _minimapRefreshElapsed += unscaledDeltaTime;
@@ -554,6 +570,35 @@ namespace DeliveryRun.Managers.Subs
             ApplyCashLabel();
         }
 
+        private void OnOrderTimedOut(OrderTimedOut evt)
+        {
+            if (string.Equals(evt.OfferId, _currentOfferId, StringComparison.Ordinal))
+            {
+                _offerAcceptWindow = false;
+                _previewVisible = false;
+                _offerUiExpireAt = 0d;
+                _offerUiPauseActive = false;
+                _offerUiPauseStartedAt = 0d;
+                _offerUiLastTenth = -1;
+            }
+
+            RemoveActiveOrder(evt.OfferId);
+            _offerPickupNames.Remove(evt.OfferId);
+            _offerDeliveryNames.Remove(evt.OfferId);
+            _offerBaseRewards.Remove(evt.OfferId);
+            _orderCarryingByOffer.Remove(evt.OfferId);
+            if (string.Equals(_foodOfferId, evt.OfferId, StringComparison.Ordinal))
+            {
+                _foodOfferId = null;
+                _hasFoodState = false;
+                _foodTemperature01 = 0f;
+                _foodSpill01 = 0f;
+                _foodQuality01 = 0f;
+            }
+
+            _phoneDirty = true;
+        }
+
         private void OnOrderObjectiveUpdated(OrderObjectiveUpdated evt)
         {
             if (string.IsNullOrEmpty(evt.Text) || _activeOrderCount <= 0)
@@ -787,10 +832,12 @@ namespace DeliveryRun.Managers.Subs
             BuildFuelGaugeUi();
             BuildTrackPlayerUi();
             BuildPauseUi();
+            BuildWorldOrderTimerUi();
             RefreshTrackPlayerText();
             UpdateSpeedGaugeVisual();
             UpdateFuelGaugeVisual();
             RebuildPhoneTextIfNeeded(true);
+            RefreshWorldOrderTimerUi();
         }
 
         private void DestroyHud()
@@ -831,6 +878,19 @@ namespace DeliveryRun.Managers.Subs
             {
                 _trackStackSlotImages[i] = null;
             }
+            for (int i = 0; i < MaxWorldOrderTimerSlots; i++)
+            {
+                _worldOrderTimerRows[i] = null;
+                _worldOrderTimerRowImages[i] = null;
+                _worldOrderTimerFillImages[i] = null;
+            }
+            if (_worldOrderTimerRoot != null)
+            {
+                Object.Destroy(_worldOrderTimerRoot);
+            }
+            _worldOrderTimerRoot = null;
+            _worldOrderTimerCanvas = null;
+            _worldUiCamera = null;
 
             _minimapMaskRect = null;
             _minimapRawImage = null;
@@ -2117,6 +2177,216 @@ namespace DeliveryRun.Managers.Subs
                 _pauseCaptured = false;
             }
         }
+
+        private void BuildWorldOrderTimerUi()
+        {
+            if (_worldOrderTimerRoot != null)
+            {
+                return;
+            }
+
+            GameObject root = new GameObject(
+                "WorldOrderTimerUI",
+                typeof(RectTransform),
+                typeof(Canvas),
+                typeof(CanvasScaler),
+                typeof(GraphicRaycaster));
+            _worldOrderTimerRoot = root;
+
+            _worldOrderTimerCanvas = root.GetComponent<Canvas>();
+            _worldOrderTimerCanvas.renderMode = RenderMode.WorldSpace;
+            _worldOrderTimerCanvas.overrideSorting = true;
+            _worldOrderTimerCanvas.sortingOrder = 240;
+            _worldUiCamera = Camera.main;
+            _worldOrderTimerCanvas.worldCamera = _worldUiCamera;
+
+            CanvasScaler scaler = root.GetComponent<CanvasScaler>();
+            scaler.dynamicPixelsPerUnit = 10f;
+
+            RectTransform rootRect = root.GetComponent<RectTransform>();
+            rootRect.sizeDelta = new Vector2(300f, 126f);
+            rootRect.localScale = new Vector3(0.003f, 0.003f, 0.003f);
+
+            for (int i = 0; i < MaxWorldOrderTimerSlots; i++)
+            {
+                GameObject row = new GameObject("Row_" + i, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                RectTransform rowRect = row.GetComponent<RectTransform>();
+                rowRect.SetParent(rootRect, false);
+                rowRect.anchorMin = new Vector2(0f, 1f);
+                rowRect.anchorMax = new Vector2(1f, 1f);
+                rowRect.pivot = new Vector2(0.5f, 1f);
+                rowRect.sizeDelta = new Vector2(0f, 30f);
+                rowRect.anchoredPosition = new Vector2(0f, -6f - (i * 38f));
+
+                Image rowBg = row.GetComponent<Image>();
+                rowBg.color = new Color(0f, 0f, 0f, 0.62f);
+
+                GameObject fillObject = new GameObject("Fill", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                RectTransform fillRect = fillObject.GetComponent<RectTransform>();
+                fillRect.SetParent(rowRect, false);
+                fillRect.anchorMin = new Vector2(0f, 0f);
+                fillRect.anchorMax = new Vector2(1f, 1f);
+                fillRect.pivot = new Vector2(0f, 0.5f);
+                fillRect.offsetMin = Vector2.zero;
+                fillRect.offsetMax = Vector2.zero;
+
+                Image fillImage = fillObject.GetComponent<Image>();
+                fillImage.color = new Color(0.36f, 1f, 0.42f, 0.95f);
+                fillImage.raycastTarget = false;
+
+                _worldOrderTimerRows[i] = rowRect;
+                _worldOrderTimerRowImages[i] = rowBg;
+                _worldOrderTimerFillImages[i] = fillImage;
+                row.SetActive(false);
+            }
+
+            root.SetActive(false);
+        }
+
+        private void RefreshWorldOrderTimerUi()
+        {
+            if (!_isRunScene)
+            {
+                if (_worldOrderTimerRoot != null)
+                {
+                    _worldOrderTimerRoot.SetActive(false);
+                }
+                return;
+            }
+
+            if (_player == null)
+            {
+                _player = Object.FindAnyObjectByType<MotorbikeController>();
+            }
+
+            if (_player == null)
+            {
+                if (_worldOrderTimerRoot != null)
+                {
+                    _worldOrderTimerRoot.SetActive(false);
+                }
+                return;
+            }
+
+            if (_orderFlowManager == null)
+            {
+                Services.TryGet(out _orderFlowManager);
+            }
+
+            if (_orderFlowManager == null)
+            {
+                if (_worldOrderTimerRoot != null)
+                {
+                    _worldOrderTimerRoot.SetActive(false);
+                }
+                return;
+            }
+
+            BuildWorldOrderTimerUi();
+            if (_worldOrderTimerRoot == null)
+            {
+                return;
+            }
+
+            int count = _orderFlowManager.CopyActiveOrderTimerViewsNonAlloc(_worldOrderTimerViews);
+            if (count <= 0)
+            {
+                _worldOrderTimerRoot.SetActive(false);
+                return;
+            }
+
+            _worldOrderTimerRoot.SetActive(true);
+            UpdateWorldOrderTimerTransform();
+
+            int visible = count < MaxWorldOrderTimerSlots ? count : MaxWorldOrderTimerSlots;
+            for (int i = 0; i < MaxWorldOrderTimerSlots; i++)
+            {
+                RectTransform row = _worldOrderTimerRows[i];
+                Image bg = _worldOrderTimerRowImages[i];
+                Image fill = _worldOrderTimerFillImages[i];
+                if (row == null || bg == null || fill == null)
+                {
+                    continue;
+                }
+
+                if (i >= visible)
+                {
+                    row.gameObject.SetActive(false);
+                    continue;
+                }
+
+                OrderFlowManager.ActiveOrderTimerView info = _worldOrderTimerViews[i];
+                float remaining = Mathf.Max(0f, info.RemainingSeconds);
+                float limit = Mathf.Max(1f, info.LimitSeconds);
+                float ratio = remaining / limit;
+                Color tint = GetOrderTimerTint(ratio);
+                RectTransform fillRect = fill.rectTransform;
+                fillRect.anchorMax = new Vector2(ratio, 1f);
+                fill.color = tint;
+                bg.color = new Color(0f, 0f, 0f, 0.62f);
+                row.gameObject.SetActive(true);
+            }
+        }
+
+        private void UpdateWorldOrderTimerTransform()
+        {
+            if (!_isRunScene || _worldOrderTimerRoot == null || !_worldOrderTimerRoot.activeSelf)
+            {
+                return;
+            }
+
+            if (_player == null)
+            {
+                _player = Object.FindAnyObjectByType<MotorbikeController>();
+            }
+
+            if (_player == null)
+            {
+                return;
+            }
+
+            _worldOrderTimerRoot.transform.position = _player.transform.position + new Vector3(0f, 2.35f, 0f);
+
+            if (_worldUiCamera == null || !_worldUiCamera.isActiveAndEnabled)
+            {
+                _worldUiCamera = Camera.main;
+            }
+
+            if (_worldOrderTimerCanvas != null)
+            {
+                _worldOrderTimerCanvas.worldCamera = _worldUiCamera;
+            }
+
+            if (_worldUiCamera == null)
+            {
+                return;
+            }
+
+            Vector3 lookDirection = _worldUiCamera.transform.forward;
+            lookDirection.y = 0f;
+            if (lookDirection.sqrMagnitude < 0.0001f)
+            {
+                lookDirection = _worldUiCamera.transform.forward;
+            }
+
+            _worldOrderTimerRoot.transform.rotation = Quaternion.LookRotation(lookDirection, Vector3.up);
+        }
+
+        private static Color GetOrderTimerTint(float ratio)
+        {
+            if (ratio > 0.5f)
+            {
+                return new Color(0.36f, 1f, 0.42f, 1f);
+            }
+
+            if (ratio > 0.25f)
+            {
+                return new Color(1f, 0.88f, 0.28f, 1f);
+            }
+
+            return new Color(1f, 0.36f, 0.36f, 1f);
+        }
+
         private void BuildMinimapUi()
         {
             if (_view == null)
@@ -2397,19 +2667,57 @@ namespace DeliveryRun.Managers.Subs
                 _gasStationAnchor = null;
             }
 
+            if (_player == null)
+            {
+                _player = Object.FindAnyObjectByType<MotorbikeController>();
+            }
+
+            if (_player == null)
+            {
+                _objectiveMarkerActive[GasMinimapMarkerIndex] = false;
+                _objectiveMarkerWorld[GasMinimapMarkerIndex] = Vector3.zero;
+                _objectiveMarkerPointTypes[GasMinimapMarkerIndex] = OrderPointType.GasStation;
+                SetMarkerHidden(GasMinimapMarkerIndex);
+                return;
+            }
+
+            string currentRegionId = RegionWorldLayout.ResolveRegionId(_player.transform.position);
+            if (_gasStationAnchor != null &&
+                (!string.Equals(_gasStationAnchor.RegionId, currentRegionId, StringComparison.Ordinal) ||
+                 _gasStationAnchor.Role != OrderBuildingRole.GasStation))
+            {
+                _gasStationAnchor = null;
+            }
+
             _gasAnchorSearchAccum += MinimapRefreshInterval;
             if (_gasStationAnchor == null && _gasAnchorSearchAccum >= 1f)
             {
                 _gasAnchorSearchAccum = 0f;
                 OrderBuildingAnchor[] anchors = Object.FindObjectsByType<OrderBuildingAnchor>(FindObjectsSortMode.None);
+                OrderBuildingAnchor fallback = null;
                 for (int i = 0; i < anchors.Length; i++)
                 {
                     OrderBuildingAnchor anchor = anchors[i];
-                    if (anchor != null && anchor.Role == OrderBuildingRole.GasStation)
+                    if (anchor == null || anchor.Role != OrderBuildingRole.GasStation)
+                    {
+                        continue;
+                    }
+
+                    if (string.Equals(anchor.RegionId, currentRegionId, StringComparison.Ordinal))
                     {
                         _gasStationAnchor = anchor;
                         break;
                     }
+
+                    if (fallback == null)
+                    {
+                        fallback = anchor;
+                    }
+                }
+
+                if (_gasStationAnchor == null)
+                {
+                    _gasStationAnchor = fallback;
                 }
             }
 

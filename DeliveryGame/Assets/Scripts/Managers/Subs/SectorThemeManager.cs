@@ -111,6 +111,20 @@ namespace DeliveryRun.Managers.Subs
                 TurnMul = 1.1f,
                 AccelMul = 0.92f,
                 RewardMul = 1.2f
+            },
+            new SectorDef
+            {
+                RegionId = "seaside",
+                DisplayName = "Seaside",
+                Description = "Sea breeze and wet lanes. Faster chill, cleaner lines earn more.",
+                OfferTtlMul = 0.98f,
+                OfferRespawnMul = 0.92f,
+                TempDecayMul = 1.28f,
+                SpillGainMul = 1.22f,
+                SpeedMul = 1.01f,
+                TurnMul = 0.98f,
+                AccelMul = 0.97f,
+                RewardMul = 1.24f
             }
         };
 
@@ -336,11 +350,11 @@ namespace DeliveryRun.Managers.Subs
                     continue;
                 }
 
-                bool active = marker.RegionId == activeRegionId;
                 GameObject root = marker.gameObject;
-                if (root.activeSelf != active)
+                // Expanded world mode: keep all region roots visible simultaneously.
+                if (!root.activeSelf)
                 {
-                    root.SetActive(active);
+                    root.SetActive(true);
                 }
             }
         }

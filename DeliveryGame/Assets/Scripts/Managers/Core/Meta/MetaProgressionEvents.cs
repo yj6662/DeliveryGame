@@ -21,6 +21,32 @@ namespace DeliveryRun.Managers.Core
     {
     }
 
+    public struct UnlockRegionRequested
+    {
+        public string RegionId;
+    }
+
+    public struct RegionUnlockStatusChanged
+    {
+        public string RegionId;
+        public string PreviousRegionId;
+        public int UnlockCost;
+        public int RequiredRunCash;
+        public float RequiredRunRating;
+        public int BestRunCashInPrevious;
+        public float BestRunRatingInPrevious;
+        public bool PreviousRegionUnlocked;
+        public bool MeetsPerformance;
+        public bool CanAfford;
+        public bool CanUnlockNow;
+    }
+
+    public struct RegionUnlockFailed
+    {
+        public string RegionId;
+        public string Reason;
+    }
+
     public struct PermanentUpgradePurchaseRequested
     {
         public string UpgradeId;

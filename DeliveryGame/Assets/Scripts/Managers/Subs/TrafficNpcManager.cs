@@ -1,6 +1,9 @@
+using System;
 using System.Collections.Generic;
 using DeliveryRun;
 using DeliveryRun.Delivery.Traffic;
+using DeliveryRun.Delivery.Vehicle;
+using DeliveryRun.Delivery.World;
 using DeliveryRun.Managers.Core;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -38,6 +41,7 @@ namespace DeliveryRun.Managers.Subs
         private const float SpawnInterval = 0.65f;
         private const float MinSpawnGapMeters = 14f;
         private const float MinWorldSpawnGapMeters = 6f;
+        private const float PlayerRegionPollInterval = 0.35f;
 
         private const float Acceleration = 5.5f;
         private const float Braking = 9.5f;
@@ -59,9 +63,13 @@ namespace DeliveryRun.Managers.Subs
 
         private const int MinNpcCount = 10;
         private const int MaxNpcCount = 32;
+        private const int MinNpcCountCurrentRegion = 16;
+        private const int MaxNpcCountCurrentRegion = 56;
 
         private readonly List<NpcRuntimeState> _states = new List<NpcRuntimeState>(40);
         private readonly List<int> _edgeSpawnLaneIndices = new List<int>(128);
+        private readonly Dictionary<string, List<int>> _edgeSpawnLaneIndicesByRegion = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+        private readonly Dictionary<string, int> _laneCountByRegion = new Dictionary<string, int>(StringComparer.Ordinal);
 
         private TrafficRoadNetworkService _network;
         private TrafficSignalService _signals;
@@ -71,16 +79,20 @@ namespace DeliveryRun.Managers.Subs
         private bool _isRunScene;
         private float _scenePollAccum;
         private float _spawnAccum;
+        private float _playerRegionPollAccum;
         private uint _rngState = 0x5F3759DFu;
 
         private bool _missingCatalogLogged;
         private bool _missingNetworkLogged;
+        private bool _missingPlayerLogged;
         private bool _hasLaneBounds;
         private float _laneMinX;
         private float _laneMaxX;
         private float _laneMinZ;
         private float _laneMaxZ;
         private Vector3 _laneCenter;
+        private Transform _playerTransform;
+        private string _currentPlayerRegionId = string.Empty;
 
         public override string Name => nameof(TrafficNpcManager);
         public override int InitOrder => 69;
@@ -174,6 +186,8 @@ namespace DeliveryRun.Managers.Subs
                 RebuildSpawnCandidates();
             }
 
+            UpdateCurrentPlayerRegion(unscaledDeltaTime);
+
             if (Time.timeScale <= 0.0001f)
             {
                 return;
@@ -238,6 +252,10 @@ namespace DeliveryRun.Managers.Subs
             if (enteredNow || force)
             {
                 _spawnAccum = 0f;
+                _playerRegionPollAccum = 0f;
+                _currentPlayerRegionId = string.Empty;
+                _playerTransform = null;
+                _missingPlayerLogged = false;
                 RebuildSpawnCandidates();
                 ValidateStatesAgainstNetwork();
             }
@@ -262,7 +280,16 @@ namespace DeliveryRun.Managers.Subs
         private void MaintainSpawn(float unscaledDt)
         {
             int target = ComputeTargetNpcCount();
-            if (_states.Count >= target)
+            if (target <= 0)
+            {
+                return;
+            }
+
+            int existing = string.IsNullOrEmpty(_currentPlayerRegionId)
+                ? _states.Count
+                : CountNpcInRegion(_currentPlayerRegionId);
+
+            if (existing >= target)
             {
                 return;
             }
@@ -285,6 +312,26 @@ namespace DeliveryRun.Managers.Subs
                 return 0;
             }
 
+            if (!string.IsNullOrEmpty(_currentPlayerRegionId))
+            {
+                int regionLaneCount = GetRegionLaneCount(_currentPlayerRegionId);
+                if (regionLaneCount > 0)
+                {
+                    int regionTarget = Mathf.CeilToInt(regionLaneCount * 0.75f);
+                    if (regionTarget < MinNpcCountCurrentRegion)
+                    {
+                        regionTarget = MinNpcCountCurrentRegion;
+                    }
+
+                    if (regionTarget > MaxNpcCountCurrentRegion)
+                    {
+                        regionTarget = MaxNpcCountCurrentRegion;
+                    }
+
+                    return regionTarget;
+                }
+            }
+
             int target = lanes / 4;
             if (target < MinNpcCount)
             {
@@ -297,6 +344,70 @@ namespace DeliveryRun.Managers.Subs
             }
 
             return target;
+        }
+
+        private int CountNpcInRegion(string regionId)
+        {
+            if (string.IsNullOrEmpty(regionId))
+            {
+                return _states.Count;
+            }
+
+            int count = 0;
+            for (int i = 0; i < _states.Count; i++)
+            {
+                NpcRuntimeState state = _states[i];
+                if (state == null || state.Transform == null)
+                {
+                    continue;
+                }
+
+                string npcRegion = RegionWorldLayout.ResolveRegionId(state.Transform.position);
+                if (string.Equals(npcRegion, regionId, StringComparison.Ordinal))
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        private void UpdateCurrentPlayerRegion(float unscaledDt)
+        {
+            _playerRegionPollAccum += unscaledDt;
+            bool shouldPoll = _playerTransform == null || _playerRegionPollAccum >= PlayerRegionPollInterval;
+            if (!shouldPoll)
+            {
+                return;
+            }
+
+            _playerRegionPollAccum = 0f;
+            if (_playerTransform == null)
+            {
+                MotorbikeController bike = Object.FindAnyObjectByType<MotorbikeController>();
+                if (bike == null)
+                {
+                    if (!_missingPlayerLogged)
+                    {
+                        _missingPlayerLogged = true;
+                        Debug.LogWarning("[TrafficNpcManager] Player bike not found; spawn fallback uses all regions.");
+                    }
+
+                    _currentPlayerRegionId = string.Empty;
+                    return;
+                }
+
+                _playerTransform = bike.transform;
+                _missingPlayerLogged = false;
+            }
+
+            if (_playerTransform == null)
+            {
+                _currentPlayerRegionId = string.Empty;
+                return;
+            }
+
+            _currentPlayerRegionId = RegionWorldLayout.ResolveRegionId(_playerTransform.position);
         }
 
         private void TrySpawnOne()
@@ -1126,7 +1237,13 @@ namespace DeliveryRun.Managers.Subs
             }
 
             _edgeSpawnLaneIndices.Clear();
+            _edgeSpawnLaneIndicesByRegion.Clear();
+            _laneCountByRegion.Clear();
             _hasLaneBounds = false;
+            _playerRegionPollAccum = 0f;
+            _currentPlayerRegionId = string.Empty;
+            _playerTransform = null;
+            _missingPlayerLogged = false;
         }
 
         private float Next01()
@@ -1154,6 +1271,8 @@ namespace DeliveryRun.Managers.Subs
         private void RebuildSpawnCandidates()
         {
             _edgeSpawnLaneIndices.Clear();
+            _edgeSpawnLaneIndicesByRegion.Clear();
+            _laneCountByRegion.Clear();
             _hasLaneBounds = false;
 
             if (_network == null || _network.LaneCount <= 0)
@@ -1183,6 +1302,9 @@ namespace DeliveryRun.Managers.Subs
                 if (lane.End.x > maxX) maxX = lane.End.x;
                 if (lane.End.z < minZ) minZ = lane.End.z;
                 if (lane.End.z > maxZ) maxZ = lane.End.z;
+
+                string laneRegion = ResolveLaneRegion(lane.Start, lane.End);
+                IncrementLaneCountForRegion(laneRegion);
             }
 
             if (minX > maxX || minZ > maxZ)
@@ -1216,6 +1338,7 @@ namespace DeliveryRun.Managers.Subs
                 }
 
                 _edgeSpawnLaneIndices.Add(i);
+                AddSpawnLaneForRegion(ResolveLaneRegion(lane.Start, lane.End), i);
             }
 
             if (_edgeSpawnLaneIndices.Count == 0)
@@ -1223,12 +1346,22 @@ namespace DeliveryRun.Managers.Subs
                 for (int i = 0; i < _network.LaneCount; i++)
                 {
                     _edgeSpawnLaneIndices.Add(i);
+                    TrafficLaneData lane;
+                    if (_network.TryGetLane(i, out lane))
+                    {
+                        AddSpawnLaneForRegion(ResolveLaneRegion(lane.Start, lane.End), i);
+                    }
                 }
             }
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-            Debug.Log("[TrafficNpcManager] Spawn candidates rebuilt. Edge lanes=" + _edgeSpawnLaneIndices.Count +
-                      ", laneCount=" + _network.LaneCount);
+            string focusRegion = string.IsNullOrEmpty(_currentPlayerRegionId) ? "none" : _currentPlayerRegionId;
+            int focusCount = GetRegionSpawnLaneCount(_currentPlayerRegionId);
+            Debug.Log(
+                "[TrafficNpcManager] Spawn candidates rebuilt. Edge lanes=" + _edgeSpawnLaneIndices.Count +
+                ", laneCount=" + _network.LaneCount +
+                ", focusRegion=" + focusRegion +
+                ", focusRegionLanes=" + focusCount);
 #endif
         }
 
@@ -1275,11 +1408,17 @@ namespace DeliveryRun.Managers.Subs
                 return false;
             }
 
-            int start = NextInt(_edgeSpawnLaneIndices.Count);
-            for (int i = 0; i < _edgeSpawnLaneIndices.Count; i++)
+            List<int> source = GetActiveSpawnLaneSource();
+            if (source == null || source.Count <= 0)
             {
-                int idx = (start + i) % _edgeSpawnLaneIndices.Count;
-                int candidateLaneIndex = _edgeSpawnLaneIndices[idx];
+                source = _edgeSpawnLaneIndices;
+            }
+
+            int start = NextInt(source.Count);
+            for (int i = 0; i < source.Count; i++)
+            {
+                int idx = (start + i) % source.Count;
+                int candidateLaneIndex = source[idx];
                 TrafficLaneData candidateLane;
                 if (!_network.TryGetLane(candidateLaneIndex, out candidateLane))
                 {
@@ -1292,6 +1431,89 @@ namespace DeliveryRun.Managers.Subs
             }
 
             return false;
+        }
+
+        private List<int> GetActiveSpawnLaneSource()
+        {
+            if (string.IsNullOrEmpty(_currentPlayerRegionId))
+            {
+                return _edgeSpawnLaneIndices;
+            }
+
+            List<int> regionList;
+            if (_edgeSpawnLaneIndicesByRegion.TryGetValue(_currentPlayerRegionId, out regionList) &&
+                regionList != null &&
+                regionList.Count > 0)
+            {
+                return regionList;
+            }
+
+            return _edgeSpawnLaneIndices;
+        }
+
+        private int GetRegionLaneCount(string regionId)
+        {
+            if (string.IsNullOrEmpty(regionId))
+            {
+                return 0;
+            }
+
+            int count;
+            if (_laneCountByRegion.TryGetValue(regionId, out count))
+            {
+                return count;
+            }
+
+            return 0;
+        }
+
+        private int GetRegionSpawnLaneCount(string regionId)
+        {
+            if (string.IsNullOrEmpty(regionId))
+            {
+                return 0;
+            }
+
+            List<int> lanes;
+            if (_edgeSpawnLaneIndicesByRegion.TryGetValue(regionId, out lanes) && lanes != null)
+            {
+                return lanes.Count;
+            }
+
+            return 0;
+        }
+
+        private static string ResolveLaneRegion(Vector3 start, Vector3 end)
+        {
+            Vector3 midpoint = (start + end) * 0.5f;
+            return RegionWorldLayout.ResolveRegionId(midpoint);
+        }
+
+        private void IncrementLaneCountForRegion(string regionId)
+        {
+            string key = string.IsNullOrEmpty(regionId) ? "central" : regionId;
+            int count;
+            if (_laneCountByRegion.TryGetValue(key, out count))
+            {
+                _laneCountByRegion[key] = count + 1;
+            }
+            else
+            {
+                _laneCountByRegion[key] = 1;
+            }
+        }
+
+        private void AddSpawnLaneForRegion(string regionId, int laneIndex)
+        {
+            string key = string.IsNullOrEmpty(regionId) ? "central" : regionId;
+            List<int> list;
+            if (!_edgeSpawnLaneIndicesByRegion.TryGetValue(key, out list) || list == null)
+            {
+                list = new List<int>(32);
+                _edgeSpawnLaneIndicesByRegion[key] = list;
+            }
+
+            list.Add(laneIndex);
         }
     }
 }

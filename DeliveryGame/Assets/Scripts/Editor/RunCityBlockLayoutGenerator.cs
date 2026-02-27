@@ -31,70 +31,7 @@ namespace DeliveryRun.Editor
 
         public static void Generate()
         {
-            string runScenePath = ResolveRunScenePath();
-            if (string.IsNullOrEmpty(runScenePath))
-            {
-                throw new InvalidOperationException("[RunCityBlockLayoutGenerator] RunScene path not found.");
-            }
-
-            EnsureFolder("Assets/Materials");
-            EnsureFolder(MaterialRoot);
-
-            Material roadMat = EnsureGeneratedMaterial(RoadMaterialPath, new Color(0.105f, 0.105f, 0.11f, 1f), 0.03f, 0.22f);
-            Material blockMat = EnsureGeneratedMaterial(BlockMaterialPath, new Color(0.38f, 0.39f, 0.42f, 1f), 0.02f, 0.08f);
-
-            Scene runScene = EditorSceneManager.OpenScene(runScenePath, OpenSceneMode.Single);
-            if (!runScene.IsValid())
-            {
-                throw new InvalidOperationException("[RunCityBlockLayoutGenerator] Failed to open scene: " + runScenePath);
-            }
-
-            GameObject cityRoot = GetOrCreateRoot("CityRoot");
-            GameObject roadsRoot = GetOrCreateChild(cityRoot.transform, "RoadsRoot");
-            GameObject blocksRoot = GetOrCreateChild(cityRoot.transform, "BlocksRoot");
-            GameObject buildingsRoot = GetOrCreateChild(cityRoot.transform, "BuildingsRoot");
-            GameObject poiRoot = GetOrCreateChild(cityRoot.transform, "POIRoot");
-
-            ClearChildren(roadsRoot.transform);
-            ClearChildren(blocksRoot.transform);
-            ClearChildren(buildingsRoot.transform);
-            ClearChildren(poiRoot.transform);
-
-            List<string> cityBuildingAssets = CollectCityBuildingAssets();
-
-            int roadCount = BuildRoads(roadsRoot.transform, roadMat);
-            int blockCount = BuildBlocks(blocksRoot.transform, blockMat);
-
-            int instantiatedBuildings;
-            int placeholderBuildings;
-            List<GameObject> placedBuildings = PlaceBuildings(
-                buildingsRoot.transform,
-                cityBuildingAssets,
-                out instantiatedBuildings,
-                out placeholderBuildings);
-
-            int removedLegacyRootCount = RemoveLegacyRoots(runScene, cityRoot);
-
-            string restaurantName;
-            string destinationName;
-            string gasStationName;
-            AssignOrderBuildingAnchors(
-                placedBuildings,
-                poiRoot.transform,
-                out restaurantName,
-                out destinationName,
-                out gasStationName);
-
-            EditorSceneManager.MarkSceneDirty(runScene);
-            EditorSceneManager.SaveScene(runScene);
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
-
-            Debug.Log("[RunCityBlockLayoutGenerator] Scene: " + runScenePath);
-            Debug.Log("[RunCityBlockLayoutGenerator] Roads created: " + roadCount + ", Blocks created: " + blockCount);
-            Debug.Log("[RunCityBlockLayoutGenerator] Buildings instantiated: " + instantiatedBuildings + ", placeholders created: " + placeholderBuildings);
-            Debug.Log("[RunCityBlockLayoutGenerator] Anchors: Restaurant=" + restaurantName + ", Destination=" + destinationName + ", GasStation=" + gasStationName);
-            Debug.Log("[RunCityBlockLayoutGenerator] Removed legacy roots: " + removedLegacyRootCount);
+            DeliveryRunMegaWorldGenerator.GenerateAll();
         }
 
         private static string ResolveRunScenePath()

@@ -635,7 +635,7 @@ namespace DeliveryRun.Editor
                 cam = c.AddComponent<Camera>();
             }
 
-            cam.nearClipPlane = 0f;
+            cam.nearClipPlane = 0.001f;
             cam.farClipPlane = 5000f;
 
             GameObject proxy = GetOrCreate("CameraFollowProxy");
@@ -673,6 +673,7 @@ namespace DeliveryRun.Editor
                 SetObj(vcam, proxy.transform, "Follow", "m_Follow", "TrackingTarget");
                 SetObj(vcam, target, "LookAt", "m_LookAt", "LookAtTarget");
                 SetInt(vcam, 10, "Priority", "m_Priority");
+                TrySetVcamLens(vcam, 13f, 0.001f);
                 return true;
             }
 
@@ -696,6 +697,7 @@ namespace DeliveryRun.Editor
 
             SerializedObject so = new SerializedObject(follow);
             so.FindProperty("preventClipping").boolValue = true;
+            so.FindProperty("heightOffset").floatValue = 13f;
             so.FindProperty("obstacleMask").intValue = ~0;
             so.FindProperty("occlusionPivotHeight").floatValue = 1.4f;
             so.FindProperty("collisionRadius").floatValue = 0.48f;
@@ -703,8 +705,8 @@ namespace DeliveryRun.Editor
             so.FindProperty("minDistanceFromTarget").floatValue = 2.2f;
             so.FindProperty("collisionBackoffStep").floatValue = 0.4f;
             so.FindProperty("collisionResolveSteps").intValue = 10;
-            so.FindProperty("nearClipWhenOccluded").floatValue = 0f;
-            so.FindProperty("defaultNearClip").floatValue = 0f;
+            so.FindProperty("nearClipWhenOccluded").floatValue = 0.001f;
+            so.FindProperty("defaultNearClip").floatValue = 0.001f;
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
@@ -748,6 +750,154 @@ namespace DeliveryRun.Editor
                     return;
                 }
             }
+        }
+
+        private static void TrySetVcamLens(Component vcam, float orthoSize, float nearClipPlane)
+        {
+            if (vcam == null)
+            {
+                return;
+            }
+
+            SerializedObject so = new SerializedObject(vcam);
+            bool serializedChanged = false;
+            SerializedProperty pOrtho = so.FindProperty("Lens.Orthographic");
+            if (pOrtho != null)
+            {
+                pOrtho.boolValue = true;
+                serializedChanged = true;
+            }
+            else
+            {
+                pOrtho = so.FindProperty("m_Lens.Orthographic");
+                if (pOrtho != null)
+                {
+                    pOrtho.boolValue = true;
+                    serializedChanged = true;
+                }
+            }
+
+            SerializedProperty pSize = so.FindProperty("Lens.OrthographicSize");
+            if (pSize != null)
+            {
+                pSize.floatValue = orthoSize;
+                serializedChanged = true;
+            }
+            else
+            {
+                pSize = so.FindProperty("m_Lens.OrthographicSize");
+                if (pSize != null)
+                {
+                    pSize.floatValue = orthoSize;
+                    serializedChanged = true;
+                }
+            }
+
+            SerializedProperty pNear = so.FindProperty("Lens.NearClipPlane");
+            if (pNear != null)
+            {
+                pNear.floatValue = Mathf.Clamp(nearClipPlane, 0.001f, 0.5f);
+                serializedChanged = true;
+            }
+            else
+            {
+                pNear = so.FindProperty("m_Lens.NearClipPlane");
+                if (pNear != null)
+                {
+                    pNear.floatValue = Mathf.Clamp(nearClipPlane, 0.001f, 0.5f);
+                    serializedChanged = true;
+                }
+            }
+
+            if (serializedChanged)
+            {
+                so.ApplyModifiedPropertiesWithoutUndo();
+                return;
+            }
+
+            Type type = vcam.GetType();
+            FieldInfo lensField = type.GetField("m_Lens", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (lensField != null)
+            {
+                object lens = lensField.GetValue(vcam);
+                if (TrySetLensStruct(ref lens, orthoSize, nearClipPlane))
+                {
+                    lensField.SetValue(vcam, lens);
+                    return;
+                }
+            }
+
+            PropertyInfo lensProp = type.GetProperty("Lens", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (lensProp != null && lensProp.CanRead && lensProp.CanWrite)
+            {
+                object lens = lensProp.GetValue(vcam, null);
+                if (TrySetLensStruct(ref lens, orthoSize, nearClipPlane))
+                {
+                    lensProp.SetValue(vcam, lens, null);
+                }
+            }
+        }
+
+        private static bool TrySetLensStruct(ref object lensStruct, float orthoSize, float nearClipPlane)
+        {
+            if (lensStruct == null)
+            {
+                return false;
+            }
+
+            Type lensType = lensStruct.GetType();
+            bool changed = false;
+
+            FieldInfo orthoField = lensType.GetField("Orthographic", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (orthoField != null && orthoField.FieldType == typeof(bool))
+            {
+                orthoField.SetValue(lensStruct, true);
+                changed = true;
+            }
+            else
+            {
+                PropertyInfo orthoProp = lensType.GetProperty("Orthographic", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (orthoProp != null && orthoProp.CanWrite && orthoProp.PropertyType == typeof(bool))
+                {
+                    orthoProp.SetValue(lensStruct, true, null);
+                    changed = true;
+                }
+            }
+
+            FieldInfo sizeField = lensType.GetField("OrthographicSize", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (sizeField != null && sizeField.FieldType == typeof(float))
+            {
+                sizeField.SetValue(lensStruct, orthoSize);
+                changed = true;
+            }
+            else
+            {
+                PropertyInfo sizeProp = lensType.GetProperty("OrthographicSize", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (sizeProp != null && sizeProp.CanWrite && sizeProp.PropertyType == typeof(float))
+                {
+                    sizeProp.SetValue(lensStruct, orthoSize, null);
+                    changed = true;
+                }
+            }
+
+            float clampedNear = Mathf.Clamp(nearClipPlane, 0.001f, 0.5f);
+            FieldInfo nearField = lensType.GetField("NearClipPlane", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (nearField != null && nearField.FieldType == typeof(float))
+            {
+                nearField.SetValue(lensStruct, clampedNear);
+                changed = true;
+            }
+            else
+            {
+                PropertyInfo nearProp = lensType.GetProperty("NearClipPlane", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (nearProp != null && nearProp.CanWrite && nearProp.PropertyType == typeof(float))
+                {
+                    nearProp.SetValue(lensStruct, clampedNear, null);
+                    changed = true;
+                }
+            }
+
+            return changed;
         }
 
         private static void RemoveRigidbodies(GameObject root)

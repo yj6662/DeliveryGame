@@ -327,6 +327,7 @@ namespace DeliveryRun.Editor
 
             SerializedObject followSo = new SerializedObject(follow);
             followSo.FindProperty("preventClipping").boolValue = true;
+            followSo.FindProperty("heightOffset").floatValue = 13f;
             followSo.FindProperty("obstacleMask").intValue = ~0;
             followSo.FindProperty("occlusionPivotHeight").floatValue = 1.4f;
             followSo.FindProperty("collisionRadius").floatValue = 0.48f;
@@ -334,8 +335,8 @@ namespace DeliveryRun.Editor
             followSo.FindProperty("minDistanceFromTarget").floatValue = 2.2f;
             followSo.FindProperty("collisionBackoffStep").floatValue = 0.4f;
             followSo.FindProperty("collisionResolveSteps").intValue = 10;
-            followSo.FindProperty("nearClipWhenOccluded").floatValue = 0f;
-            followSo.FindProperty("defaultNearClip").floatValue = 0f;
+            followSo.FindProperty("nearClipWhenOccluded").floatValue = 0.001f;
+            followSo.FindProperty("defaultNearClip").floatValue = 0.001f;
             followSo.ApplyModifiedPropertiesWithoutUndo();
 
             if (target != null)
@@ -345,7 +346,7 @@ namespace DeliveryRun.Editor
                 camera.transform.rotation = Quaternion.Euler(35f, 45f, 0f);
             }
 
-            camera.nearClipPlane = 0f;
+            camera.nearClipPlane = 0.001f;
             camera.farClipPlane = 5000f;
 
             if (camera.GetComponent<AudioListener>() == null)

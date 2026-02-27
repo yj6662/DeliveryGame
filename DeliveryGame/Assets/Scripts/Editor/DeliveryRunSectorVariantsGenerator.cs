@@ -39,13 +39,14 @@ namespace DeliveryRun.Editor
             created += CreateHillcrestVariant(sectorRoot);
             created += CreateStormCoastVariant(sectorRoot);
             created += CreateOldTownVariant(sectorRoot);
+            created += CreateSeasideVariant(sectorRoot);
 
             EditorSceneManager.MarkSceneDirty(runScene);
             EditorSceneManager.SaveScene(runScene);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log("[SectorVariantsGenerator] Generated sector variants: " + created + " (central + 5 themed).");
+            Debug.Log("[SectorVariantsGenerator] Generated sector variants: " + created + " (central + 6 themed).");
         }
 
         private static int CreateCentralVariant(Transform root)
@@ -134,6 +135,33 @@ namespace DeliveryRun.Editor
                 arch.transform.localScale = new Vector3(12f, 4.5f, 1.2f);
                 arch.transform.localPosition = new Vector3(i * 34f, 2.3f, 0f);
                 SetRendererColor(arch, new Color(0.6f, 0.48f, 0.35f, 1f), true);
+            }
+
+            return 1;
+        }
+
+        private static int CreateSeasideVariant(Transform root)
+        {
+            Transform sector = CreateSectorRoot(root, "seaside", false);
+            for (int i = -4; i <= 4; i++)
+            {
+                GameObject wave = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                wave.name = "SeasideWaterStrip_" + (i + 4).ToString("00");
+                wave.transform.SetParent(sector, false);
+                wave.transform.localScale = new Vector3(14f, 0.06f, 120f);
+                wave.transform.localPosition = new Vector3(i * 18f, 0.03f, -20f);
+                RemoveCollider(wave);
+                SetRendererColor(wave, new Color(0.18f, 0.52f, 0.78f, 0.86f), true);
+            }
+
+            for (int i = -3; i <= 3; i++)
+            {
+                GameObject rail = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                rail.name = "SeasideRail_" + (i + 3).ToString("00");
+                rail.transform.SetParent(sector, false);
+                rail.transform.localScale = new Vector3(10f, 1.2f, 0.4f);
+                rail.transform.localPosition = new Vector3(i * 20f, 0.6f, 12f);
+                SetRendererColor(rail, new Color(0.76f, 0.86f, 0.92f, 1f), true);
             }
 
             return 1;

@@ -1,7 +1,9 @@
+using System;
 using DeliveryRun;
 using DeliveryRun.Delivery.Input;
 using DeliveryRun.Delivery.Orders;
 using DeliveryRun.Delivery.Vehicle;
+using DeliveryRun.Delivery.World;
 using DeliveryRun.Managers.Core;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -32,7 +34,7 @@ namespace DeliveryRun.Managers.Subs
         private bool _isRunScene;
         private bool _isRefueling;
         private bool _missingAnchorLogged;
-        private bool _missingRoadLogged;
+        private string _currentRegionId = string.Empty;
 
         private float _scenePollAccum;
         private float _costAccum;
@@ -77,6 +79,7 @@ namespace DeliveryRun.Managers.Subs
             }
 
             EnsureRuntimeReferences();
+            UpdateStationAnchorForCurrentRegion(false);
             EnsureStationInteractPoint();
 
             if (!_isRefueling)
@@ -158,10 +161,9 @@ namespace DeliveryRun.Managers.Subs
             _runActive = true;
             _costAccum = 0f;
             _missingAnchorLogged = false;
-            _missingRoadLogged = false;
+            _currentRegionId = string.Empty;
             PublishRefuelState(false);
             EnsureRuntimeReferences();
-            EnsureStationInteractPoint();
         }
 
         private void OnRunEnded(DomainRunSessionEnded evt)
@@ -191,7 +193,7 @@ namespace DeliveryRun.Managers.Subs
             if (_isRunScene)
             {
                 EnsureRuntimeReferences();
-                EnsureStationInteractPoint();
+                UpdateStationAnchorForCurrentRegion(true);
             }
         }
 
@@ -216,64 +218,90 @@ namespace DeliveryRun.Managers.Subs
             {
                 _player = Object.FindAnyObjectByType<MotorbikeController>();
             }
+        }
 
-            if (_stationAnchor != null)
+        private void UpdateStationAnchorForCurrentRegion(bool forceRefresh)
+        {
+            if (_stationAnchor != null && !_stationAnchor.gameObject.activeInHierarchy)
+            {
+                _stationAnchor = null;
+            }
+
+            if (_player == null)
             {
                 return;
             }
 
+            string regionId = ResolvePlayerRegionId();
+            bool regionChanged = !string.Equals(regionId, _currentRegionId, StringComparison.Ordinal);
+            if (!regionChanged && !forceRefresh && _stationAnchor != null)
+            {
+                return;
+            }
+
+            OrderBuildingAnchor resolved = FindGasAnchorForRegion(regionId);
+            bool anchorChanged = resolved != _stationAnchor;
+            _currentRegionId = regionId;
+
+            if (anchorChanged || forceRefresh)
+            {
+                if (_isRefueling)
+                {
+                    StopRefueling();
+                }
+
+                ClearInteractPoint();
+            }
+
+            _stationAnchor = resolved;
+
+            if (_stationAnchor == null)
+            {
+                if (!_missingAnchorLogged)
+                {
+                    _missingAnchorLogged = true;
+                    Debug.LogWarning("[FuelStationManager] Gas station anchor not found for region: " + regionId);
+                }
+                return;
+            }
+
+            _missingAnchorLogged = false;
+        }
+
+        private OrderBuildingAnchor FindGasAnchorForRegion(string regionId)
+        {
             OrderBuildingAnchor[] anchors = Object.FindObjectsByType<OrderBuildingAnchor>(FindObjectsSortMode.None);
+            OrderBuildingAnchor fallback = null;
             for (int i = 0; i < anchors.Length; i++)
             {
                 OrderBuildingAnchor anchor = anchors[i];
-                if (anchor == null)
+                if (anchor == null || anchor.Role != OrderBuildingRole.GasStation)
                 {
                     continue;
                 }
 
-                if (anchor.Role == OrderBuildingRole.GasStation)
+                if (string.Equals(anchor.RegionId, regionId, StringComparison.Ordinal))
                 {
-                    _stationAnchor = anchor;
-                    return;
+                    return anchor;
+                }
+
+                if (fallback == null)
+                {
+                    fallback = anchor;
                 }
             }
 
-            GameObject buildingsRootObject = GameObject.Find("CityRoot/BuildingsRoot");
-            Transform buildingsRoot = buildingsRootObject != null ? buildingsRootObject.transform : null;
-            if (buildingsRoot != null)
+            return fallback;
+        }
+
+        private string ResolvePlayerRegionId()
+        {
+            if (_player == null)
             {
-                for (int i = 0; i < buildingsRoot.childCount; i++)
-                {
-                    Transform child = buildingsRoot.GetChild(i);
-                    if (child == null)
-                    {
-                        continue;
-                    }
-
-                    OrderBuildingAnchor existing = child.GetComponent<OrderBuildingAnchor>();
-                    if (existing != null && existing.Role != OrderBuildingRole.GasStation)
-                    {
-                        continue;
-                    }
-
-                    if (existing == null)
-                    {
-                        existing = child.gameObject.AddComponent<OrderBuildingAnchor>();
-                        existing.Role = OrderBuildingRole.GasStation;
-                        existing.AnchorId = "G1";
-                        existing.DisplayName = "GAS STATION";
-                    }
-
-                    _stationAnchor = existing;
-                    return;
-                }
+                return "central";
             }
 
-            if (!_missingAnchorLogged)
-            {
-                _missingAnchorLogged = true;
-                Debug.LogWarning("[FuelStationManager] Gas station anchor not found in RunScene.");
-            }
+            return RegionWorldLayout.ResolveRegionId(_player.transform.position);
         }
 
         private void EnsureStationInteractPoint()
@@ -286,16 +314,9 @@ namespace DeliveryRun.Managers.Subs
             Vector3 spawnPosition;
             if (!TryResolveRoadSidePosition(_stationAnchor.transform.position, out spawnPosition))
             {
-                if (!_missingRoadLogged)
-                {
-                    _missingRoadLogged = true;
-                    Debug.LogWarning("[FuelStationManager] RoadSurface query unavailable. Fuel interact point spawn deferred.");
-                }
-
                 return;
             }
 
-            _missingRoadLogged = false;
             GameObject interactObject = new GameObject("FuelStationInteractPoint");
             interactObject.transform.position = spawnPosition;
             interactObject.transform.rotation = Quaternion.identity;
@@ -456,20 +477,28 @@ namespace DeliveryRun.Managers.Subs
 
         private void CleanupSceneObjects()
         {
-            if (_interactPoint != null)
-            {
-                _interactPoint.InteractRequested -= OnFuelInteractRequested;
-                GameObject go = _interactPoint.gameObject;
-                _interactPoint = null;
-                if (go != null)
-                {
-                    Object.Destroy(go);
-                }
-            }
+            ClearInteractPoint();
 
             _player = null;
             _stationAnchor = null;
-            _missingRoadLogged = false;
+            _currentRegionId = string.Empty;
+            _missingAnchorLogged = false;
+        }
+
+        private void ClearInteractPoint()
+        {
+            if (_interactPoint == null)
+            {
+                return;
+            }
+
+            _interactPoint.InteractRequested -= OnFuelInteractRequested;
+            GameObject go = _interactPoint.gameObject;
+            _interactPoint = null;
+            if (go != null)
+            {
+                Object.Destroy(go);
+            }
         }
 
         private bool TryResolveRoadSidePosition(Vector3 reference, out Vector3 roadSidePosition)
@@ -493,7 +522,47 @@ namespace DeliveryRun.Managers.Subs
                 }
             }
 
-            return false;
+            RoadSurface[] surfaces = Object.FindObjectsByType<RoadSurface>(FindObjectsSortMode.None);
+            float bestSqrDistance = float.MaxValue;
+            bool found = false;
+
+            for (int i = 0; i < surfaces.Length; i++)
+            {
+                RoadSurface surface = surfaces[i];
+                if (surface == null)
+                {
+                    continue;
+                }
+
+                Collider c = surface.CachedCollider;
+                if (c == null)
+                {
+                    c = surface.GetComponent<Collider>();
+                }
+
+                if (c == null || !c.enabled || !c.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
+
+                Vector3 candidate = c.ClosestPoint(reference);
+                float sqrDistance = (candidate - reference).sqrMagnitude;
+                if (sqrDistance >= bestSqrDistance)
+                {
+                    continue;
+                }
+
+                bestSqrDistance = sqrDistance;
+                roadSidePosition = candidate;
+                found = true;
+            }
+
+            if (found)
+            {
+                roadSidePosition.y += SpawnYOffset;
+            }
+
+            return found;
         }
 
         private static string GetStationDisplayName(OrderBuildingAnchor anchor)
