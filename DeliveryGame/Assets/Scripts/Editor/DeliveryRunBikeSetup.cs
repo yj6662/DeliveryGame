@@ -328,15 +328,43 @@ namespace DeliveryRun.Editor
             SerializedObject followSo = new SerializedObject(follow);
             followSo.FindProperty("preventClipping").boolValue = true;
             followSo.FindProperty("heightOffset").floatValue = 13f;
-            followSo.FindProperty("obstacleMask").intValue = ~0;
+            followSo.FindProperty("obstacleMask").intValue = 1 << 0;
             followSo.FindProperty("occlusionPivotHeight").floatValue = 1.4f;
             followSo.FindProperty("collisionRadius").floatValue = 0.48f;
             followSo.FindProperty("collisionBuffer").floatValue = 0.25f;
             followSo.FindProperty("minDistanceFromTarget").floatValue = 2.2f;
             followSo.FindProperty("collisionBackoffStep").floatValue = 0.4f;
             followSo.FindProperty("collisionResolveSteps").intValue = 10;
-            followSo.FindProperty("nearClipWhenOccluded").floatValue = 0.001f;
-            followSo.FindProperty("defaultNearClip").floatValue = 0.001f;
+            followSo.FindProperty("nearClipWhenOccluded").floatValue = 0.01f;
+            followSo.FindProperty("defaultNearClip").floatValue = 0.03f;
+            followSo.FindProperty("fadeOccludingRenderers").boolValue = true;
+            followSo.FindProperty("occluderFadeAlpha").floatValue = 0.22f;
+            followSo.FindProperty("maxFadedOccluders").intValue = 12;
+            followSo.FindProperty("useRendererBoundsOcclusion").boolValue = true;
+            followSo.FindProperty("occluderBoundsPadding").floatValue = 0.2f;
+            followSo.FindProperty("minOccluderHeight").floatValue = 1.25f;
+            followSo.FindProperty("rendererCacheRefreshSeconds").floatValue = 1.0f;
+            followSo.FindProperty("tuneCameraClipPlanes").boolValue = true;
+            followSo.FindProperty("tunedFarClip").floatValue = 1800f;
+            followSo.FindProperty("followDistance").floatValue = 8f;
+            followSo.FindProperty("smoothTime").floatValue = 0.3f;
+            followSo.FindProperty("yawFollowStrength").floatValue = 0.45f;
+            followSo.FindProperty("yawSmoothTime").floatValue = 0.32f;
+            followSo.FindProperty("yawDeadZoneDegrees").floatValue = 1.1f;
+            followSo.FindProperty("extraBackAtHighSpeed").floatValue = 4f;
+            followSo.FindProperty("followSharpnessLowSpeed").floatValue = 8f;
+            followSo.FindProperty("followSharpnessHighSpeed").floatValue = 2.8f;
+            followSo.FindProperty("enableOrthographicBackstepGuard").boolValue = true;
+            followSo.FindProperty("safeZ").floatValue = 0.05f;
+            followSo.FindProperty("safeZMargin").floatValue = 0.02f;
+            followSo.FindProperty("scanRadiusMultiplier").floatValue = 1.5f;
+            followSo.FindProperty("checkInterval").floatValue = 0.14f;
+            followSo.FindProperty("backstepSmoothTime").floatValue = 0.32f;
+            followSo.FindProperty("backstepHysteresis").floatValue = 0.18f;
+            followSo.FindProperty("backstepExpandSharpness").floatValue = 6f;
+            followSo.FindProperty("backstepReleaseSharpness").floatValue = 2f;
+            followSo.FindProperty("maxExtraDistance").floatValue = 200f;
+            followSo.FindProperty("drawDebugGizmos").boolValue = false;
             followSo.ApplyModifiedPropertiesWithoutUndo();
 
             if (target != null)
@@ -346,8 +374,8 @@ namespace DeliveryRun.Editor
                 camera.transform.rotation = Quaternion.Euler(35f, 45f, 0f);
             }
 
-            camera.nearClipPlane = 0.001f;
-            camera.farClipPlane = 5000f;
+            camera.nearClipPlane = 0.03f;
+            camera.farClipPlane = 1800f;
 
             if (camera.GetComponent<AudioListener>() == null)
             {

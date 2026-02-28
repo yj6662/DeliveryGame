@@ -65,8 +65,8 @@ namespace DeliveryRun.Editor
         private const float GateBaseY = 2.1f;
         private const float GateSupportY = -0.22f;
         private const float GateSupportHeight = 0.45f;
-        private const float BuildingMinHeightBase = 5.2f;
-        private const float BuildingMaxHeightBase = 8.6f;
+        private const float BuildingMinHeightBase = 4.0f;
+        private const float BuildingMaxHeightBase = 6.2f;
         private const float CurbBarrierTopMinY = 1.6f;
         private const float CurbBarrierBottomY = -4.0f;
         private const StaticEditorFlags GeneratedStaticFlags =
@@ -1156,8 +1156,8 @@ namespace DeliveryRun.Editor
 
             Vector3 adjustedLot = new Vector3(lotPosition.x + jitterX, lotPosition.y, lotPosition.z + jitterZ);
             float targetFootprint = (12.2f + ((lotIndex % 3) * 1.1f)) * Mathf.Clamp(footprintMul, 0.72f, 1.35f);
-            float minHeight = BuildingMinHeightBase * Mathf.Clamp(heightMul, 0.72f, 1.25f);
-            float maxHeight = BuildingMaxHeightBase * Mathf.Clamp(heightMul, 0.78f, 1.18f);
+            float minHeight = BuildingMinHeightBase * Mathf.Clamp(heightMul, 0.68f, 1.08f);
+            float maxHeight = BuildingMaxHeightBase * Mathf.Clamp(heightMul, 0.72f, 1.05f);
             FitBuildingToLot(building, targetFootprint, minHeight, maxHeight);
 
             float y = ComputePlacementY(building, adjustedLot.y);

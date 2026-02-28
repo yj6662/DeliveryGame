@@ -91,7 +91,7 @@ namespace DeliveryRun.Managers.Subs
 
         public bool RefreshRoadCache()
         {
-            bool isRunScene = SceneManager.GetActiveScene().name == SceneNames.RunScene;
+            bool isRunScene = SceneNames.IsRunSceneLike(SceneManager.GetActiveScene().name);
             if (!isRunScene)
             {
                 _roadColliders.Clear();
@@ -107,7 +107,7 @@ namespace DeliveryRun.Managers.Subs
 
         private void OnSceneTransitionStarted(SceneTransitionStarted evt)
         {
-            if (evt.To == SceneNames.RunScene)
+            if (SceneNames.IsRunSceneLike(evt.To))
             {
                 return;
             }
@@ -124,7 +124,7 @@ namespace DeliveryRun.Managers.Subs
 
         private void HandleSceneChanged(string sceneName, bool forceRebuild)
         {
-            bool isRunScene = sceneName == SceneNames.RunScene;
+            bool isRunScene = SceneNames.IsRunSceneLike(sceneName);
             if (!isRunScene)
             {
                 _isRunScene = false;

@@ -151759,14 +151759,14 @@ MonoBehaviour:
   followDistance: 8
   smoothTime: 0.3
   pitchAngle: 35
-  yawFollowStrength: 0.1
-  yawSmoothTime: 0.5
-  yawDeadZoneDegrees: 2
+  yawFollowStrength: 0.45
+  yawSmoothTime: 0.32
+  yawDeadZoneDegrees: 1.1
   extraBackAtHighSpeed: 4
   speedLagStart: 14
   speedLagEnd: 28
-  followSharpnessLowSpeed: 10
-  followSharpnessHighSpeed: 4
+  followSharpnessLowSpeed: 8
+  followSharpnessHighSpeed: 2.8
   preventClipping: 1
   obstacleMask:
     serializedVersion: 2
@@ -151788,19 +151788,19 @@ MonoBehaviour:
   rendererCacheRefreshSeconds: 1
   tuneCameraClipPlanes: 1
   tunedFarClip: 1800
+  autoFindPlayer: 1
+  playerTag: Player
   enableOrthographicBackstepGuard: 1
   safeZ: 0.05
   safeZMargin: 0.02
   scanRadiusMultiplier: 1.5
-  checkInterval: 0.2
-  backstepSmoothTime: 0.45
-  backstepHysteresis: 0.25
+  checkInterval: 0.14
+  backstepSmoothTime: 0.32
+  backstepHysteresis: 0.18
   backstepExpandSharpness: 6
   backstepReleaseSharpness: 2
   maxExtraDistance: 200
   drawDebugGizmos: 0
-  autoFindPlayer: 1
-  playerTag: Player
 --- !u!20 &1128534426
 Camera:
   m_ObjectHideFlags: 0

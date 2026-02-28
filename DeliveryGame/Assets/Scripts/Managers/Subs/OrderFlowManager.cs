@@ -22,32 +22,6 @@ namespace DeliveryRun.Managers.Subs
             Carrying = 1
         }
 
-        private struct FoodDefinition
-        {
-            public readonly string FoodId;
-            public readonly string FoodName;
-            public readonly float TempDecayMultiplier;
-            public readonly float SpillGainMultiplier;
-            public readonly float DeliveryLimitSeconds;
-            public readonly bool IsSeafood;
-
-            public FoodDefinition(
-                string foodId,
-                string foodName,
-                float tempDecayMultiplier,
-                float spillGainMultiplier,
-                float deliveryLimitSeconds,
-                bool isSeafood)
-            {
-                FoodId = foodId;
-                FoodName = foodName;
-                TempDecayMultiplier = tempDecayMultiplier;
-                SpillGainMultiplier = spillGainMultiplier;
-                DeliveryLimitSeconds = deliveryLimitSeconds;
-                IsSeafood = isSeafood;
-            }
-        }
-
         private sealed class ActiveOrder
         {
             public int OrderId;
@@ -112,26 +86,6 @@ namespace DeliveryRun.Managers.Subs
         private const float InteractSpawnRetryInterval = 0.35f;
         private const int MaxActiveOrders = 3;
         private const float DefaultDeliveryLimitSeconds = 120f;
-        private const float SeasideDeliveryLimitClampMin = 45f;
-        private const float GlobalDeliveryLimitClampMin = 60f;
-        private const float DeliveryLimitClampMax = 240f;
-
-        private static readonly FoodDefinition[] FoodDefinitions =
-        {
-            new FoodDefinition("burger", "Burger Set", 0.95f, 1.00f, 125f, false),
-            new FoodDefinition("pizza", "Pizza", 1.05f, 1.08f, 130f, false),
-            new FoodDefinition("ramen", "Ramen", 1.20f, 1.18f, 110f, false),
-            new FoodDefinition("fried_chicken", "Fried Chicken", 0.92f, 1.05f, 122f, false),
-            new FoodDefinition("coffee", "Coffee", 1.30f, 1.25f, 105f, false),
-            new FoodDefinition("sushi", "Sushi Box", 0.85f, 1.12f, 88f, true),
-            new FoodDefinition("shrimp_pasta", "Shrimp Pasta", 0.90f, 1.10f, 92f, true),
-            new FoodDefinition("grilled_mackerel", "Grilled Mackerel", 0.88f, 1.08f, 84f, true),
-            new FoodDefinition("crab_rice", "Crab Rice Bowl", 0.89f, 1.14f, 86f, true),
-            new FoodDefinition("clam_chowder", "Clam Chowder", 0.94f, 1.17f, 80f, true)
-        };
-
-        private static Material s_pickupInteractMaterial;
-        private static Material s_deliveryInteractMaterial;
 
         private readonly List<ActiveOrder> _activeOrders = new List<ActiveOrder>(8);
         private readonly List<OrderBuildingAnchor> _restaurantAnchors = new List<OrderBuildingAnchor>(32);
@@ -139,9 +93,18 @@ namespace DeliveryRun.Managers.Subs
         private readonly List<OrderBuildingAnchor> _orderAnchors = new List<OrderBuildingAnchor>(128);
         private readonly Dictionary<string, OrderBuildingAnchor> _foodRestaurantMap =
             new Dictionary<string, OrderBuildingAnchor>(16);
+        private readonly List<OrderObjectivePublisher.ObjectiveOrderSnapshot> _objectiveSnapshots =
+            new List<OrderObjectivePublisher.ObjectiveOrderSnapshot>(8);
 
         private EconomyService _economy;
         private FoodStateConfigSO _foodCfg;
+        private readonly OrderFoodSelectionService _foodSelectionService = new OrderFoodSelectionService();
+        private readonly OrderAnchorSelectionService _anchorSelectionService = new OrderAnchorSelectionService();
+        private readonly OrderObjectivePublisher _objectivePublisher = new OrderObjectivePublisher();
+        private readonly OrderRoadSideLocator _roadSideLocator = new OrderRoadSideLocator();
+        private readonly OrderBuildingRoleAssigner _buildingRoleAssigner = new OrderBuildingRoleAssigner();
+        private readonly OrderInteractPointFactory _interactPointFactory = new OrderInteractPointFactory();
+        private readonly OrderSettlementService _settlementService = new OrderSettlementService();
         private ModifierStackService _stack;
         private MetaProgressionService _meta;
 
@@ -399,7 +362,7 @@ namespace DeliveryRun.Managers.Subs
 
         private void OnSceneTransitionStarted(SceneTransitionStarted evt)
         {
-            if (evt.To == SceneNames.RunScene)
+            if (SceneNames.IsRunSceneLike(evt.To))
             {
                 return;
             }
@@ -460,9 +423,21 @@ namespace DeliveryRun.Managers.Subs
             }
 
             string runRegionId = ResolveCurrentRunRegionId();
-            FoodDefinition food = PickFoodDefinition(runRegionId);
-            OrderBuildingAnchor restaurant = ResolveRestaurantForFood(food.FoodId, runRegionId);
-            OrderBuildingAnchor destination = ResolveRandomDestination(restaurant, runRegionId);
+            OrderFoodSelectionService.FoodSelection food =
+                _foodSelectionService.PickFoodDefinition(runRegionId, DefaultDeliveryLimitSeconds);
+            OrderBuildingAnchor restaurant = _anchorSelectionService.ResolveRestaurantForFood(
+                food.FoodId,
+                runRegionId,
+                _restaurantAnchors,
+                _foodRestaurantMap,
+                ResolveAnchorRegion);
+
+            OrderBuildingAnchor destination = _anchorSelectionService.ResolveRandomDestination(
+                restaurant,
+                runRegionId,
+                _destinationAnchors,
+                _orderAnchors,
+                ResolveAnchorRegion);
             if (restaurant == null || destination == null)
             {
                 if (!_missingAnchorLogged)
@@ -486,9 +461,12 @@ namespace DeliveryRun.Managers.Subs
             string restaurantName = GetAnchorDisplayName(restaurant, "Restaurant");
             string destinationName = GetAnchorDisplayName(destination, "Destination");
             string pickupLabel = restaurantName + " • " + food.FoodName;
-            float deliveryLimitSeconds = ResolveDeliveryLimitSeconds(food, runRegionId);
+            float deliveryLimitSeconds = OrderRewardCalculator.ResolveDeliveryLimitSeconds(
+                food.DeliveryLimitSeconds,
+                food.IsSeafood,
+                runRegionId);
 
-            float ttl = ResolveOfferTtlSeconds();
+            float ttl = OrderRewardCalculator.ResolveOfferTtlSeconds(BaseOfferTtlSeconds, ResolveModifierStack());
             _pendingOffer = new PendingOffer
             {
                 Active = true,
@@ -573,7 +551,9 @@ namespace DeliveryRun.Managers.Subs
                 return;
             }
 
-            _pendingRespawnHandle = Clock.Schedule(ResolveRespawnDelaySeconds(), OnRespawnDue);
+            _pendingRespawnHandle = Clock.Schedule(
+                OrderRewardCalculator.ResolveRespawnDelaySeconds(BaseRespawnDelaySeconds, ResolveModifierStack()),
+                OnRespawnDue);
         }
 
         private void OnRespawnDue()
@@ -631,7 +611,7 @@ namespace DeliveryRun.Managers.Subs
             _foodRestaurantMap.Clear();
             _anchorCatalogReady = false;
 
-            EnsureBuildingRolesAssigned();
+            _buildingRoleAssigner.EnsureAssigned();
 
             OrderBuildingAnchor[] anchors = Object.FindObjectsByType<OrderBuildingAnchor>(FindObjectsSortMode.None);
             for (int i = 0; i < anchors.Length; i++)
@@ -700,224 +680,6 @@ namespace DeliveryRun.Managers.Subs
             _anchorCatalogReady = _restaurantAnchors.Count > 0 && _orderAnchors.Count > 0;
         }
 
-        private void EnsureBuildingRolesAssigned()
-        {
-            GameObject buildingsRootObject = GameObject.Find("CityRoot/BuildingsRoot");
-            Transform buildingsRoot = buildingsRootObject != null ? buildingsRootObject.transform : null;
-            if (buildingsRoot == null)
-            {
-                return;
-            }
-
-            var candidates = new List<Transform>(256);
-            CollectBuildingCandidates(buildingsRoot, candidates);
-            if (candidates.Count <= 0)
-            {
-                return;
-            }
-
-            int restaurantCount = 0;
-            int destinationCount = 0;
-            int anchoredCount = 0;
-            var gasRegions = new HashSet<string>(StringComparer.Ordinal);
-            for (int i = 0; i < candidates.Count; i++)
-            {
-                Transform child = candidates[i];
-                if (child == null)
-                {
-                    continue;
-                }
-
-                string resolvedRegionId = ResolveRegionIdForPosition(child.position);
-                OrderBuildingAnchor anchor = child.GetComponent<OrderBuildingAnchor>();
-                if (anchor == null)
-                {
-                    continue;
-                }
-
-                if (!string.Equals(anchor.RegionId, resolvedRegionId, StringComparison.Ordinal))
-                {
-                    anchor.RegionId = resolvedRegionId;
-                }
-
-                anchoredCount++;
-                if (anchor.Role == OrderBuildingRole.Restaurant)
-                {
-                    restaurantCount++;
-                }
-                else if (anchor.Role == OrderBuildingRole.Destination)
-                {
-                    destinationCount++;
-                }
-                else if (anchor.Role == OrderBuildingRole.GasStation)
-                {
-                    gasRegions.Add(resolvedRegionId);
-                }
-            }
-
-            int requiredGasRegions = RegionWorldLayout.Count;
-            if (anchoredCount == candidates.Count &&
-                restaurantCount > 0 &&
-                destinationCount > 0 &&
-                gasRegions.Count >= requiredGasRegions)
-            {
-                return;
-            }
-
-            var gasIndexByRegion = new Dictionary<string, int>(StringComparer.Ordinal);
-            for (int i = 0; i < candidates.Count; i++)
-            {
-                Transform child = candidates[i];
-                if (child == null)
-                {
-                    continue;
-                }
-
-                string regionId = ResolveRegionIdForPosition(child.position);
-                if (gasIndexByRegion.ContainsKey(regionId))
-                {
-                    continue;
-                }
-
-                string lower = child.name.ToLowerInvariant();
-                if (lower.Contains("gas"))
-                {
-                    gasIndexByRegion[regionId] = i;
-                }
-            }
-
-            for (int i = 0; i < candidates.Count; i++)
-            {
-                Transform child = candidates[i];
-                if (child == null)
-                {
-                    continue;
-                }
-
-                string regionId = ResolveRegionIdForPosition(child.position);
-                if (!gasIndexByRegion.ContainsKey(regionId))
-                {
-                    gasIndexByRegion[regionId] = i;
-                }
-            }
-
-            int restaurantSerial = 1;
-            int destinationSerial = 1;
-            var regionOrderByRegion = new Dictionary<string, int>(StringComparer.Ordinal);
-            for (int i = 0; i < candidates.Count; i++)
-            {
-                Transform child = candidates[i];
-                if (child == null)
-                {
-                    continue;
-                }
-
-                string regionId = ResolveRegionIdForPosition(child.position);
-
-                OrderBuildingAnchor anchor = child.GetComponent<OrderBuildingAnchor>();
-                if (anchor == null)
-                {
-                    anchor = child.gameObject.AddComponent<OrderBuildingAnchor>();
-                }
-
-                anchor.RegionId = regionId;
-                int gasIndex;
-                if (gasIndexByRegion.TryGetValue(regionId, out gasIndex) && gasIndex == i)
-                {
-                    anchor.Role = OrderBuildingRole.GasStation;
-                    anchor.AnchorId = "G_" + regionId;
-                    if (string.IsNullOrEmpty(anchor.DisplayName) ||
-                        !anchor.DisplayName.ToLowerInvariant().Contains("gas"))
-                    {
-                        anchor.DisplayName = "Gas Station (" + regionId + ")";
-                    }
-                    continue;
-                }
-
-                int localOrder = 0;
-                if (regionOrderByRegion.TryGetValue(regionId, out localOrder))
-                {
-                    regionOrderByRegion[regionId] = localOrder + 1;
-                }
-                else
-                {
-                    localOrder = 0;
-                    regionOrderByRegion[regionId] = 1;
-                }
-
-                if ((localOrder % 4) == 0)
-                {
-                    anchor.Role = OrderBuildingRole.Restaurant;
-                    anchor.AnchorId = "R" + restaurantSerial;
-                    if (string.IsNullOrEmpty(anchor.DisplayName))
-                    {
-                        anchor.DisplayName = "Restaurant " + restaurantSerial + " (" + regionId + ")";
-                    }
-                    restaurantSerial++;
-                }
-                else
-                {
-                    anchor.Role = OrderBuildingRole.Destination;
-                    anchor.AnchorId = "D" + destinationSerial;
-                    if (string.IsNullOrEmpty(anchor.DisplayName))
-                    {
-                        anchor.DisplayName = "Destination " + destinationSerial + " (" + regionId + ")";
-                    }
-                    destinationSerial++;
-                }
-            }
-        }
-
-        private static void CollectBuildingCandidates(Transform buildingsRoot, List<Transform> destination)
-        {
-            if (buildingsRoot == null || destination == null)
-            {
-                return;
-            }
-
-            destination.Clear();
-
-            for (int i = 0; i < buildingsRoot.childCount; i++)
-            {
-                Transform direct = buildingsRoot.GetChild(i);
-                if (direct == null)
-                {
-                    continue;
-                }
-
-                bool collectedFromChildren = false;
-                if (direct.childCount > 0 && direct.GetComponent<Renderer>() == null)
-                {
-                    for (int j = 0; j < direct.childCount; j++)
-                    {
-                        Transform nested = direct.GetChild(j);
-                        if (nested == null)
-                        {
-                            continue;
-                        }
-
-                        if (nested.GetComponentInChildren<Renderer>(true) == null)
-                        {
-                            continue;
-                        }
-
-                        destination.Add(nested);
-                        collectedFromChildren = true;
-                    }
-                }
-
-                if (collectedFromChildren)
-                {
-                    continue;
-                }
-
-                if (direct.GetComponentInChildren<Renderer>(true) != null)
-                {
-                    destination.Add(direct);
-                }
-            }
-        }
-
         private bool IsRegionUnlockedForOrders(string regionId)
         {
             if (_meta == null)
@@ -956,179 +718,7 @@ namespace DeliveryRun.Managers.Subs
 
         private void BuildFoodRestaurantMap()
         {
-            _foodRestaurantMap.Clear();
-            if (_restaurantAnchors.Count <= 0)
-            {
-                return;
-            }
-
-            int restCount = _restaurantAnchors.Count;
-            for (int i = 0; i < FoodDefinitions.Length; i++)
-            {
-                FoodDefinition food = FoodDefinitions[i];
-                OrderBuildingAnchor anchor = _restaurantAnchors[i % restCount];
-                _foodRestaurantMap[food.FoodId] = anchor;
-            }
-        }
-
-        private static FoodDefinition PickFoodDefinition(string regionId)
-        {
-            if (FoodDefinitions.Length <= 0)
-            {
-                return new FoodDefinition("food", "Food", 1f, 1f, DefaultDeliveryLimitSeconds, false);
-            }
-
-            bool seasideRegion = string.Equals(regionId, "seaside", StringComparison.Ordinal);
-            int seafoodCount = 0;
-            int nonSeafoodCount = 0;
-            for (int i = 0; i < FoodDefinitions.Length; i++)
-            {
-                if (FoodDefinitions[i].IsSeafood)
-                {
-                    seafoodCount++;
-                }
-                else
-                {
-                    nonSeafoodCount++;
-                }
-            }
-
-            if (seasideRegion && seafoodCount > 0)
-            {
-                int seafoodWeight = 85;
-                int roll = UnityEngine.Random.Range(0, 100);
-                bool pickSeafood = roll < seafoodWeight || nonSeafoodCount <= 0;
-                if (pickSeafood)
-                {
-                    int seafoodIndex = UnityEngine.Random.Range(0, seafoodCount);
-                    int seen = 0;
-                    for (int i = 0; i < FoodDefinitions.Length; i++)
-                    {
-                        if (!FoodDefinitions[i].IsSeafood)
-                        {
-                            continue;
-                        }
-
-                        if (seen == seafoodIndex)
-                        {
-                            return FoodDefinitions[i];
-                        }
-
-                        seen++;
-                    }
-                }
-            }
-
-            int index = UnityEngine.Random.Range(0, FoodDefinitions.Length);
-            return FoodDefinitions[index];
-        }
-
-        private OrderBuildingAnchor ResolveRestaurantForFood(string foodId, string preferredRegionId)
-        {
-            if (string.IsNullOrEmpty(preferredRegionId))
-            {
-                preferredRegionId = ResolveCurrentRunRegionId();
-            }
-
-            if (!_anchorCatalogReady)
-            {
-                RebuildAnchorCatalog();
-            }
-
-            OrderBuildingAnchor mapped = null;
-            if (!string.IsNullOrEmpty(foodId) && _foodRestaurantMap.TryGetValue(foodId, out mapped) && mapped != null)
-            {
-                if (string.Equals(ResolveAnchorRegion(mapped), preferredRegionId, StringComparison.Ordinal))
-                {
-                    return mapped;
-                }
-            }
-
-            OrderBuildingAnchor regional = SelectRandomAnchorInRegion(_restaurantAnchors, null, preferredRegionId);
-            if (regional != null)
-            {
-                return regional;
-            }
-
-            return null;
-        }
-        private OrderBuildingAnchor ResolveRandomDestination(OrderBuildingAnchor restaurant, string preferredRegionId)
-        {
-            if (string.IsNullOrEmpty(preferredRegionId))
-            {
-                preferredRegionId = ResolveCurrentRunRegionId();
-            }
-
-            OrderBuildingAnchor regional = SelectRandomAnchorInRegion(_destinationAnchors, restaurant, preferredRegionId);
-            if (regional != null)
-            {
-                return regional;
-            }
-
-            return SelectRandomAnchorInRegion(_orderAnchors, restaurant, preferredRegionId);
-        }
-
-        private static OrderBuildingAnchor SelectRandomAnchorInRegion(
-            List<OrderBuildingAnchor> anchors,
-            OrderBuildingAnchor excluded,
-            string regionId)
-        {
-            if (anchors == null || anchors.Count <= 0 || string.IsNullOrEmpty(regionId))
-            {
-                return null;
-            }
-
-            OrderBuildingAnchor selected = null;
-            int selectable = 0;
-            for (int i = 0; i < anchors.Count; i++)
-            {
-                OrderBuildingAnchor candidate = anchors[i];
-                if (candidate == null || candidate == excluded)
-                {
-                    continue;
-                }
-
-                string candidateRegion = ResolveAnchorRegion(candidate);
-                if (!string.Equals(candidateRegion, regionId, StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                selectable++;
-                if (UnityEngine.Random.Range(0, selectable) == 0)
-                {
-                    selected = candidate;
-                }
-            }
-
-            return selected;
-        }
-
-        private static OrderBuildingAnchor SelectRandomAnchor(List<OrderBuildingAnchor> anchors, OrderBuildingAnchor excluded)
-        {
-            if (anchors == null || anchors.Count <= 0)
-            {
-                return null;
-            }
-
-            OrderBuildingAnchor selected = null;
-            int selectable = 0;
-            for (int i = 0; i < anchors.Count; i++)
-            {
-                OrderBuildingAnchor candidate = anchors[i];
-                if (candidate == null || candidate == excluded)
-                {
-                    continue;
-                }
-
-                selectable++;
-                if (UnityEngine.Random.Range(0, selectable) == 0)
-                {
-                    selected = candidate;
-                }
-            }
-
-            return selected;
+            _foodSelectionService.BuildFoodRestaurantMap(_restaurantAnchors, _foodRestaurantMap);
         }
 
         private void EnsureActiveOrderInteractPoints(float unscaledDeltaTime)
@@ -1260,13 +850,15 @@ namespace DeliveryRun.Managers.Subs
                 return false;
             }
 
-            order.PickupInteract = CreateInteractPoint(
+            order.PickupInteract = _interactPointFactory.Create(
                 "OrderInteractPoint_Pickup_" + order.OrderId,
                 order.OrderId,
                 OrderPointType.Pickup,
                 "P" + order.OrderId,
                 order.PickupName,
-                spawnPosition);
+                spawnPosition,
+                InteractRadius,
+                OnInteractPointRequested);
             return order.PickupInteract != null;
         }
 
@@ -1284,123 +876,16 @@ namespace DeliveryRun.Managers.Subs
                 return false;
             }
 
-            order.DeliveryInteract = CreateInteractPoint(
+            order.DeliveryInteract = _interactPointFactory.Create(
                 "OrderInteractPoint_Delivery_" + order.OrderId,
                 order.OrderId,
                 OrderPointType.Delivery,
                 "D" + order.OrderId,
                 order.DeliveryName,
-                spawnPosition);
+                spawnPosition,
+                InteractRadius,
+                OnInteractPointRequested);
             return order.DeliveryInteract != null;
-        }
-
-        private OrderInteractPoint CreateInteractPoint(
-            string objectName,
-            int orderId,
-            OrderPointType pointType,
-            string pointId,
-            string displayName,
-            Vector3 spawnPos)
-        {
-            GameObject interactObject = new GameObject(objectName);
-            interactObject.transform.position = spawnPos;
-            interactObject.transform.rotation = Quaternion.identity;
-
-            OrderInteractPoint interactPoint = interactObject.AddComponent<OrderInteractPoint>();
-            interactPoint.Configure(pointType, pointId, displayName);
-            interactPoint.SetInteractRadius(InteractRadius);
-            interactPoint.Arm(orderId, pointType);
-            interactPoint.InteractRequested += OnInteractPointRequested;
-
-            AddInteractVisual(interactObject.transform, pointType);
-            return interactPoint;
-        }
-
-        private static void AddInteractVisual(Transform parent, OrderPointType pointType)
-        {
-            GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            visual.name = "Visual";
-            visual.transform.SetParent(parent, false);
-            visual.transform.localPosition = new Vector3(0f, 0.4f, 0f);
-            visual.transform.localScale = new Vector3(1.4f, 0.2f, 1.4f);
-
-            Collider visualCollider = visual.GetComponent<Collider>();
-            if (visualCollider != null)
-            {
-                Object.Destroy(visualCollider);
-            }
-
-            Renderer renderer = visual.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                Color tint = pointType == OrderPointType.Pickup
-                    ? new Color(0.2f, 0.9f, 0.3f, 1f)
-                    : new Color(0.2f, 0.45f, 1f, 1f);
-                renderer.sharedMaterial = GetInteractVisualMaterial(pointType, tint);
-            }
-        }
-
-        private static Material GetInteractVisualMaterial(OrderPointType pointType, Color tint)
-        {
-            Material cached = pointType == OrderPointType.Pickup
-                ? s_pickupInteractMaterial
-                : s_deliveryInteractMaterial;
-            if (cached != null)
-            {
-                return cached;
-            }
-
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
-            if (shader == null)
-            {
-                shader = Shader.Find("Standard");
-            }
-
-            Material material = new Material(shader);
-            material.name = pointType == OrderPointType.Pickup
-                ? "OrderInteract_Pickup_Opaque"
-                : "OrderInteract_Delivery_Opaque";
-            material.SetColor("_Color", tint);
-            if (material.HasProperty("_BaseColor"))
-            {
-                material.SetColor("_BaseColor", tint);
-            }
-
-            if (material.HasProperty("_Surface"))
-            {
-                material.SetFloat("_Surface", 0f);
-            }
-
-            if (material.HasProperty("_Mode"))
-            {
-                material.SetFloat("_Mode", 0f);
-            }
-
-            if (material.HasProperty("_ZWrite"))
-            {
-                material.SetFloat("_ZWrite", 1f);
-            }
-
-            if (material.HasProperty("_SrcBlend"))
-            {
-                material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
-            }
-
-            if (material.HasProperty("_DstBlend"))
-            {
-                material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
-            }
-
-            if (pointType == OrderPointType.Pickup)
-            {
-                s_pickupInteractMaterial = material;
-            }
-            else
-            {
-                s_deliveryInteractMaterial = material;
-            }
-
-            return material;
         }
 
         private void OnInteractPointRequested(OrderInteractPoint interactPoint)
@@ -1421,89 +906,17 @@ namespace DeliveryRun.Managers.Subs
             }
 
             _ordersCompleted++;
-
-            float qualityMul = 1f;
-            float quality = 1f;
-            float temperature = 1f;
-            float spill = 0f;
-
-            FoodStateService food;
-            if (Services.TryGet(out food) && food != null && food.IsActive &&
-                string.Equals(food.ActiveOfferId, order.OfferId, StringComparison.Ordinal))
-            {
-                quality = food.ComputeQuality01();
-                temperature = food.Temperature01;
-                spill = food.Spill01;
-                if (_foodCfg != null)
-                {
-                    qualityMul = food.ComputeRewardMultiplier(quality, _foodCfg);
-                }
-
-                food.Reset();
-            }
-
-            float musicMul = 1f;
-            if (_stack == null)
-            {
-                Services.TryGet(out _stack);
-            }
-            if (_stack != null)
-            {
-                musicMul = _stack.GetMul(RunStatId.RewardMultiplier);
-            }
-
-            float elapsedFromAccept = 0f;
-            if (order.AcceptedAt >= 0d)
-            {
-                elapsedFromAccept = (float)Math.Max(0d, Clock.Now - order.AcceptedAt);
-            }
-
-            float elapsedFromPickup = 0f;
-            if (order.PickedUpAt >= 0d)
-            {
-                elapsedFromPickup = (float)Math.Max(0d, Clock.Now - order.PickedUpAt);
-            }
-
-            float timeMul = EvaluateDeliveryTimeMultiplier(elapsedFromAccept);
-            int finalReward = Mathf.Max(0, Mathf.RoundToInt(order.BaseReward * musicMul * qualityMul * timeMul));
-
-            Events.Publish(new FoodQualityComputed
-            {
-                OfferId = order.OfferId,
-                Temperature01 = temperature,
-                Spill01 = spill,
-                Quality01 = quality,
-                RewardMultiplier = qualityMul,
-                RatingDelta = 0f
-            });
-
-            _economy.AddReward(finalReward, "order_complete");
-            Events.Publish(new SessionBalanceChanged
-            {
-                Balance = _economy.SessionBalance,
-                Delta = finalReward,
-                Reason = "order_complete"
-            });
-
-            Events.Publish(new OrderDeliveryReached
-            {
-                OfferId = order.OfferId,
-                Reward = finalReward
-            });
-
-            Events.Publish(new OrderCompleted
-            {
-                OfferId = order.OfferId,
-                Reward = finalReward
-            });
-
-            Events.Publish(new OrderObjectiveUpdated
-            {
-                OfferId = order.OfferId,
-                Text = order.OfferId + " COMPLETE +$" + finalReward + " (" + elapsedFromAccept.ToString("0.0") + "s / " +
-                       elapsedFromPickup.ToString("0.0") + "s)",
-                DistanceMeters = 0f
-            });
+            _settlementService.ProcessSuccess(
+                Services,
+                Events,
+                Clock,
+                _economy,
+                _foodCfg,
+                ResolveModifierStack(),
+                order.OfferId,
+                order.BaseReward,
+                order.AcceptedAt,
+                order.PickedUpAt);
 
             DespawnPickupInteractPoint(order);
             DespawnDeliveryInteractPoint(order);
@@ -1514,63 +927,29 @@ namespace DeliveryRun.Managers.Subs
 
         private void PublishPrimaryObjectiveUpdate()
         {
-            ActiveOrder primary = GetPrimaryOrder();
-            if (primary == null)
-            {
-                PublishObjectiveMarkerInactive();
-                PublishObjectiveMarkersSnapshot();
-                return;
-            }
-
-            OrderInteractPoint interactPoint = primary.Stage == OrderStage.AwaitPickup
-                ? primary.PickupInteract
-                : primary.DeliveryInteract;
-
-            string prefix = primary.Stage == OrderStage.AwaitPickup ? "GO PICKUP: " : "DELIVER TO: ";
-            OrderPointType pointType = primary.Stage == OrderStage.AwaitPickup ? OrderPointType.Pickup : OrderPointType.Delivery;
-            float distance = ComputeDistance(interactPoint);
-            string text = prefix + (primary.Stage == OrderStage.AwaitPickup ? primary.PickupName : primary.DeliveryName);
-            if (distance >= 0f)
-            {
-                text += " (" + Mathf.RoundToInt(distance) + "m)";
-            }
-
-            Events.Publish(new OrderObjectiveUpdated
-            {
-                OfferId = primary.OfferId,
-                Text = text,
-                DistanceMeters = distance
-            });
-
-            PublishObjectiveMarker(primary.OfferId, interactPoint, pointType);
-            PublishObjectiveMarkersSnapshot();
-        }
-        private ActiveOrder GetPrimaryOrder()
-        {
-            if (_activeOrders.Count <= 0)
-            {
-                return null;
-            }
-
+            _objectiveSnapshots.Clear();
             for (int i = 0; i < _activeOrders.Count; i++)
             {
-                if (_activeOrders[i].Stage == OrderStage.Carrying)
+                ActiveOrder order = _activeOrders[i];
+                if (order == null)
                 {
-                    return _activeOrders[i];
+                    continue;
                 }
+
+                _objectiveSnapshots.Add(new OrderObjectivePublisher.ObjectiveOrderSnapshot
+                {
+                    OfferId = order.OfferId,
+                    PickupName = order.PickupName,
+                    DeliveryName = order.DeliveryName,
+                    IsCarrying = order.Stage == OrderStage.Carrying,
+                    PickupInteract = order.PickupInteract,
+                    DeliveryInteract = order.DeliveryInteract
+                });
             }
 
-            return _activeOrders[0];
-        }
-
-        private float ComputeDistance(OrderInteractPoint interactPoint)
-        {
-            if (_player == null || interactPoint == null)
-            {
-                return -1f;
-            }
-
-            return Vector3.Distance(_player.transform.position, interactPoint.transform.position);
+            bool hasPlayer = _player != null;
+            Vector3 playerPosition = hasPlayer ? _player.transform.position : Vector3.zero;
+            _objectivePublisher.Publish(Events, _objectiveSnapshots, hasPlayer, playerPosition);
         }
 
         private string GetAnchorDisplayName(OrderBuildingAnchor anchor, string fallback)
@@ -1590,72 +969,11 @@ namespace DeliveryRun.Managers.Subs
 
         private bool TryResolveRoadSidePosition(OrderBuildingAnchor anchor, out Vector3 roadSidePosition)
         {
-            roadSidePosition = Vector3.zero;
-            if (anchor == null)
-            {
-                return false;
-            }
-
-            Vector3 reference = anchor.transform.position;
             if (_roadQuery == null)
             {
                 Services.TryGet(out _roadQuery);
             }
-
-            Vector3 nearestRoad;
-            if (_roadQuery != null)
-            {
-                _roadQuery.RefreshRoadCache();
-                if (_roadQuery.GetNearestRoadPoint(reference, out nearestRoad))
-                {
-                    nearestRoad.y += 0.3f;
-                    roadSidePosition = nearestRoad;
-                    return true;
-                }
-            }
-
-            RoadSurface[] surfaces = Object.FindObjectsByType<RoadSurface>(FindObjectsSortMode.None);
-            float bestSqrDistance = float.MaxValue;
-            bool found = false;
-
-            for (int i = 0; i < surfaces.Length; i++)
-            {
-                RoadSurface surface = surfaces[i];
-                if (surface == null)
-                {
-                    continue;
-                }
-
-                Collider collider = surface.CachedCollider;
-                if (collider == null)
-                {
-                    collider = surface.GetComponent<Collider>();
-                }
-
-                if (collider == null || !collider.enabled || !collider.gameObject.activeInHierarchy)
-                {
-                    continue;
-                }
-
-                Vector3 candidate = collider.ClosestPoint(reference);
-                float sqrDistance = (candidate - reference).sqrMagnitude;
-                if (sqrDistance >= bestSqrDistance)
-                {
-                    continue;
-                }
-
-                bestSqrDistance = sqrDistance;
-                roadSidePosition = candidate;
-                found = true;
-            }
-
-            if (!found)
-            {
-                return false;
-            }
-
-            roadSidePosition.y += 0.3f;
-            return true;
+            return _roadSideLocator.TryResolve(anchor, _roadQuery, out roadSidePosition);
         }
 
         private void DespawnPickupInteractPoint(ActiveOrder order)
@@ -1698,96 +1016,6 @@ namespace DeliveryRun.Managers.Subs
                 DespawnPickupInteractPoint(order);
                 DespawnDeliveryInteractPoint(order);
             }
-        }
-
-        private void PublishObjectiveMarker(string offerId, OrderInteractPoint point, OrderPointType pointType)
-        {
-            if (point == null)
-            {
-                PublishObjectiveMarkerInactive();
-                return;
-            }
-
-            Events.Publish(new OrderObjectiveMarkerUpdated
-            {
-                OfferId = offerId,
-                Active = true,
-                PointType = pointType,
-                WorldPosition = point.transform.position
-            });
-        }
-
-        private void PublishObjectiveMarkerInactive()
-        {
-            Events.Publish(new OrderObjectiveMarkerUpdated
-            {
-                OfferId = string.Empty,
-                Active = false,
-                PointType = OrderPointType.Pickup,
-                WorldPosition = Vector3.zero
-            });
-        }
-
-        private void PublishObjectiveMarkersSnapshot()
-        {
-            OrderObjectiveMarkersUpdated markers = new OrderObjectiveMarkersUpdated
-            {
-                Count = 0,
-                OfferId0 = string.Empty,
-                OfferId1 = string.Empty,
-                OfferId2 = string.Empty
-            };
-
-            int count = 0;
-            for (int i = 0; i < _activeOrders.Count; i++)
-            {
-                if (count >= 3)
-                {
-                    break;
-                }
-
-                ActiveOrder order = _activeOrders[i];
-                if (order == null)
-                {
-                    continue;
-                }
-
-                OrderInteractPoint interactPoint = order.Stage == OrderStage.AwaitPickup
-                    ? order.PickupInteract
-                    : order.DeliveryInteract;
-                if (interactPoint == null)
-                {
-                    continue;
-                }
-
-                OrderPointType pointType = order.Stage == OrderStage.AwaitPickup
-                    ? OrderPointType.Pickup
-                    : OrderPointType.Delivery;
-
-                if (count == 0)
-                {
-                    markers.OfferId0 = order.OfferId;
-                    markers.PointType0 = pointType;
-                    markers.WorldPosition0 = interactPoint.transform.position;
-                }
-                else if (count == 1)
-                {
-                    markers.OfferId1 = order.OfferId;
-                    markers.PointType1 = pointType;
-                    markers.WorldPosition1 = interactPoint.transform.position;
-                }
-                else
-                {
-                    markers.OfferId2 = order.OfferId;
-                    markers.PointType2 = pointType;
-                    markers.WorldPosition2 = interactPoint.transform.position;
-                }
-
-                count++;
-            }
-
-            markers.Count = count;
-            Events.Publish(markers);
         }
 
         private int FindOrderIndex(int orderId)
@@ -1899,27 +1127,7 @@ namespace DeliveryRun.Managers.Subs
             {
                 _activeOrders.RemoveAt(orderIndex);
             }
-
-            FoodStateService food;
-            if (Services.TryGet(out food) && food != null && food.IsActive &&
-                string.Equals(food.ActiveOfferId, order.OfferId, StringComparison.Ordinal))
-            {
-                food.Reset();
-            }
-
-            Events.Publish(new OrderTimedOut
-            {
-                OfferId = order.OfferId,
-                FoodName = order.FoodName,
-                LimitSeconds = Mathf.Max(1f, order.DeliveryLimitSeconds)
-            });
-
-            Events.Publish(new OrderObjectiveUpdated
-            {
-                OfferId = order.OfferId,
-                Text = order.OfferId + " FAILED (TIME OUT)",
-                DistanceMeters = 0f
-            });
+            _settlementService.ProcessTimeout(Services, Events, order.OfferId, order.FoodName, order.DeliveryLimitSeconds);
 
             ScheduleRespawnIfNeeded();
             PublishPrimaryObjectiveUpdate();
@@ -1943,77 +1151,19 @@ namespace DeliveryRun.Managers.Subs
             return "central";
         }
 
-        private static float ResolveDeliveryLimitSeconds(FoodDefinition food, string runRegionId)
+        private ModifierStackService ResolveModifierStack()
         {
-            float limit = food.DeliveryLimitSeconds > 0.1f ? food.DeliveryLimitSeconds : DefaultDeliveryLimitSeconds;
-            bool seasideRegion = string.Equals(runRegionId, "seaside", StringComparison.Ordinal);
-
-            if (seasideRegion)
-            {
-                if (food.IsSeafood)
-                {
-                    limit *= 0.70f;
-                }
-                else
-                {
-                    limit *= 0.82f;
-                }
-
-                return Mathf.Clamp(limit, SeasideDeliveryLimitClampMin, DeliveryLimitClampMax);
-            }
-
-            if (food.IsSeafood)
-            {
-                limit *= 0.88f;
-            }
-
-            return Mathf.Clamp(limit, GlobalDeliveryLimitClampMin, DeliveryLimitClampMax);
-        }
-
-        private float ResolveOfferTtlSeconds()
-        {
-            float ttl = BaseOfferTtlSeconds;
             if (_stack == null)
             {
                 Services.TryGet(out _stack);
             }
 
-            if (_stack != null)
-            {
-                ttl *= _stack.GetMul(RunStatId.OfferAcceptTtlMultiplier);
-            }
-
-            return Mathf.Clamp(ttl, 1.5f, 30f);
-        }
-
-        private float ResolveRespawnDelaySeconds()
-        {
-            float delay = BaseRespawnDelaySeconds;
-            if (_stack == null)
-            {
-                Services.TryGet(out _stack);
-            }
-
-            if (_stack != null)
-            {
-                delay *= _stack.GetMul(RunStatId.OfferRespawnDelayMultiplier);
-            }
-
-            return Mathf.Clamp(delay, 0.25f, 15f);
-        }
-
-        private static float EvaluateDeliveryTimeMultiplier(float elapsedSeconds)
-        {
-            if (elapsedSeconds <= 30f) return 1.30f;
-            if (elapsedSeconds <= 50f) return 1.15f;
-            if (elapsedSeconds <= 75f) return 1.00f;
-            if (elapsedSeconds <= 105f) return 0.90f;
-            return 0.80f;
+            return _stack;
         }
 
         private void HandleSceneChanged(string sceneName)
         {
-            bool isRun = sceneName == SceneNames.RunScene;
+            bool isRun = SceneNames.IsRunSceneLike(sceneName);
             if (_isRunScene == isRun)
             {
                 return;
@@ -2033,8 +1183,7 @@ namespace DeliveryRun.Managers.Subs
         {
             CancelRespawn();
             DespawnAllInteractPoints();
-            PublishObjectiveMarkerInactive();
-            PublishObjectiveMarkersSnapshot();
+            PublishNoObjectives();
             _activeOrders.Clear();
             _pendingOffer = default;
             _offerPauseActive = false;
@@ -2049,8 +1198,7 @@ namespace DeliveryRun.Managers.Subs
         {
             CancelRespawn();
             DespawnAllInteractPoints();
-            PublishObjectiveMarkerInactive();
-            PublishObjectiveMarkersSnapshot();
+            PublishNoObjectives();
             _activeOrders.Clear();
             _pendingOffer = default;
             _offerPauseActive = false;
@@ -2066,6 +1214,12 @@ namespace DeliveryRun.Managers.Subs
             _offerPauseActive = false;
             _offerPauseStartedAt = 0d;
             _offerTickAccum = 0f;
+        }
+
+        private void PublishNoObjectives()
+        {
+            _objectiveSnapshots.Clear();
+            _objectivePublisher.Publish(Events, _objectiveSnapshots, false, Vector3.zero);
         }
 
         private void ClearAnchorCatalog()
