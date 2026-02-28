@@ -24,7 +24,30 @@ namespace DeliveryRun.Editor
         private const string RoadsKitModelRoot = RoadsKitRoot + "/Models/FBX format";
         private const string RoadSkinStraightPath = RoadsKitModelRoot + "/road-straight.fbx";
         private const string RoadSkinSquarePath = RoadsKitModelRoot + "/road-square.fbx";
+        private const string RoadSkinCornerPath = RoadsKitModelRoot + "/road-bend-sidewalk.fbx";
+        private const string RoadSkinCornerFallbackPath = RoadsKitModelRoot + "/road-curve-intersection.fbx";
+        private const string RoadSkinCornerSecondFallbackPath = RoadsKitModelRoot + "/road-bend.fbx";
+        private const string RoadSkinTJunctionPath = RoadsKitModelRoot + "/road-intersection.fbx";
+        private const string RoadSkinTJunctionFallbackPath = RoadsKitModelRoot + "/road-intersection-path.fbx";
+        private const string RoadSkinCrossroadPath = RoadsKitModelRoot + "/road-crossroad-path.fbx";
+        private const string RoadSkinEndPath = RoadsKitModelRoot + "/road-end.fbx";
+        private const string SignalSkinCrossPath = RoadsKitModelRoot + "/light-square-cross.fbx";
+        private const string SignalSkinDoublePath = RoadsKitModelRoot + "/light-square-double.fbx";
+        private const string SignalSkinSinglePath = RoadsKitModelRoot + "/light-square.fbx";
+        private const string StreetLightSkinPrimaryPath = RoadsKitModelRoot + "/light-curved.fbx";
+        private const string StreetLightSkinCrossPath = RoadsKitModelRoot + "/light-curved-cross.fbx";
+        private const string StreetLightSkinDoublePath = RoadsKitModelRoot + "/light-curved-double.fbx";
         private const float RoadSkinYOffset = 0.0125f;
+        private const float JunctionLaneJoinOverlap = 0.28f;
+        private const float JunctionVisualScaleNudge = 1.0125f;
+        private const float StraightVisualScaleNudge = 1.0075f;
+        private const float CrossroadYawOffset = 90f;
+        private const float TJunctionLocalZScaleRatio = 0.95752f;
+        private const float TJunctionForwardOffset = 0.2319f;
+        private const float CornerVisualScaleNudge = 1.02f;
+        private const float CornerDiagonalOffset = 0f;
+        private const float JunctionSignalOffset = 8.5f;
+        private const float JunctionStreetLightOffset = 10.5f;
 
         private const float BlockSize = 40f;
         private const float BlockHeight = 0.55f;
@@ -52,6 +75,23 @@ namespace DeliveryRun.Editor
             StaticEditorFlags.OccludeeStatic;
         private static GameObject s_roadSkinStraightPrefab;
         private static GameObject s_roadSkinSquarePrefab;
+        private static GameObject s_roadSkinCornerPrefab;
+        private static GameObject s_roadSkinTJunctionPrefab;
+        private static GameObject s_roadSkinCrossroadPrefab;
+        private static GameObject s_roadSkinEndPrefab;
+        private static GameObject s_signalSkinSinglePrefab;
+        private static GameObject s_signalSkinPrefab;
+        private static GameObject s_signalSkinDoublePrefab;
+        private static GameObject s_streetLightSkinPrefab;
+        private static GameObject s_streetLightSkinCrossPrefab;
+        private static GameObject s_streetLightSkinDoublePrefab;
+        private static bool s_roadKitMetricsReady;
+        private static float s_roadVisualUniformScale = 1f;
+        private static float s_straightSourceLength = 1f;
+        private static float s_straightSourceWidth = 1f;
+        private static bool s_straightLongAxisX = true;
+        private static float s_junctionWorldSizeX = RoadWidth;
+        private static float s_junctionWorldSizeZ = RoadWidth;
 
         private readonly struct RegionVisualTheme
         {
@@ -134,6 +174,14 @@ namespace DeliveryRun.Editor
             public GameObject Go;
             public string RegionId;
             public int RegionOrder;
+        }
+
+        private enum CardinalDirection
+        {
+            North,
+            East,
+            South,
+            West
         }
 
         private static readonly RegionConnectionDefinition[] RegionConnections =
@@ -255,6 +303,7 @@ namespace DeliveryRun.Editor
             "industrial"
         };
 
+        [MenuItem("Tools/DeliveryRun/Generate MegaWorld (Unified Roads + Signals)")]
         public static void GenerateAll()
         {
             string scenePath = ResolveScenePath();
@@ -264,6 +313,7 @@ namespace DeliveryRun.Editor
             }
 
             CacheRoadSkinPrefabs();
+            CacheSignalSkinPrefab();
 
             EnsureFolder("Assets/Materials");
             EnsureFolder(MaterialRoot);
@@ -292,6 +342,7 @@ namespace DeliveryRun.Editor
             Transform poiRoot = GetOrCreateChild(cityRoot.transform, "POIRoot").transform;
             Transform sectorThemes = GetOrCreateChild(cityRoot.transform, "SectorThemes").transform;
             Transform regionGates = GetOrCreateChild(cityRoot.transform, "RegionGates").transform;
+            Transform signalTemplateRoot = GetOrCreateChild(cityRoot.transform, "SignalTemplateRoot").transform;
 
             ClearChildren(roadsRoot);
             ClearChildren(blocksRoot);
@@ -299,6 +350,7 @@ namespace DeliveryRun.Editor
             ClearChildren(poiRoot);
             ClearChildren(sectorThemes);
             ClearChildren(regionGates);
+            ClearChildren(signalTemplateRoot);
 
             List<string> buildingAssets = CollectBuildingAssets();
             Dictionary<string, List<string>> regionBuildingPools = BuildRegionBuildingPools(buildingAssets);
@@ -380,6 +432,7 @@ namespace DeliveryRun.Editor
 
             roadCount += BuildConnectors(roadsRoot, regionInfos, connectorRoadMat);
             BuildRegionGates(regionGates, regionInfos, barrierMat);
+            CreateTrafficSignalTemplate(signalTemplateRoot);
             AssignAnchors(buildings, poiRoot);
 
             EditorSceneManager.MarkSceneDirty(scene);
@@ -417,36 +470,479 @@ namespace DeliveryRun.Editor
                 count++;
             }
 
+            Transform visualRoot = GetOrCreateChild(root, "KitVisuals").transform;
+            ClearChildren(visualRoot);
+            BuildRegionRoadVisuals(visualRoot, def, spanX, spanZ);
+
             return count;
+        }
+
+        private static int BuildRegionRoadVisuals(Transform root, RegionLayoutDefinition def, float spanX, float spanZ)
+        {
+            if (root == null || !s_roadKitMetricsReady || s_roadSkinStraightPrefab == null)
+            {
+                return 0;
+            }
+
+            int created = 0;
+            Transform propsRoot = GetOrCreateChild(root, "RoadProps").transform;
+            ClearChildren(propsRoot);
+            float halfX = spanX * 0.5f;
+            float halfZ = spanZ * 0.5f;
+            float step = BlockSize + RoadWidth;
+            float startX = -halfX + (RoadWidth * 0.5f);
+            float startZ = -halfZ + (RoadWidth * 0.5f);
+            int nodesX = def.BlocksX + 1;
+            int nodesZ = def.BlocksZ + 1;
+            float nodeHalfX = Mathf.Max(0.35f, (s_junctionWorldSizeX * 0.5f) - JunctionLaneJoinOverlap);
+            float nodeHalfZ = Mathf.Max(0.35f, (s_junctionWorldSizeZ * 0.5f) - JunctionLaneJoinOverlap);
+
+            var nodePositions = new Vector3[nodesX, nodesZ];
+            for (int z = 0; z < nodesZ; z++)
+            {
+                for (int x = 0; x < nodesX; x++)
+                {
+                    Vector3 nodePos = new Vector3(
+                        def.Center.x + startX + (x * step),
+                        -RoadHeight * 0.5f,
+                        def.Center.y + startZ + (z * step));
+                    nodePositions[x, z] = nodePos;
+
+                    bool north = z < nodesZ - 1;
+                    bool east = x < nodesX - 1;
+                    bool south = z > 0;
+                    bool west = x > 0;
+                    created += CreateRoadJunctionVisual(root, propsRoot, "Junction_" + x.ToString("00") + "_" + z.ToString("00"), nodePos, north, east, south, west);
+                }
+            }
+
+            for (int z = 0; z < nodesZ; z++)
+            {
+                for (int x = 0; x < nodesX - 1; x++)
+                {
+                    Vector3 from = nodePositions[x, z] + new Vector3(nodeHalfX, 0f, 0f);
+                    Vector3 to = nodePositions[x + 1, z] - new Vector3(nodeHalfX, 0f, 0f);
+                    created += CreateRoadVisualStraightChain(root, "LaneH_" + z.ToString("00") + "_" + x.ToString("00"), from, to);
+                }
+            }
+
+            for (int x = 0; x < nodesX; x++)
+            {
+                for (int z = 0; z < nodesZ - 1; z++)
+                {
+                    Vector3 from = nodePositions[x, z] + new Vector3(0f, 0f, nodeHalfZ);
+                    Vector3 to = nodePositions[x, z + 1] - new Vector3(0f, 0f, nodeHalfZ);
+                    created += CreateRoadVisualStraightChain(root, "LaneV_" + x.ToString("00") + "_" + z.ToString("00"), from, to);
+                }
+            }
+
+            return created;
+        }
+
+        private static int CreateRoadJunctionVisual(
+            Transform root,
+            Transform propsRoot,
+            string name,
+            Vector3 center,
+            bool north,
+            bool east,
+            bool south,
+            bool west)
+        {
+            int degree = 0;
+            if (north) degree++;
+            if (east) degree++;
+            if (south) degree++;
+            if (west) degree++;
+
+            GameObject prefab = s_roadSkinSquarePrefab != null ? s_roadSkinSquarePrefab : s_roadSkinStraightPrefab;
+            float yaw = 0f;
+            string finalName = name;
+            float localZScaleRatio = 1f;
+            float localForwardOffset = 0f;
+            float localRightOffset = 0f;
+            float visualScale = s_roadVisualUniformScale * JunctionVisualScaleNudge;
+
+            if (degree >= 4)
+            {
+                prefab = s_roadSkinCrossroadPrefab != null ? s_roadSkinCrossroadPrefab : prefab;
+                yaw = CrossroadYawOffset;
+                finalName = "JunctionCross_" + name;
+            }
+            else if (degree == 3)
+            {
+                prefab = s_roadSkinTJunctionPrefab != null ? s_roadSkinTJunctionPrefab : (s_roadSkinCrossroadPrefab != null ? s_roadSkinCrossroadPrefab : prefab);
+                CardinalDirection missing = CardinalDirection.North;
+                if (!north) missing = CardinalDirection.North;
+                else if (!east) missing = CardinalDirection.East;
+                else if (!south) missing = CardinalDirection.South;
+                else if (!west) missing = CardinalDirection.West;
+                yaw = GetTJunctionYaw(missing);
+                finalName = "JunctionT_" + name;
+            }
+            else if (degree == 2)
+            {
+                bool opposite = (north && south) || (east && west);
+                if (opposite)
+                {
+                    prefab = s_roadSkinStraightPrefab != null ? s_roadSkinStraightPrefab : prefab;
+                    yaw = (east && west) ? GetStraightYaw(Vector3.right) : GetStraightYaw(Vector3.forward);
+                    finalName = "JunctionStraight_" + name;
+                }
+                else
+                {
+                    prefab = s_roadSkinCornerPrefab != null ? s_roadSkinCornerPrefab : prefab;
+                    yaw = GetCornerYaw(north, east, south, west);
+                    finalName = "JunctionCorner_" + name;
+                    localForwardOffset = CornerDiagonalOffset;
+                    localRightOffset = CornerDiagonalOffset;
+                    visualScale *= CornerVisualScaleNudge;
+                }
+            }
+            else if (degree == 1)
+            {
+                prefab = s_roadSkinEndPrefab != null ? s_roadSkinEndPrefab : (s_roadSkinStraightPrefab != null ? s_roadSkinStraightPrefab : prefab);
+                CardinalDirection connected = GetConnectedDirection(north, east, south, west);
+                yaw = GetEndYaw(connected);
+                finalName = "JunctionEnd_" + name;
+            }
+            else
+            {
+                finalName = "JunctionSquare_" + name;
+            }
+
+            if (degree == 3)
+            {
+                localZScaleRatio = TJunctionLocalZScaleRatio;
+                localForwardOffset = TJunctionForwardOffset;
+            }
+
+            if (!TryCreateRoadVisual(root, prefab, finalName, center, yaw, visualScale, localZScaleRatio, localForwardOffset, localRightOffset))
+            {
+                return 0;
+            }
+
+            CreateIntersectionSignals(propsRoot, finalName, center, north, east, south, west, degree);
+            CreateIntersectionStreetLights(propsRoot, finalName, center, north, east, south, west, degree);
+            return 1;
+        }
+
+        private static int CreateRoadVisualStraightChain(Transform root, string baseName, Vector3 from, Vector3 to)
+        {
+            if (root == null || s_roadSkinStraightPrefab == null)
+            {
+                return 0;
+            }
+
+            Vector3 delta = to - from;
+            float dist = delta.magnitude;
+            if (dist <= 0.2f)
+            {
+                return 0;
+            }
+
+            Vector3 dir = delta / dist;
+            float defaultLen = Mathf.Max(0.5f, s_straightSourceLength * s_roadVisualUniformScale);
+            int pieceCount = Mathf.Max(1, Mathf.RoundToInt(dist / defaultLen));
+            float pieceLen = dist / pieceCount;
+            float pieceScale = Mathf.Max(0.05f, pieceLen / Mathf.Max(0.001f, s_straightSourceLength));
+            pieceScale *= StraightVisualScaleNudge;
+            float yaw = GetStraightYaw(dir);
+            int created = 0;
+
+            for (int i = 0; i < pieceCount; i++)
+            {
+                Vector3 center = from + (dir * (pieceLen * (i + 0.5f)));
+                if (TryCreateRoadVisual(root, s_roadSkinStraightPrefab, baseName + "_S_" + i.ToString("00"), center, yaw, pieceScale))
+                {
+                    created++;
+                }
+            }
+
+            return created;
+        }
+
+        private static int CreateIntersectionSignals(
+            Transform root,
+            string baseName,
+            Vector3 center,
+            bool north,
+            bool east,
+            bool south,
+            bool west,
+            int degree)
+        {
+            if (root == null || degree != 4)
+            {
+                return 0;
+            }
+
+            GameObject signalPrefab =
+                s_signalSkinSinglePrefab != null
+                    ? s_signalSkinSinglePrefab
+                    : (s_signalSkinPrefab != null ? s_signalSkinPrefab : s_signalSkinDoublePrefab);
+            if (signalPrefab == null)
+            {
+                return 0;
+            }
+
+            float halfRoad = Mathf.Max(1.0f, Mathf.Min(s_junctionWorldSizeX, s_junctionWorldSizeZ) * 0.5f);
+            float offset = Mathf.Min(JunctionSignalOffset, Mathf.Max(4.0f, halfRoad * 0.72f));
+
+            int created = 0;
+            int index = 0;
+
+            if (north)
+            {
+                Vector3 pos = center + new Vector3(0f, 0f, offset);
+                if (TryCreateRoadPropVisual(root, signalPrefab, "Signal_" + baseName + "_" + index.ToString("00"), pos, 180f))
+                {
+                    created++;
+                }
+
+                index++;
+            }
+
+            if (east)
+            {
+                Vector3 pos = center + new Vector3(offset, 0f, 0f);
+                if (TryCreateRoadPropVisual(root, signalPrefab, "Signal_" + baseName + "_" + index.ToString("00"), pos, 270f))
+                {
+                    created++;
+                }
+
+                index++;
+            }
+
+            if (south)
+            {
+                Vector3 pos = center + new Vector3(0f, 0f, -offset);
+                if (TryCreateRoadPropVisual(root, signalPrefab, "Signal_" + baseName + "_" + index.ToString("00"), pos, 0f))
+                {
+                    created++;
+                }
+
+                index++;
+            }
+
+            if (west)
+            {
+                Vector3 pos = center + new Vector3(-offset, 0f, 0f);
+                if (TryCreateRoadPropVisual(root, signalPrefab, "Signal_" + baseName + "_" + index.ToString("00"), pos, 90f))
+                {
+                    created++;
+                }
+
+                index++;
+            }
+
+            return created;
+        }
+
+        private static int CreateIntersectionStreetLights(
+            Transform root,
+            string baseName,
+            Vector3 center,
+            bool north,
+            bool east,
+            bool south,
+            bool west,
+            int degree)
+        {
+            if (root == null || degree != 3)
+            {
+                return 0;
+            }
+
+            GameObject streetLightPrefab =
+                s_streetLightSkinPrefab != null
+                    ? s_streetLightSkinPrefab
+                    : (s_streetLightSkinDoublePrefab != null ? s_streetLightSkinDoublePrefab : s_streetLightSkinCrossPrefab);
+            if (streetLightPrefab == null)
+            {
+                return 0;
+            }
+
+            float halfRoad = Mathf.Max(1.0f, Mathf.Min(s_junctionWorldSizeX, s_junctionWorldSizeZ) * 0.5f);
+            float offset = Mathf.Max(JunctionStreetLightOffset, halfRoad + 1.75f);
+            CardinalDirection missing = GetMissingDirection(north, east, south, west);
+
+            int created = 0;
+            int index = 0;
+
+            Action<float, float, float> place = (dx, dz, yaw) =>
+            {
+                Vector3 pos = center + new Vector3(dx, 0f, dz);
+                if (TryCreateRoadPropVisual(root, streetLightPrefab, "StreetLight_" + baseName + "_" + index.ToString("00"), pos, yaw))
+                {
+                    created++;
+                }
+
+                index++;
+            };
+
+            switch (missing)
+            {
+                case CardinalDirection.North:
+                    place(offset, offset, 225f);
+                    place(-offset, offset, 135f);
+                    break;
+                case CardinalDirection.East:
+                    place(offset, offset, 225f);
+                    place(offset, -offset, 315f);
+                    break;
+                case CardinalDirection.South:
+                    place(offset, -offset, 315f);
+                    place(-offset, -offset, 45f);
+                    break;
+                case CardinalDirection.West:
+                    place(-offset, offset, 135f);
+                    place(-offset, -offset, 45f);
+                    break;
+                default:
+                    place(offset, offset, 225f);
+                    place(-offset, offset, 135f);
+                    break;
+            }
+
+            return created;
+        }
+
+        private static bool TryCreateRoadPropVisual(Transform parent, GameObject prefab, string name, Vector3 logicalRoadCenter, float yawDeg)
+        {
+            if (parent == null || prefab == null)
+            {
+                return false;
+            }
+
+            GameObject prop = PrefabUtility.InstantiatePrefab(prefab, parent) as GameObject;
+            if (prop == null)
+            {
+                prop = Object.Instantiate(prefab, parent);
+            }
+
+            if (prop == null)
+            {
+                return false;
+            }
+
+            prop.name = name;
+            prop.transform.localRotation = Quaternion.Euler(0f, yawDeg, 0f);
+            prop.transform.localScale = Vector3.one;
+            prop.transform.position = logicalRoadCenter;
+
+            RemoveAllRigidbodies(prop);
+            RemoveAllColliders(prop);
+
+            Bounds bounds;
+            if (TryGetRendererBounds(prop, out bounds))
+            {
+                float dx = logicalRoadCenter.x - bounds.center.x;
+                float dz = logicalRoadCenter.z - bounds.center.z;
+                prop.transform.position += new Vector3(dx, 0f, dz);
+
+                if (TryGetRendererBounds(prop, out bounds))
+                {
+                    float roadTopY = logicalRoadCenter.y + (RoadHeight * 0.5f);
+                    float yDelta = (roadTopY + RoadSkinYOffset) - bounds.min.y;
+                    prop.transform.position += new Vector3(0f, yDelta, 0f);
+                }
+            }
+
+            SetGeneratedStatic(prop);
+            return true;
+        }
+
+        private static float GetStraightYaw(Vector3 direction)
+        {
+            bool alongX = Mathf.Abs(direction.x) >= Mathf.Abs(direction.z);
+            if (alongX)
+            {
+                if (s_straightLongAxisX)
+                {
+                    return direction.x >= 0f ? 0f : 180f;
+                }
+
+                return direction.x >= 0f ? 90f : 270f;
+            }
+
+            if (s_straightLongAxisX)
+            {
+                return direction.z >= 0f ? 90f : 270f;
+            }
+
+            return direction.z >= 0f ? 0f : 180f;
+        }
+
+        private static float GetTJunctionYaw(CardinalDirection missingDirection)
+        {
+            switch (missingDirection)
+            {
+                case CardinalDirection.North:
+                    return 180f;
+                case CardinalDirection.East:
+                    return 270f;
+                case CardinalDirection.South:
+                    return 0f;
+                case CardinalDirection.West:
+                    return 90f;
+                default:
+                    return 180f;
+            }
+        }
+
+        private static float GetCornerYaw(bool north, bool east, bool south, bool west)
+        {
+            if (north && east) return 0f;
+            if (west && north) return 90f;
+            if (south && west) return 180f;
+            if (east && south) return 270f;
+            return 0f;
+        }
+
+        private static CardinalDirection GetConnectedDirection(bool north, bool east, bool south, bool west)
+        {
+            if (north) return CardinalDirection.North;
+            if (east) return CardinalDirection.East;
+            if (south) return CardinalDirection.South;
+            if (west) return CardinalDirection.West;
+            return CardinalDirection.North;
+        }
+
+        private static CardinalDirection GetMissingDirection(bool north, bool east, bool south, bool west)
+        {
+            if (!north) return CardinalDirection.North;
+            if (!east) return CardinalDirection.East;
+            if (!south) return CardinalDirection.South;
+            if (!west) return CardinalDirection.West;
+            return CardinalDirection.North;
+        }
+
+        private static float GetEndYaw(CardinalDirection connectedDirection)
+        {
+            switch (connectedDirection)
+            {
+                case CardinalDirection.North:
+                    return 180f;
+                case CardinalDirection.East:
+                    return 270f;
+                case CardinalDirection.South:
+                    return 0f;
+                case CardinalDirection.West:
+                    return 90f;
+                default:
+                    return 0f;
+            }
         }
 
         private static int BuildRegionBlocks(Transform root, RegionLayoutDefinition def, RegionVisualTheme theme, Material mat)
         {
-            int idx = 0;
-            float step = BlockSize + RoadWidth;
-            float sx = -((def.BlocksX - 1) * step * 0.5f);
-            float sz = -((def.BlocksZ - 1) * step * 0.5f);
-            float blockHeight = Mathf.Max(0.18f, BlockHeight * theme.BlockHeightMul);
-            float blockCenterY = blockHeight * 0.5f;
-            for (int z = 0; z < def.BlocksZ; z++)
-            {
-                for (int x = 0; x < def.BlocksX; x++)
-                {
-                    GameObject block = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                    block.name = "Block_" + idx.ToString("000");
-                    block.transform.SetParent(root, false);
-                    block.transform.position = new Vector3(def.Center.x + sx + (x * step), blockCenterY, def.Center.y + sz + (z * step));
-                    block.transform.localScale = new Vector3(BlockSize, blockHeight, BlockSize);
-                    Renderer r = block.GetComponent<Renderer>();
-                    if (r != null && mat != null) r.sharedMaterial = mat;
-                    CreateBlockEdgeColliders(block.transform, BlockSize, blockHeight);
-                    CreateBlockFoundation(block.transform, blockHeight, mat);
-                    SetGeneratedStatic(block);
-                    idx++;
-                }
-            }
-
-            return idx;
+            // Keep block-generation hook for call-site compatibility, but stop creating legacy Block_### visuals.
+            _ = root;
+            _ = def;
+            _ = theme;
+            _ = mat;
+            return 0;
         }
 
         private static void CreateBlockFoundation(Transform blockRoot, float blockHeight, Material blockMaterial)
@@ -746,16 +1242,25 @@ namespace DeliveryRun.Editor
         private static int BuildConnectors(Transform roadsRoot, List<RegionRuntimeInfo> regions, Material mat)
         {
             int created = 0;
+            Transform visualRoot = GetOrCreateChild(roadsRoot, "ConnectorVisuals").transform;
+            ClearChildren(visualRoot);
             for (int i = 0; i < RegionConnections.Length; i++)
             {
                 RegionConnectionDefinition link = RegionConnections[i];
-                created += CreateConnectorIfSeparated(roadsRoot, regions, link.FromRegionId, link.ToRegionId, link.ConnectorName, mat);
+                created += CreateConnectorIfSeparated(roadsRoot, visualRoot, regions, link.FromRegionId, link.ToRegionId, link.ConnectorName, mat);
             }
 
             return created;
         }
 
-        private static int CreateConnectorIfSeparated(Transform roadsRoot, List<RegionRuntimeInfo> regions, string fromId, string toId, string name, Material mat)
+        private static int CreateConnectorIfSeparated(
+            Transform roadsRoot,
+            Transform visualRoot,
+            List<RegionRuntimeInfo> regions,
+            string fromId,
+            string toId,
+            string name,
+            Material mat)
         {
             RegionRuntimeInfo from = default;
             RegionRuntimeInfo to = default;
@@ -790,6 +1295,11 @@ namespace DeliveryRun.Editor
                 float z = (a.y + b.y) * 0.5f;
                 float width = Mathf.Max(0.2f, Mathf.Abs(toX - fromX));
                 CreateRoad(roadsRoot, name, new Vector3((fromX + toX) * 0.5f, -RoadHeight * 0.5f, z), new Vector3(width, RoadHeight, RoadWidth), mat);
+                CreateRoadVisualStraightChain(
+                    visualRoot,
+                    "ConnectorVisual_" + name,
+                    new Vector3(fromX, -RoadHeight * 0.5f, z),
+                    new Vector3(toX, -RoadHeight * 0.5f, z));
             }
             else
             {
@@ -807,6 +1317,11 @@ namespace DeliveryRun.Editor
                 float x = (a.x + b.x) * 0.5f;
                 float length = Mathf.Max(0.2f, Mathf.Abs(toZ - fromZ));
                 CreateRoad(roadsRoot, name, new Vector3(x, -RoadHeight * 0.5f, (fromZ + toZ) * 0.5f), new Vector3(RoadWidth, RoadHeight, length), mat);
+                CreateRoadVisualStraightChain(
+                    visualRoot,
+                    "ConnectorVisual_" + name,
+                    new Vector3(x, -RoadHeight * 0.5f, fromZ),
+                    new Vector3(x, -RoadHeight * 0.5f, toZ));
             }
             return 1;
         }
@@ -818,28 +1333,223 @@ namespace DeliveryRun.Editor
             road.transform.SetParent(parent, false);
             road.transform.position = pos;
             road.transform.localScale = scale;
-            Renderer r = road.GetComponent<Renderer>();
-            bool roadSkinApplied = TryAttachRoadSkin(road, scale);
-            if (r != null)
+
+            Renderer renderer = road.GetComponent<Renderer>();
+            if (renderer != null)
             {
-                if (roadSkinApplied)
+                if (mat != null)
                 {
-                    r.enabled = false;
+                    renderer.sharedMaterial = mat;
                 }
-                else if (mat != null)
+
+                // Keep gameplay collider/road-surface object, hide legacy stretched cube visual.
+                renderer.enabled = false;
+            }
+
+            ConfigureRoadCollider(road, pos, scale);
+            if (road.GetComponent<RoadSurface>() == null)
+            {
+                road.AddComponent<RoadSurface>();
+            }
+
+            SetGeneratedStatic(road);
+        }
+
+        private static bool TryCreateRoadVisual(
+            Transform parent,
+            GameObject prefab,
+            string name,
+            Vector3 logicalRoadCenter,
+            float yawDeg,
+            float uniformScale,
+            float localZScaleRatio = 1f,
+            float localForwardOffset = 0f,
+            float localRightOffset = 0f)
+        {
+            if (parent == null || prefab == null)
+            {
+                return false;
+            }
+
+            GameObject visual = PrefabUtility.InstantiatePrefab(prefab, parent) as GameObject;
+            if (visual == null)
+            {
+                visual = Object.Instantiate(prefab, parent);
+            }
+
+            if (visual == null)
+            {
+                return false;
+            }
+
+            visual.name = name;
+            visual.transform.localRotation = Quaternion.Euler(0f, yawDeg, 0f);
+            float safeScale = Mathf.Max(0.001f, uniformScale);
+            float safeZRatio = Mathf.Max(0.001f, localZScaleRatio);
+            visual.transform.localScale = new Vector3(safeScale, safeScale, safeScale * safeZRatio);
+            visual.transform.position = logicalRoadCenter;
+
+            RemoveAllRigidbodies(visual);
+            RemoveAllColliders(visual);
+
+            Bounds bounds;
+            if (TryGetRendererBounds(visual, out bounds))
+            {
+                float dx = logicalRoadCenter.x - bounds.center.x;
+                float dz = logicalRoadCenter.z - bounds.center.z;
+                visual.transform.position += new Vector3(dx, 0f, dz);
+
+                if (TryGetRendererBounds(visual, out bounds))
                 {
-                    r.sharedMaterial = mat;
+                    float roadTopY = logicalRoadCenter.y + (RoadHeight * 0.5f);
+                    float yDelta = (roadTopY + RoadSkinYOffset) - bounds.min.y;
+                    visual.transform.position += new Vector3(0f, yDelta, 0f);
                 }
             }
 
-            if (road.GetComponent<RoadSurface>() == null) road.AddComponent<RoadSurface>();
-            SetGeneratedStatic(road);
+            if (Mathf.Abs(localForwardOffset) > 0.0001f)
+            {
+                visual.transform.position += visual.transform.forward * localForwardOffset;
+            }
+
+            if (Mathf.Abs(localRightOffset) > 0.0001f)
+            {
+                visual.transform.position += visual.transform.right * localRightOffset;
+            }
+
+            SetGeneratedStatic(visual);
+            return true;
+        }
+
+        private static void CacheRoadKitMetrics()
+        {
+            s_roadKitMetricsReady = false;
+            s_roadVisualUniformScale = 1f;
+            s_straightSourceLength = 1f;
+            s_straightSourceWidth = 1f;
+            s_straightLongAxisX = true;
+            s_junctionWorldSizeX = RoadWidth;
+            s_junctionWorldSizeZ = RoadWidth;
+
+            if (s_roadSkinStraightPrefab == null)
+            {
+                return;
+            }
+
+            float straightX;
+            float straightZ;
+            if (!TryMeasurePrefabFootprint(s_roadSkinStraightPrefab, out straightX, out straightZ))
+            {
+                s_straightSourceLength = 1f;
+                s_straightSourceWidth = 1f;
+                s_straightLongAxisX = true;
+                s_roadVisualUniformScale = RoadWidth;
+                s_junctionWorldSizeX = RoadWidth;
+                s_junctionWorldSizeZ = RoadWidth;
+                s_roadKitMetricsReady = true;
+                return;
+            }
+
+            s_straightLongAxisX = straightX >= straightZ;
+            s_straightSourceLength = Mathf.Max(0.001f, Mathf.Max(straightX, straightZ));
+            s_straightSourceWidth = Mathf.Max(0.001f, Mathf.Min(straightX, straightZ));
+            s_roadVisualUniformScale = Mathf.Max(0.01f, RoadWidth / s_straightSourceWidth);
+
+            float junctionX;
+            float junctionZ;
+            GameObject junctionPrefab = s_roadSkinCrossroadPrefab != null
+                ? s_roadSkinCrossroadPrefab
+                : (s_roadSkinSquarePrefab != null ? s_roadSkinSquarePrefab : s_roadSkinStraightPrefab);
+            if (TryMeasurePrefabFootprint(junctionPrefab, out junctionX, out junctionZ))
+            {
+                s_junctionWorldSizeX = Mathf.Max(0.2f, junctionX * s_roadVisualUniformScale);
+                s_junctionWorldSizeZ = Mathf.Max(0.2f, junctionZ * s_roadVisualUniformScale);
+            }
+
+            s_roadKitMetricsReady = true;
+        }
+
+        private static bool TryMeasurePrefabFootprint(GameObject prefab, out float sizeX, out float sizeZ)
+        {
+            sizeX = 0f;
+            sizeZ = 0f;
+            if (prefab == null)
+            {
+                return false;
+            }
+
+            GameObject temp = PrefabUtility.InstantiatePrefab(prefab) as GameObject;
+            if (temp == null)
+            {
+                temp = Object.Instantiate(prefab);
+            }
+
+            if (temp == null)
+            {
+                return false;
+            }
+
+            bool ok = false;
+            Bounds bounds;
+            if (TryGetRendererBounds(temp, out bounds))
+            {
+                sizeX = Mathf.Max(0.001f, bounds.size.x);
+                sizeZ = Mathf.Max(0.001f, bounds.size.z);
+                ok = true;
+            }
+
+            Object.DestroyImmediate(temp);
+            return ok;
+        }
+
+        private static void ConfigureRoadCollider(GameObject road, Vector3 roadCenter, Vector3 roadScale)
+        {
+            if (road == null)
+            {
+                return;
+            }
+
+            BoxCollider box = road.GetComponent<BoxCollider>();
+            if (box == null)
+            {
+                box = road.AddComponent<BoxCollider>();
+            }
+
+            Vector3 localScale = road.transform.localScale;
+            float sx = Mathf.Max(0.0001f, Mathf.Abs(localScale.x));
+            float sy = Mathf.Max(0.0001f, Mathf.Abs(localScale.y));
+            float sz = Mathf.Max(0.0001f, Mathf.Abs(localScale.z));
+
+            box.size = new Vector3(roadScale.x / sx, roadScale.y / sy, roadScale.z / sz);
+            box.center = new Vector3(
+                (roadCenter.x - road.transform.position.x) / localScale.x,
+                (roadCenter.y - road.transform.position.y) / localScale.y,
+                (roadCenter.z - road.transform.position.z) / localScale.z);
+            box.isTrigger = false;
         }
 
         private static void CacheRoadSkinPrefabs()
         {
-            s_roadSkinStraightPrefab = LoadRoadSkinPrefab(RoadSkinStraightPath, "road-straight t:GameObject");
-            s_roadSkinSquarePrefab = LoadRoadSkinPrefab(RoadSkinSquarePath, "road-square t:GameObject");
+            s_roadSkinStraightPrefab = LoadKitPrefab(RoadSkinStraightPath, "road-straight t:GameObject");
+            s_roadSkinSquarePrefab = LoadKitPrefab(RoadSkinSquarePath, "road-square t:GameObject");
+            s_roadSkinCornerPrefab = LoadKitPrefab(RoadSkinCornerPath, "road-bend-sidewalk t:GameObject");
+            if (s_roadSkinCornerPrefab == null)
+            {
+                s_roadSkinCornerPrefab = LoadKitPrefab(RoadSkinCornerFallbackPath, "road-curve-intersection t:GameObject");
+            }
+
+            if (s_roadSkinCornerPrefab == null)
+            {
+                s_roadSkinCornerPrefab = LoadKitPrefab(RoadSkinCornerSecondFallbackPath, "road-bend t:GameObject");
+            }
+
+            s_roadSkinTJunctionPrefab = LoadKitPrefab(RoadSkinTJunctionPath, "road-intersection t:GameObject");
+            if (s_roadSkinTJunctionPrefab == null)
+            {
+                s_roadSkinTJunctionPrefab = LoadKitPrefab(RoadSkinTJunctionFallbackPath, "road-intersection-path t:GameObject");
+            }
+            s_roadSkinCrossroadPrefab = LoadKitPrefab(RoadSkinCrossroadPath, "road-crossroad-path t:GameObject");
+            s_roadSkinEndPrefab = LoadKitPrefab(RoadSkinEndPath, "road-end t:GameObject");
             if (s_roadSkinStraightPrefab == null)
             {
                 s_roadSkinStraightPrefab = s_roadSkinSquarePrefab;
@@ -849,9 +1559,82 @@ namespace DeliveryRun.Editor
             {
                 s_roadSkinSquarePrefab = s_roadSkinStraightPrefab;
             }
+
+            if (s_roadSkinCrossroadPrefab == null)
+            {
+                s_roadSkinCrossroadPrefab = s_roadSkinSquarePrefab;
+            }
+
+            if (s_roadSkinTJunctionPrefab == null)
+            {
+                s_roadSkinTJunctionPrefab = s_roadSkinCrossroadPrefab;
+            }
+
+            if (s_roadSkinCornerPrefab == null)
+            {
+                s_roadSkinCornerPrefab = s_roadSkinSquarePrefab;
+            }
+
+            if (s_roadSkinEndPrefab == null)
+            {
+                s_roadSkinEndPrefab = s_roadSkinStraightPrefab;
+            }
+
+            CacheRoadKitMetrics();
         }
 
-        private static GameObject LoadRoadSkinPrefab(string preferredPath, string searchFilter)
+        private static void CacheSignalSkinPrefab()
+        {
+            s_signalSkinSinglePrefab = LoadKitPrefab(SignalSkinSinglePath, "light-square t:GameObject");
+            s_signalSkinPrefab = LoadKitPrefab(SignalSkinCrossPath, "light-square-cross t:GameObject");
+            s_signalSkinDoublePrefab = LoadKitPrefab(SignalSkinDoublePath, "light-square-double t:GameObject");
+            if (s_signalSkinSinglePrefab == null)
+            {
+                s_signalSkinSinglePrefab = s_signalSkinDoublePrefab != null ? s_signalSkinDoublePrefab : s_signalSkinPrefab;
+            }
+
+            if (s_signalSkinDoublePrefab == null)
+            {
+                s_signalSkinDoublePrefab = s_signalSkinSinglePrefab != null ? s_signalSkinSinglePrefab : s_signalSkinPrefab;
+            }
+
+            if (s_signalSkinPrefab == null)
+            {
+                s_signalSkinPrefab = s_signalSkinSinglePrefab != null ? s_signalSkinSinglePrefab : s_signalSkinDoublePrefab;
+            }
+
+            if (s_signalSkinSinglePrefab == null)
+            {
+                s_signalSkinSinglePrefab = s_signalSkinPrefab;
+            }
+
+            s_streetLightSkinPrefab = LoadKitPrefab(StreetLightSkinPrimaryPath, "light-curved t:GameObject");
+            s_streetLightSkinCrossPrefab = LoadKitPrefab(StreetLightSkinCrossPath, "light-curved-cross t:GameObject");
+            s_streetLightSkinDoublePrefab = LoadKitPrefab(StreetLightSkinDoublePath, "light-curved-double t:GameObject");
+
+            if (s_streetLightSkinPrefab == null)
+            {
+                s_streetLightSkinPrefab = s_streetLightSkinDoublePrefab != null
+                    ? s_streetLightSkinDoublePrefab
+                    : s_streetLightSkinCrossPrefab;
+            }
+
+            if (s_streetLightSkinCrossPrefab == null)
+            {
+                s_streetLightSkinCrossPrefab = s_streetLightSkinDoublePrefab != null
+                    ? s_streetLightSkinDoublePrefab
+                    : s_streetLightSkinPrefab;
+            }
+
+            if (s_streetLightSkinDoublePrefab == null)
+            {
+                s_streetLightSkinDoublePrefab = s_streetLightSkinPrefab != null
+                    ? s_streetLightSkinPrefab
+                    : s_streetLightSkinCrossPrefab;
+            }
+        }
+
+        private static GameObject LoadKitPrefab(string preferredPath, string searchFilter)
         {
             if (!string.IsNullOrEmpty(preferredPath))
             {
@@ -882,74 +1665,33 @@ namespace DeliveryRun.Editor
             return null;
         }
 
-        private static bool TryAttachRoadSkin(GameObject road, Vector3 roadScale)
+        private static void CreateTrafficSignalTemplate(Transform parent)
         {
-            if (road == null)
+            GameObject templatePrefab = s_signalSkinSinglePrefab != null ? s_signalSkinSinglePrefab : s_signalSkinPrefab;
+            if (parent == null || templatePrefab == null)
             {
-                return false;
+                return;
             }
 
-            GameObject prefab = Mathf.Abs(roadScale.x - roadScale.z) < 1.0f
-                ? s_roadSkinSquarePrefab
-                : s_roadSkinStraightPrefab;
-            if (prefab == null)
+            GameObject template = PrefabUtility.InstantiatePrefab(templatePrefab, parent) as GameObject;
+            if (template == null)
             {
-                return false;
+                template = Object.Instantiate(templatePrefab, parent);
             }
 
-            GameObject skin = PrefabUtility.InstantiatePrefab(prefab, road.transform) as GameObject;
-            if (skin == null)
+            if (template == null)
             {
-                skin = Object.Instantiate(prefab, road.transform);
+                return;
             }
 
-            if (skin == null)
-            {
-                return false;
-            }
+            template.name = "TrafficSignalTemplate";
+            template.transform.localPosition = new Vector3(0f, -200f, 0f);
+            template.transform.localRotation = Quaternion.identity;
+            template.transform.localScale = Vector3.one;
 
-            skin.name = "RoadSkin";
-            skin.transform.localPosition = Vector3.zero;
-            skin.transform.localRotation = Quaternion.identity;
-            skin.transform.localScale = Vector3.one;
-
-            Rigidbody[] rigidbodies = skin.GetComponentsInChildren<Rigidbody>(true);
-            for (int i = 0; i < rigidbodies.Length; i++)
-            {
-                if (rigidbodies[i] != null)
-                {
-                    Object.DestroyImmediate(rigidbodies[i]);
-                }
-            }
-
-            RemoveAllColliders(skin);
-
-            Bounds bounds;
-            if (!TryGetRendererBounds(skin, out bounds))
-            {
-                Object.DestroyImmediate(skin);
-                return false;
-            }
-
-            float sourceX = Mathf.Max(0.001f, bounds.size.x);
-            float sourceZ = Mathf.Max(0.001f, bounds.size.z);
-            float scaleX = roadScale.x / sourceX;
-            float scaleZ = roadScale.z / sourceZ;
-            Vector3 localScale = skin.transform.localScale;
-            localScale.x *= scaleX;
-            localScale.z *= scaleZ;
-            skin.transform.localScale = localScale;
-
-            Bounds scaledBounds;
-            if (TryGetRendererBounds(skin, out scaledBounds))
-            {
-                float roadTopY = road.transform.position.y + (roadScale.y * 0.5f);
-                float yDelta = (roadTopY + RoadSkinYOffset) - scaledBounds.min.y;
-                skin.transform.position += new Vector3(0f, yDelta, 0f);
-            }
-
-            SetGeneratedStatic(skin);
-            return true;
+            RemoveAllRigidbodies(template);
+            RemoveAllColliders(template);
+            SetGeneratedStatic(template);
         }
 
         private static void BuildRegionGates(Transform gatesRoot, List<RegionRuntimeInfo> regions, Material barrierMat)
@@ -1827,6 +2569,23 @@ namespace DeliveryRun.Editor
             }
         }
 
+        private static void RemoveAllRigidbodies(GameObject go)
+        {
+            if (go == null)
+            {
+                return;
+            }
+
+            Rigidbody[] rigidbodies = go.GetComponentsInChildren<Rigidbody>(true);
+            for (int i = 0; i < rigidbodies.Length; i++)
+            {
+                if (rigidbodies[i] != null)
+                {
+                    Object.DestroyImmediate(rigidbodies[i]);
+                }
+            }
+        }
+
         private static void OptimizeBuildingRenderers(GameObject go)
         {
             if (go == null)
@@ -1995,4 +2754,5 @@ namespace DeliveryRun.Editor
             }
         }
     }
+
 }

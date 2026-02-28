@@ -23,12 +23,14 @@ namespace DeliveryRun.Managers.Subs
         private const float ScenePollInterval = 0.5f;
         private const float SignalCornerOffset = 8.5f;
         private const float SignalBaseYOffset = 0.05f;
+        private const string SignalTemplateName = "TrafficSignalTemplate";
 
         private readonly List<SignalVisual> _visuals = new List<SignalVisual>(64);
 
         private TrafficRoadNetworkService _network;
         private TrafficSignalService _signals;
         private Transform _visualRoot;
+        private GameObject _signalTemplate;
 
         private Material _offMat;
         private Material _redMat;
@@ -160,6 +162,7 @@ namespace DeliveryRun.Managers.Subs
             }
 
             EnsureMaterials();
+            _signalTemplate = GameObject.Find(SignalTemplateName);
 
             GameObject root = new GameObject("TrafficSignalVisualRoot");
             _visualRoot = root.transform;
@@ -172,7 +175,7 @@ namespace DeliveryRun.Managers.Subs
                     continue;
                 }
 
-                SignalVisual visual = CreateSignalVisual(nodeId, node.Position, _visualRoot);
+                SignalVisual visual = CreateSignalVisual(nodeId, node.Position, _visualRoot, _signalTemplate);
                 _visuals.Add(visual);
             }
 
@@ -181,28 +184,32 @@ namespace DeliveryRun.Managers.Subs
 #endif
         }
 
-        private SignalVisual CreateSignalVisual(int nodeId, Vector3 intersectionPosition, Transform parent)
+        private SignalVisual CreateSignalVisual(int nodeId, Vector3 intersectionPosition, Transform parent, GameObject signalTemplate)
         {
             GameObject signalRoot = new GameObject("Signal_" + nodeId.ToString());
             signalRoot.transform.SetParent(parent, false);
             signalRoot.transform.position = ResolveSignalRoadsidePosition(nodeId, intersectionPosition);
 
-            GameObject pole = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            pole.name = "Pole";
-            pole.transform.SetParent(signalRoot.transform, false);
-            pole.transform.localPosition = new Vector3(0f, 1.8f, 0f);
-            pole.transform.localScale = new Vector3(0.12f, 1.8f, 0.12f);
-            DestroyColliderIfExists(pole);
-            SetRendererMaterial(pole, _offMat);
+            float mastTopY = 3.0f;
+            if (!TryInstantiateSignalBody(signalRoot.transform, signalTemplate, out mastTopY))
+            {
+                GameObject pole = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                pole.name = "Pole";
+                pole.transform.SetParent(signalRoot.transform, false);
+                pole.transform.localPosition = new Vector3(0f, 1.8f, 0f);
+                pole.transform.localScale = new Vector3(0.12f, 1.8f, 0.12f);
+                DestroyColliderIfExists(pole);
+                SetRendererMaterial(pole, _offMat);
+            }
 
             // Two heads: one for N/S traffic, one for E/W traffic.
             GameObject verticalHead = new GameObject("HeadVertical");
             verticalHead.transform.SetParent(signalRoot.transform, false);
-            verticalHead.transform.localPosition = new Vector3(-0.28f, 3.0f, 0f);
+            verticalHead.transform.localPosition = new Vector3(-0.34f, mastTopY, 0f);
 
             GameObject horizontalHead = new GameObject("HeadHorizontal");
             horizontalHead.transform.SetParent(signalRoot.transform, false);
-            horizontalHead.transform.localPosition = new Vector3(0.28f, 3.0f, 0f);
+            horizontalHead.transform.localPosition = new Vector3(0.34f, mastTopY, 0f);
 
             SignalVisual visual = new SignalVisual
             {
@@ -242,6 +249,51 @@ namespace DeliveryRun.Managers.Subs
                 intersectionPosition.x + (signX * SignalCornerOffset),
                 intersectionPosition.y + SignalBaseYOffset,
                 intersectionPosition.z + (signZ * SignalCornerOffset));
+        }
+
+        private bool TryInstantiateSignalBody(Transform parent, GameObject signalTemplate, out float mastTopY)
+        {
+            mastTopY = 3.0f;
+            if (parent == null || signalTemplate == null)
+            {
+                return false;
+            }
+
+            GameObject body = Object.Instantiate(signalTemplate, parent);
+            if (body == null)
+            {
+                return false;
+            }
+
+            body.name = "SignalBody";
+            body.transform.localPosition = Vector3.zero;
+            body.transform.localRotation = Quaternion.identity;
+            body.transform.localScale = Vector3.one;
+
+            Collider[] colliders = body.GetComponentsInChildren<Collider>(true);
+            for (int i = 0; i < colliders.Length; i++)
+            {
+                if (colliders[i] != null)
+                {
+                    Object.Destroy(colliders[i]);
+                }
+            }
+
+            Renderer[] renderers = body.GetComponentsInChildren<Renderer>(true);
+            if (renderers == null || renderers.Length == 0)
+            {
+                return false;
+            }
+
+            Bounds bounds = renderers[0].bounds;
+            for (int i = 1; i < renderers.Length; i++)
+            {
+                bounds.Encapsulate(renderers[i].bounds);
+            }
+
+            float localTop = bounds.max.y - parent.position.y;
+            mastTopY = Mathf.Max(2.6f, localTop - 0.45f);
+            return true;
         }
 
         private Renderer CreateLamp(Transform parent, string name, Vector3 localPos)

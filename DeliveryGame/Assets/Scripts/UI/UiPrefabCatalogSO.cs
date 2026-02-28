@@ -22,5 +22,10 @@ namespace DeliveryRun.UI
         [Header("Audio Keys (Addressables)")]
         public string TestBgmKey = "audio/bgm/test_bgm";
         public string UiClickKey = "audio/ui/click";
+
+        [Header("Lobby UI Skins (Kenney UI Pack)")]
+        public Texture2D LobbyPanelTexture;
+        public Texture2D LobbyButtonTexture;
+        public Texture2D LobbyButtonAccentTexture;
     }
 }

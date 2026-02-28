@@ -55,6 +55,9 @@ namespace DeliveryRun.Managers.Subs
         private Button _unlockButton;
         private Text _unlockButtonText;
         private string _pendingUnlockRegionId;
+        private Sprite _panelSkinSprite;
+        private Sprite _buttonSkinSprite;
+        private Sprite _buttonAccentSkinSprite;
 
         public override string Name => nameof(LobbyHubManager);
         public override int InitOrder => 33;
@@ -272,10 +275,10 @@ namespace DeliveryRun.Managers.Subs
             root.anchorMax = Vector2.one;
             root.offsetMin = Vector2.zero;
             root.offsetMax = Vector2.zero;
+            EnsureUiSkins();
 
-            _metaText = CreateText(root, font, 20, TextAnchor.UpperLeft, new Vector2(24f, -24f), new Vector2(720f, 84f));
-            _promptText = CreateText(root, font, 28, TextAnchor.MiddleCenter, new Vector2(0f, 72f), new Vector2(800f, 46f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Color(1f, 0.9f, 0.22f, 1f));
-            BuildQuickLobbyActions(root, font);
+            _metaText = CreateText(root, font, 22, TextAnchor.UpperLeft, new Vector2(24f, -24f), new Vector2(860f, 92f));
+            _promptText = CreateText(root, font, 30, TextAnchor.MiddleCenter, new Vector2(0f, 72f), new Vector2(980f, 52f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Color(1f, 0.9f, 0.22f, 1f));
 
             _garagePanel = BuildGaragePanel(root, font);
             _regionPanel = BuildRegionPanel(root, font);
@@ -286,14 +289,15 @@ namespace DeliveryRun.Managers.Subs
 
         private GameObject BuildGaragePanel(RectTransform root, Font font)
         {
-            GameObject panel = CreatePanel(root, "GaragePanel", new Vector2(360f, 620f), new Vector2(380f, 500f));
-            CreateText(panel.GetComponent<RectTransform>(), font, 28, TextAnchor.MiddleCenter, new Vector2(0f, -18f), new Vector2(0f, 38f), new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f), new Color(1f, 0.9f, 0.22f, 1f), "GARAGE");
+            GameObject panel = CreatePanel(root, "GaragePanel", new Vector2(160f, -84f), new Vector2(760f, 700f));
+            CreateText(panel.GetComponent<RectTransform>(), font, 34, TextAnchor.MiddleCenter, new Vector2(0f, -24f), new Vector2(0f, 44f), new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f), new Color(1f, 0.9f, 0.22f, 1f), "GARAGE UPGRADES");
+            CreateText(panel.GetComponent<RectTransform>(), font, 18, TextAnchor.UpperCenter, new Vector2(0f, -70f), new Vector2(700f, 32f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Color(0.82f, 0.9f, 0.98f, 0.92f), "Upgrade bike performance and run rewards.");
 
             for (int i = 0; i < UpgradeIds.Length; i++)
             {
-                float y = -68f - (i * 56f);
-                _upgradeRows[i] = CreateText(panel.GetComponent<RectTransform>(), font, 16, TextAnchor.MiddleLeft, new Vector2(18f, y), new Vector2(230f, 34f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Color(0.92f, 0.96f, 1f, 1f));
-                Button button = CreateButton(panel.GetComponent<RectTransform>(), font, "UP", new Vector2(-18f, y), new Vector2(98f, 34f));
+                float y = -130f - (i * 72f);
+                _upgradeRows[i] = CreateText(panel.GetComponent<RectTransform>(), font, 22, TextAnchor.MiddleLeft, new Vector2(24f, y), new Vector2(520f, 44f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Color(0.92f, 0.96f, 1f, 1f));
+                Button button = CreateButton(panel.GetComponent<RectTransform>(), font, "UPGRADE", new Vector2(-24f, y), new Vector2(188f, 44f), true);
                 RectTransform br = button.GetComponent<RectTransform>();
                 br.anchorMin = new Vector2(1f, 1f);
                 br.anchorMax = new Vector2(1f, 1f);
@@ -303,7 +307,7 @@ namespace DeliveryRun.Managers.Subs
                 _upgradeButtons[i] = button;
             }
 
-            Button close = CreateButton(panel.GetComponent<RectTransform>(), font, "CLOSE", new Vector2(0f, 16f), new Vector2(128f, 38f));
+            Button close = CreateButton(panel.GetComponent<RectTransform>(), font, "CLOSE", new Vector2(0f, 22f), new Vector2(180f, 44f));
             close.onClick.AddListener(() => TogglePanel(_garagePanel, false));
             panel.SetActive(false);
             return panel;
@@ -311,86 +315,25 @@ namespace DeliveryRun.Managers.Subs
 
         private GameObject BuildRegionPanel(RectTransform root, Font font)
         {
-            GameObject panel = CreatePanel(root, "RegionPanel", new Vector2(780f, 620f), new Vector2(430f, 430f));
-            CreateText(panel.GetComponent<RectTransform>(), font, 28, TextAnchor.MiddleCenter, new Vector2(0f, -18f), new Vector2(0f, 38f), new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f), new Color(1f, 0.9f, 0.22f, 1f), "REGIONS");
-            _regionText = CreateText(panel.GetComponent<RectTransform>(), font, 16, TextAnchor.UpperLeft, new Vector2(16f, -64f), new Vector2(398f, 246f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Color(0.92f, 0.96f, 1f, 1f));
+            GameObject panel = CreatePanel(root, "RegionPanel", new Vector2(960f, -84f), new Vector2(780f, 700f));
+            CreateText(panel.GetComponent<RectTransform>(), font, 34, TextAnchor.MiddleCenter, new Vector2(0f, -24f), new Vector2(0f, 44f), new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f), new Color(1f, 0.9f, 0.22f, 1f), "REGION EXPANSION");
+            _regionText = CreateText(panel.GetComponent<RectTransform>(), font, 21, TextAnchor.UpperLeft, new Vector2(24f, -86f), new Vector2(730f, 460f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Color(0.92f, 0.96f, 1f, 1f));
 
-            Button next = CreateButton(panel.GetComponent<RectTransform>(), font, "NEXT", new Vector2(-96f, 54f), new Vector2(160f, 38f));
+            Button next = CreateButton(panel.GetComponent<RectTransform>(), font, "NEXT REGION", new Vector2(-130f, 84f), new Vector2(220f, 48f));
             next.onClick.AddListener(() =>
             {
                 PlayUiClick();
                 Events.Publish(new SelectNextRegionRequested());
             });
 
-            _unlockButton = CreateButton(panel.GetComponent<RectTransform>(), font, "UNLOCK", new Vector2(96f, 54f), new Vector2(160f, 38f));
+            _unlockButton = CreateButton(panel.GetComponent<RectTransform>(), font, "UNLOCK", new Vector2(130f, 84f), new Vector2(220f, 48f), true);
             _unlockButton.onClick.AddListener(OnUnlockClicked);
             _unlockButtonText = _unlockButton.GetComponentInChildren<Text>();
 
-            Button close = CreateButton(panel.GetComponent<RectTransform>(), font, "CLOSE", new Vector2(0f, 12f), new Vector2(128f, 38f));
+            Button close = CreateButton(panel.GetComponent<RectTransform>(), font, "CLOSE", new Vector2(0f, 24f), new Vector2(180f, 44f));
             close.onClick.AddListener(() => TogglePanel(_regionPanel, false));
             panel.SetActive(false);
             return panel;
-        }
-
-        private void BuildQuickLobbyActions(RectTransform root, Font font)
-        {
-            GameObject dock = new GameObject("LobbyQuickActions", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            RectTransform dockRect = dock.GetComponent<RectTransform>();
-            dockRect.SetParent(root, false);
-            dockRect.anchorMin = new Vector2(1f, 1f);
-            dockRect.anchorMax = new Vector2(1f, 1f);
-            dockRect.pivot = new Vector2(1f, 1f);
-            dockRect.anchoredPosition = new Vector2(-24f, -24f);
-            dockRect.sizeDelta = new Vector2(300f, 250f);
-            Image dockImage = dock.GetComponent<Image>();
-            dockImage.color = new Color(0.08f, 0.11f, 0.16f, 0.9f);
-
-            CreateText(
-                dockRect,
-                font,
-                22,
-                TextAnchor.MiddleCenter,
-                new Vector2(0f, -14f),
-                new Vector2(0f, 36f),
-                new Vector2(0f, 1f),
-                new Vector2(1f, 1f),
-                new Vector2(0.5f, 1f),
-                new Color(1f, 0.9f, 0.22f, 1f),
-                "LOBBY TERMINAL");
-
-            Button upgradeButton = CreateButton(dockRect, font, "UPGRADES", new Vector2(0f, 142f), new Vector2(240f, 44f));
-            upgradeButton.onClick.AddListener(() =>
-            {
-                PlayUiClick();
-                TogglePanel(_garagePanel);
-            });
-
-            Button regionButton = CreateButton(dockRect, font, "REGION EXPANSION", new Vector2(0f, 90f), new Vector2(240f, 44f));
-            regionButton.onClick.AddListener(() =>
-            {
-                PlayUiClick();
-                TogglePanel(_regionPanel);
-            });
-
-            Button startButton = CreateButton(dockRect, font, "START DELIVERY", new Vector2(0f, 38f), new Vector2(240f, 44f));
-            startButton.onClick.AddListener(() =>
-            {
-                PlayUiClick();
-                Events.Publish(new StartRunRequested());
-            });
-
-            CreateText(
-                dockRect,
-                font,
-                14,
-                TextAnchor.UpperCenter,
-                new Vector2(0f, -192f),
-                new Vector2(260f, 46f),
-                new Vector2(0.5f, 1f),
-                new Vector2(0.5f, 1f),
-                new Vector2(0.5f, 1f),
-                new Color(0.85f, 0.9f, 0.98f, 0.9f),
-                "Use terminals in world or these quick buttons.");
         }
 
         private void OnUpgradeClicked(int index)
@@ -543,6 +486,60 @@ namespace DeliveryRun.Managers.Subs
             _audio.PlayUiClick(_catalog.UiClickKey);
         }
 
+        private void EnsureUiSkins()
+        {
+            if (_panelSkinSprite != null || _buttonSkinSprite != null || _buttonAccentSkinSprite != null)
+            {
+                return;
+            }
+
+            Texture2D panelTexture = _catalog != null ? _catalog.LobbyPanelTexture : null;
+            Texture2D buttonTexture = _catalog != null ? _catalog.LobbyButtonTexture : null;
+            Texture2D accentTexture = _catalog != null ? _catalog.LobbyButtonAccentTexture : null;
+
+            _panelSkinSprite = CreateSpriteFromTexture(panelTexture, new Vector4(28f, 28f, 28f, 28f));
+            _buttonSkinSprite = CreateSpriteFromTexture(buttonTexture, new Vector4(22f, 22f, 22f, 22f));
+            _buttonAccentSkinSprite = CreateSpriteFromTexture(accentTexture, new Vector4(22f, 22f, 22f, 22f));
+        }
+
+        private static Sprite CreateSpriteFromTexture(Texture2D texture, Vector4 border)
+        {
+            if (texture == null)
+            {
+                return null;
+            }
+
+            return Sprite.Create(
+                texture,
+                new Rect(0f, 0f, texture.width, texture.height),
+                new Vector2(0.5f, 0.5f),
+                100f,
+                0u,
+                SpriteMeshType.FullRect,
+                border);
+        }
+
+        private void ReleaseUiSkins()
+        {
+            if (_panelSkinSprite != null)
+            {
+                Object.Destroy(_panelSkinSprite);
+                _panelSkinSprite = null;
+            }
+
+            if (_buttonSkinSprite != null)
+            {
+                Object.Destroy(_buttonSkinSprite);
+                _buttonSkinSprite = null;
+            }
+
+            if (_buttonAccentSkinSprite != null)
+            {
+                Object.Destroy(_buttonAccentSkinSprite);
+                _buttonAccentSkinSprite = null;
+            }
+        }
+
         private void DestroyUi()
         {
             _promptText = null;
@@ -564,6 +561,8 @@ namespace DeliveryRun.Managers.Subs
                 Object.Destroy(_uiRoot);
                 _uiRoot = null;
             }
+
+            ReleaseUiSkins();
         }
 
         private static int UpgradePrice(int targetLevel)
@@ -586,7 +585,7 @@ namespace DeliveryRun.Managers.Subs
             return id.ToUpperInvariant();
         }
 
-        private static GameObject CreatePanel(RectTransform parent, string name, Vector2 anchored, Vector2 size)
+        private GameObject CreatePanel(RectTransform parent, string name, Vector2 anchored, Vector2 size)
         {
             GameObject go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             RectTransform rt = go.GetComponent<RectTransform>();
@@ -596,7 +595,17 @@ namespace DeliveryRun.Managers.Subs
             rt.pivot = new Vector2(0f, 1f);
             rt.anchoredPosition = anchored;
             rt.sizeDelta = size;
-            go.GetComponent<Image>().color = new Color(0.08f, 0.11f, 0.16f, 0.95f);
+            Image image = go.GetComponent<Image>();
+            if (_panelSkinSprite != null)
+            {
+                image.sprite = _panelSkinSprite;
+                image.type = Image.Type.Sliced;
+                image.color = new Color(1f, 1f, 1f, 0.98f);
+            }
+            else
+            {
+                image.color = new Color(0.08f, 0.11f, 0.16f, 0.95f);
+            }
             return go;
         }
 
@@ -633,7 +642,7 @@ namespace DeliveryRun.Managers.Subs
             return t;
         }
 
-        private static Button CreateButton(RectTransform parent, Font font, string label, Vector2 anchoredPos, Vector2 size)
+        private Button CreateButton(RectTransform parent, Font font, string label, Vector2 anchoredPos, Vector2 size, bool accent = false)
         {
             GameObject go = new GameObject("Button", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
             RectTransform rt = go.GetComponent<RectTransform>();
@@ -643,10 +652,33 @@ namespace DeliveryRun.Managers.Subs
             rt.pivot = new Vector2(0.5f, 0f);
             rt.anchoredPosition = anchoredPos;
             rt.sizeDelta = size;
-            go.GetComponent<Image>().color = new Color(0.18f, 0.24f, 0.34f, 0.98f);
-            Button b = go.GetComponent<Button>();
+            Image bg = go.GetComponent<Image>();
+            Sprite skin = accent && _buttonAccentSkinSprite != null ? _buttonAccentSkinSprite : _buttonSkinSprite;
+            if (skin != null)
+            {
+                bg.sprite = skin;
+                bg.type = Image.Type.Sliced;
+                bg.color = Color.white;
+            }
+            else
+            {
+                bg.color = accent ? new Color(0.74f, 0.55f, 0.14f, 0.98f) : new Color(0.18f, 0.24f, 0.34f, 0.98f);
+            }
 
-            Text t = CreateText(rt, font, 18, TextAnchor.MiddleCenter, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), new Color(0.98f, 0.95f, 0.86f, 1f), label);
+            Button b = go.GetComponent<Button>();
+            ColorBlock colors = b.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1f, 1f, 1f, 0.96f);
+            colors.pressedColor = new Color(0.92f, 0.92f, 0.92f, 0.96f);
+            colors.selectedColor = colors.highlightedColor;
+            colors.disabledColor = new Color(0.74f, 0.74f, 0.74f, 0.62f);
+            b.colors = colors;
+
+            Color textColor = accent
+                ? new Color(0.13f, 0.18f, 0.25f, 1f)
+                : new Color(0.97f, 0.97f, 0.99f, 1f);
+            Text t = CreateText(rt, font, 18, TextAnchor.MiddleCenter, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), textColor, label);
+            t.fontStyle = FontStyle.Bold;
             t.rectTransform.offsetMin = Vector2.zero;
             t.rectTransform.offsetMax = Vector2.zero;
             return b;
