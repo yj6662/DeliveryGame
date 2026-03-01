@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using DeliveryRun.Delivery.Vehicle;
 using DeliveryRun.Managers.Core;
 using UnityEngine;
@@ -19,6 +20,7 @@ namespace DeliveryRun.Managers.Subs
         private float _prevSpeed;
         private float _collisionImpulseAccum;
         private float _uiTickAccum;
+        private readonly List<string> _activeFoodOfferIds = new List<string>(8);
 
         public override string Name => nameof(FoodStateManager);
         public override int InitOrder => 72;
@@ -67,19 +69,32 @@ namespace DeliveryRun.Managers.Subs
             float tempDecayMul = GetTemperatureDecayMultiplier();
             float spillGainMul = GetSpillGainMultiplier();
 
-            _food.TickUnscaled(unscaledDeltaTime, speed, yawRateAbs, decel, impulse, _cfg, tempDecayMul, spillGainMul);
+            _food.TickUnscaledAll(unscaledDeltaTime, speed, yawRateAbs, decel, impulse, _cfg, tempDecayMul, spillGainMul);
 
             _uiTickAccum += unscaledDeltaTime;
             if (_uiTickAccum >= UiTickInterval)
             {
                 _uiTickAccum = 0f;
-                float quality = _food.ComputeQuality01();
-                Events.Publish(new FoodStateTicked
+                int count = _food.CopyActiveOfferIdsNonAlloc(_activeFoodOfferIds);
+                for (int i = 0; i < count; i++)
                 {
-                    Temperature01 = _food.Temperature01,
-                    Spill01 = _food.Spill01,
-                    Quality01 = quality
-                });
+                    string offerId = _activeFoodOfferIds[i];
+                    float temperature;
+                    float spill;
+                    float quality;
+                    if (!_food.TryGetState(offerId, out temperature, out spill, out quality))
+                    {
+                        continue;
+                    }
+
+                    Events.Publish(new FoodStateTicked
+                    {
+                        OfferId = offerId,
+                        Temperature01 = temperature,
+                        Spill01 = spill,
+                        Quality01 = quality
+                    });
+                }
             }
         }
 
@@ -96,6 +111,7 @@ namespace DeliveryRun.Managers.Subs
             _uiTickAccum = 0f;
             _collisionImpulseAccum = 0f;
             _prevSpeed = 0f;
+            _activeFoodOfferIds.Clear();
         }
 
         private void OnRunStarted(DomainRunSessionStarted evt)
@@ -107,6 +123,7 @@ namespace DeliveryRun.Managers.Subs
 
             _uiTickAccum = 0f;
             _collisionImpulseAccum = 0f;
+            _activeFoodOfferIds.Clear();
             CacheBikeIfNeeded();
             _prevSpeed = _rb != null ? _rb.linearVelocity.magnitude : 0f;
         }
@@ -124,6 +141,7 @@ namespace DeliveryRun.Managers.Subs
             _uiTickAccum = 0f;
             _collisionImpulseAccum = 0f;
             _prevSpeed = 0f;
+            _activeFoodOfferIds.Clear();
         }
 
         private void OnPickupReached(OrderPickupReached evt)

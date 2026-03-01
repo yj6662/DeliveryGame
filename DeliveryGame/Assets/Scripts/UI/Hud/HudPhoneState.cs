@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using DeliveryRun.Managers.Core;
 using UnityEngine;
@@ -10,12 +9,7 @@ namespace DeliveryRun.Managers.Subs
         private readonly HudActiveOrderStore _activeOrders;
         private readonly HudOrderCache _orderCache;
         private readonly HudOfferPreviewState _offerPreview;
-
-        private float _foodTemperature01;
-        private float _foodSpill01;
-        private float _foodQuality01;
-        private bool _hasFoodState;
-        private string _foodOfferId;
+        private readonly Dictionary<string, FoodStateTicked> _foodStateByOffer = new Dictionary<string, FoodStateTicked>(8);
         private int _sessionBonus;
 
         internal HudPhoneState(int maxTrackedOrders)
@@ -27,27 +21,20 @@ namespace DeliveryRun.Managers.Subs
 
         internal HudActiveOrderStore ActiveOrders => _activeOrders;
         internal Dictionary<string, bool> CarryingByOffer => _orderCache.CarryingByOffer;
+        internal Dictionary<string, FoodStateTicked> FoodStateByOffer => _foodStateByOffer;
         internal int SessionBonus => _sessionBonus;
 
         internal void ResetForSceneExit()
         {
             _offerPreview.Reset();
-            _foodOfferId = null;
-            _hasFoodState = false;
-            _foodTemperature01 = 0f;
-            _foodSpill01 = 0f;
-            _foodQuality01 = 0f;
+            _foodStateByOffer.Clear();
             _orderCache.Clear();
         }
 
         internal void ResetForRunSession()
         {
             _sessionBonus = 0;
-            _hasFoodState = false;
-            _foodOfferId = null;
-            _foodTemperature01 = 0f;
-            _foodSpill01 = 0f;
-            _foodQuality01 = 0f;
+            _foodStateByOffer.Clear();
             _offerPreview.Reset();
             _activeOrders.Clear();
             _orderCache.Clear();
@@ -70,6 +57,7 @@ namespace DeliveryRun.Managers.Subs
                 _offerPreview.CurrentOfferId,
                 _offerPreview.CurrentPickupName,
                 _offerPreview.CurrentDeliveryName,
+                evt.FoodName,
                 evt.Reward);
         }
 
@@ -98,17 +86,31 @@ namespace DeliveryRun.Managers.Subs
                 _offerPreview.CloseWindow(false);
             }
 
-            string pickupName = _orderCache.ResolvePickupName(evt.OfferId, _offerPreview.CurrentPickupName);
-            _activeOrders.Upsert(evt.OfferId, string.IsNullOrEmpty(pickupName) ? "GO PICKUP" : "GO PICKUP: " + pickupName);
             _orderCache.SetCarrying(evt.OfferId, false);
+            string foodName = _orderCache.ResolveFoodName(evt.OfferId, string.Empty);
+            _activeOrders.Upsert(
+                evt.OfferId,
+                BuildActiveOrderStatusText(false, foodName));
         }
 
         internal void OnOrderPickupReached(OrderPickupReached evt)
         {
-            string deliveryName = _orderCache.ResolveDeliveryName(evt.OfferId, _offerPreview.CurrentDeliveryName);
-            _foodOfferId = evt.OfferId;
+            if (!string.IsNullOrEmpty(evt.OfferId))
+            {
+                _foodStateByOffer[evt.OfferId] = new FoodStateTicked
+                {
+                    OfferId = evt.OfferId,
+                    Temperature01 = 1f,
+                    Spill01 = 0f,
+                    Quality01 = 1f
+                };
+            }
+
             _orderCache.SetCarrying(evt.OfferId, true);
-            _activeOrders.Upsert(evt.OfferId, string.IsNullOrEmpty(deliveryName) ? "DELIVER TO" : "DELIVER TO: " + deliveryName);
+            string foodName = _orderCache.ResolveFoodName(evt.OfferId, evt.FoodName);
+            _activeOrders.Upsert(
+                evt.OfferId,
+                BuildActiveOrderStatusText(true, foodName));
         }
 
         internal void OnOrderCompleted(OrderCompleted evt)
@@ -124,7 +126,7 @@ namespace DeliveryRun.Managers.Subs
 
             _activeOrders.Remove(evt.OfferId);
             _orderCache.RemoveOffer(evt.OfferId);
-            ClearFoodStateIfMatchedOffer(evt.OfferId);
+            RemoveFoodState(evt.OfferId);
         }
 
         internal void OnOrderTimedOut(OrderTimedOut evt)
@@ -136,12 +138,12 @@ namespace DeliveryRun.Managers.Subs
 
             _activeOrders.Remove(evt.OfferId);
             _orderCache.RemoveOffer(evt.OfferId);
-            ClearFoodStateIfMatchedOffer(evt.OfferId);
+            RemoveFoodState(evt.OfferId);
         }
 
         internal bool OnOrderObjectiveUpdated(OrderObjectiveUpdated evt)
         {
-            if (string.IsNullOrEmpty(evt.Text) || _activeOrders.Count <= 0)
+            if (_activeOrders.Count <= 0)
             {
                 return false;
             }
@@ -157,16 +159,31 @@ namespace DeliveryRun.Managers.Subs
                 return false;
             }
 
-            _activeOrders.Upsert(targetOfferId, evt.Text);
+            // Ignore stale objective updates from already-completed/removed offers.
+            if (!_activeOrders.Contains(targetOfferId))
+            {
+                return false;
+            }
+
+            string foodName = _orderCache.ResolveFoodName(targetOfferId, string.Empty);
+            _activeOrders.Upsert(targetOfferId, BuildActiveOrderStatusText(IsOfferCarrying(targetOfferId), foodName));
             return true;
         }
 
         internal void OnFoodStateTicked(FoodStateTicked evt)
         {
-            _hasFoodState = true;
-            _foodTemperature01 = Mathf.Clamp01(evt.Temperature01);
-            _foodSpill01 = Mathf.Clamp01(evt.Spill01);
-            _foodQuality01 = Mathf.Clamp01(evt.Quality01);
+            if (string.IsNullOrEmpty(evt.OfferId))
+            {
+                return;
+            }
+
+            _foodStateByOffer[evt.OfferId] = new FoodStateTicked
+            {
+                OfferId = evt.OfferId,
+                Temperature01 = Mathf.Clamp01(evt.Temperature01),
+                Spill01 = Mathf.Clamp01(evt.Spill01),
+                Quality01 = Mathf.Clamp01(evt.Quality01)
+            };
         }
 
         internal bool TryConsumeOfferAccept(bool musicChoiceModalOpen, out string offerId)
@@ -192,10 +209,6 @@ namespace DeliveryRun.Managers.Subs
             return new HudPhonePanel.PhoneViewState
             {
                 ActiveOrderCount = _activeOrders.Count,
-                HasFoodState = _hasFoodState,
-                FoodTemperature01 = _foodTemperature01,
-                FoodSpill01 = _foodSpill01,
-                FoodOfferId = _foodOfferId,
                 PreviewVisible = _offerPreview.PreviewVisible,
                 OfferAcceptWindow = _offerPreview.OfferAcceptWindow,
                 CurrentOfferDuration = _offerPreview.CurrentOfferDuration,
@@ -206,18 +219,40 @@ namespace DeliveryRun.Managers.Subs
             };
         }
 
-        private void ClearFoodStateIfMatchedOffer(string offerId)
+        private void RemoveFoodState(string offerId)
         {
-            if (!string.Equals(_foodOfferId, offerId, StringComparison.Ordinal))
+            if (string.IsNullOrEmpty(offerId))
             {
                 return;
             }
 
-            _foodOfferId = null;
-            _hasFoodState = false;
-            _foodTemperature01 = 0f;
-            _foodSpill01 = 0f;
-            _foodQuality01 = 0f;
+            _foodStateByOffer.Remove(offerId);
+        }
+
+        private bool IsOfferCarrying(string offerId)
+        {
+            if (string.IsNullOrEmpty(offerId))
+            {
+                return false;
+            }
+
+            if (_orderCache.CarryingByOffer.TryGetValue(offerId, out bool isCarrying))
+            {
+                return isCarrying;
+            }
+
+            return false;
+        }
+
+        private static string BuildActiveOrderStatusText(bool isCarrying, string foodName)
+        {
+            string status = isCarrying ? "Deliver" : "PickUp";
+            if (string.IsNullOrEmpty(foodName))
+            {
+                return status;
+            }
+
+            return status + " · " + foodName;
         }
     }
 }

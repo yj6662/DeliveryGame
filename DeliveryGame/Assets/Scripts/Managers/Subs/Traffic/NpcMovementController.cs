@@ -41,6 +41,13 @@ namespace DeliveryRun.Managers.Subs
                     continue;
                 }
 
+                if (state.Vehicle != null && state.Vehicle.IsForcedStopped)
+                {
+                    state.Speed = 0f;
+                    state.DesiredSpeed = 0f;
+                    continue;
+                }
+
                 TrafficLaneData lane;
                 if (!_network.TryGetLane(state.LaneIndex, out lane))
                 {

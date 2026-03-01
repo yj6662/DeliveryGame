@@ -28,6 +28,7 @@ namespace DeliveryRun.Delivery.Vehicle
             public float FollowDistance;
             public float SmoothTime;
             public float PitchAngle;
+            public float LookAtBlend;
             public float YawFollowStrength;
             public float YawSmoothTime;
             public float YawDeadZoneDegrees;
@@ -58,7 +59,23 @@ namespace DeliveryRun.Delivery.Vehicle
             FollowParams p,
             float deltaTime)
         {
+            float speed = targetRb != null ? targetRb.linearVelocity.magnitude : 0f;
+            float speedT = Mathf.InverseLerp(p.SpeedLagStart, p.SpeedLagEnd, speed);
+
             float targetYaw = target.eulerAngles.y;
+            if (targetRb != null)
+            {
+                Vector3 flatVelocity = targetRb.linearVelocity;
+                flatVelocity.y = 0f;
+                if (flatVelocity.sqrMagnitude > 0.25f)
+                {
+                    float velocityYaw = Mathf.Atan2(flatVelocity.x, flatVelocity.z) * Mathf.Rad2Deg;
+                    // Keep mild velocity alignment to reduce jitter, but avoid over-steering away from target heading.
+                    float velocityYawBlend = 0.18f * speedT;
+                    targetYaw = Mathf.LerpAngle(targetYaw, velocityYaw, velocityYawBlend);
+                }
+            }
+
             if (!_initialized)
             {
                 _currentYaw = targetYaw;
@@ -66,23 +83,32 @@ namespace DeliveryRun.Delivery.Vehicle
             }
 
             float yawDelta = Mathf.DeltaAngle(_currentYaw, targetYaw);
-            if (Mathf.Abs(yawDelta) < Mathf.Max(0f, p.YawDeadZoneDegrees))
+            float yawDeadZone = Mathf.Max(0f, p.YawDeadZoneDegrees);
+            float dynamicDeadZone = Mathf.Lerp(yawDeadZone * 1.15f, yawDeadZone * 0.85f, speedT);
+            if (Mathf.Abs(yawDelta) < dynamicDeadZone)
             {
                 yawDelta = 0f;
             }
 
-            float desiredYaw = _currentYaw + (yawDelta * Mathf.Clamp01(p.YawFollowStrength));
-            _currentYaw = Mathf.SmoothDampAngle(_currentYaw, desiredYaw, ref _yawVelocity, Mathf.Max(0.01f, p.YawSmoothTime));
+            float catchUpT = Mathf.InverseLerp(12f, 65f, Mathf.Abs(yawDelta));
+            float followStrength = Mathf.Clamp01((p.YawFollowStrength * 1.28f) + (0.26f * catchUpT));
+            float desiredYaw = _currentYaw + (yawDelta * followStrength);
+            float baseYawSmoothTime = Mathf.Max(0.01f, p.YawSmoothTime * 0.78f);
+            float yawSmoothTime = Mathf.Lerp(baseYawSmoothTime, baseYawSmoothTime * 0.58f, catchUpT);
+            _currentYaw = Mathf.SmoothDampAngle(_currentYaw, desiredYaw, ref _yawVelocity, yawSmoothTime);
 
-            float speed = targetRb != null ? targetRb.linearVelocity.magnitude : 0f;
-            float speedT = Mathf.InverseLerp(p.SpeedLagStart, p.SpeedLagEnd, speed);
             float followDistanceWithLag = p.FollowDistance + (p.ExtraBackAtHighSpeed * speedT);
 
             Quaternion yawRotation = Quaternion.Euler(0f, _currentYaw, 0f);
             Vector3 back = yawRotation * Vector3.back;
-            Quaternion cameraRotation = Quaternion.Euler(p.PitchAngle, _currentYaw, 0f);
             Vector3 pivot = target.position + (Vector3.up * Mathf.Max(0.2f, p.OcclusionPivotHeight));
             Vector3 desiredPosition = target.position + (back * followDistanceWithLag) + (Vector3.up * p.HeightOffset);
+            Quaternion baseCameraRotation = Quaternion.Euler(p.PitchAngle, _currentYaw, 0f);
+            Vector3 lookVector = pivot - desiredPosition;
+            Quaternion lookAtRotation = lookVector.sqrMagnitude > 0.0001f
+                ? Quaternion.LookRotation(lookVector.normalized, Vector3.up)
+                : baseCameraRotation;
+            Quaternion cameraRotation = Quaternion.Slerp(baseCameraRotation, lookAtRotation, Mathf.Clamp01(p.LookAtBlend));
 
             return new FollowResult
             {

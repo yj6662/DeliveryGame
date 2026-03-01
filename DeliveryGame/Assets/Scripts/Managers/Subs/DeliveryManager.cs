@@ -1,5 +1,7 @@
 using DeliveryRun.Managers.Core;
 using UnityEngine;
+using DomainRunSessionEnded = DeliveryRun.Delivery.RunSession.RunSessionEnded;
+using DomainRunSessionStarted = DeliveryRun.Delivery.RunSession.RunSessionStarted;
 
 namespace DeliveryRun.Managers.Subs
 {
@@ -26,8 +28,8 @@ namespace DeliveryRun.Managers.Subs
 
         protected override void OnInitialize()
         {
-            Subs.Add<RunSessionStarted>(Events, OnRunSessionStarted);
-            Subs.Add<RunSessionEnded>(Events, OnRunSessionEnded);
+            Subs.Add<DomainRunSessionStarted>(Events, OnRunSessionStarted);
+            Subs.Add<DomainRunSessionEnded>(Events, OnRunSessionEnded);
             ResetState(clearRunSequence: false);
         }
 
@@ -101,19 +103,19 @@ namespace DeliveryRun.Managers.Subs
             FailActiveOrderInternal(reason);
         }
 
-        private void OnRunSessionStarted(RunSessionStarted evt)
+        private void OnRunSessionStarted(DomainRunSessionStarted evt)
         {
-            BeginRunSession(evt.RunSequence);
+            BeginRunSession();
         }
 
-        private void OnRunSessionEnded(RunSessionEnded evt)
+        private void OnRunSessionEnded(DomainRunSessionEnded evt)
         {
             EndRunSession();
         }
 
-        private void BeginRunSession(int runSequence)
+        private void BeginRunSession()
         {
-            _runSequence = runSequence;
+            _runSequence++;
             _runActive = true;
             _orderActive = false;
             _spawnCountdown = DemoOrderSpawnDelaySeconds;

@@ -13,6 +13,7 @@ namespace DeliveryRun.Managers.Subs
             internal readonly string FoodName;
             internal readonly float TempDecayMultiplier;
             internal readonly float SpillGainMultiplier;
+            internal readonly float RewardMultiplier;
             internal readonly float DeliveryLimitSeconds;
             internal readonly bool IsSeafood;
 
@@ -21,6 +22,7 @@ namespace DeliveryRun.Managers.Subs
                 string foodName,
                 float tempDecayMultiplier,
                 float spillGainMultiplier,
+                float rewardMultiplier,
                 float deliveryLimitSeconds,
                 bool isSeafood)
             {
@@ -28,6 +30,7 @@ namespace DeliveryRun.Managers.Subs
                 FoodName = foodName;
                 TempDecayMultiplier = tempDecayMultiplier;
                 SpillGainMultiplier = spillGainMultiplier;
+                RewardMultiplier = rewardMultiplier;
                 DeliveryLimitSeconds = deliveryLimitSeconds;
                 IsSeafood = isSeafood;
             }
@@ -35,16 +38,18 @@ namespace DeliveryRun.Managers.Subs
 
         private static readonly FoodSelection[] FoodDefinitions =
         {
-            new FoodSelection("burger", "Burger Set", 0.95f, 1.00f, 125f, false),
-            new FoodSelection("pizza", "Pizza", 1.05f, 1.08f, 130f, false),
-            new FoodSelection("ramen", "Ramen", 1.20f, 1.18f, 110f, false),
-            new FoodSelection("fried_chicken", "Fried Chicken", 0.92f, 1.05f, 122f, false),
-            new FoodSelection("coffee", "Coffee", 1.30f, 1.25f, 105f, false),
-            new FoodSelection("sushi", "Sushi Box", 0.85f, 1.12f, 88f, true),
-            new FoodSelection("shrimp_pasta", "Shrimp Pasta", 0.90f, 1.10f, 92f, true),
-            new FoodSelection("grilled_mackerel", "Grilled Mackerel", 0.88f, 1.08f, 84f, true),
-            new FoodSelection("crab_rice", "Crab Rice Bowl", 0.89f, 1.14f, 86f, true),
-            new FoodSelection("clam_chowder", "Clam Chowder", 0.94f, 1.17f, 80f, true)
+            new FoodSelection("burger", "Burger Set", 0.70f, 0.68f, 0.90f, 138f, false),
+            new FoodSelection("pizza", "Pizza", 0.92f, 0.86f, 1.00f, 136f, false),
+            new FoodSelection("ramen", "Ramen", 1.70f, 1.92f, 1.20f, 104f, false),
+            new FoodSelection("fried_chicken", "Fried Chicken", 0.80f, 0.76f, 0.97f, 132f, false),
+            new FoodSelection("coffee", "Coffee", 2.00f, 2.25f, 1.24f, 96f, false),
+            new FoodSelection("salad", "Chicken Salad", 0.62f, 0.56f, 0.86f, 145f, false),
+            new FoodSelection("tteokbokki", "Tteokbokki", 1.56f, 1.78f, 1.16f, 106f, false),
+            new FoodSelection("sushi", "Sushi Box", 0.58f, 0.95f, 1.08f, 94f, true),
+            new FoodSelection("shrimp_pasta", "Shrimp Pasta", 1.36f, 1.28f, 1.15f, 100f, true),
+            new FoodSelection("grilled_mackerel", "Grilled Mackerel", 1.15f, 1.00f, 1.10f, 92f, true),
+            new FoodSelection("crab_rice", "Crab Rice Bowl", 1.22f, 1.16f, 1.17f, 94f, true),
+            new FoodSelection("clam_chowder", "Clam Chowder", 1.88f, 2.10f, 1.30f, 84f, true)
         };
 
         internal void BuildFoodRestaurantMap(
@@ -75,7 +80,7 @@ namespace DeliveryRun.Managers.Subs
         {
             if (FoodDefinitions.Length <= 0)
             {
-                return new FoodSelection("food", "Food", 1f, 1f, defaultDeliveryLimitSeconds, false);
+                return new FoodSelection("food", "Food", 1f, 1f, 1f, defaultDeliveryLimitSeconds, false);
             }
 
             bool seasideRegion = string.Equals(regionId, "seaside", StringComparison.Ordinal);

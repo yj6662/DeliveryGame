@@ -2,12 +2,13 @@ using System.Text;
 using DeliveryRun.UI.Run;
 using UnityEngine;
 using UnityEngine.UI;
+using DomainRunChoiceConstants = DeliveryRun.Delivery.RunSession.RunChoiceConstants;
 
 namespace DeliveryRun.Managers.Subs
 {
     internal sealed class HudTrackPlayerPanel
     {
-        private const int ChoiceSlots = 3;
+        private const int ChoiceSlots = DomainRunChoiceConstants.ChoiceCount;
 
         private readonly StringBuilder _builder = new StringBuilder(128);
         private RectTransform _trackPanelRect;

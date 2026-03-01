@@ -48,13 +48,11 @@ namespace DeliveryRun.Managers.Subs
                 return;
             }
 
-            _pollAccum += unscaledDeltaTime;
-            if (_pollAccum < PollInterval)
+            if (!ScenePollUtil.ShouldPoll(ref _pollAccum, PollInterval, unscaledDeltaTime))
             {
                 return;
             }
 
-            _pollAccum = 0f;
             if (_bike == null)
             {
                 FindBikeOnce();

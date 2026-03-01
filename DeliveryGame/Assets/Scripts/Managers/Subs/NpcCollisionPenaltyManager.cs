@@ -2,6 +2,7 @@ using DeliveryRun;
 using DeliveryRun.Delivery.Traffic;
 using DeliveryRun.Delivery.Vehicle;
 using DeliveryRun.Managers.Core;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
@@ -14,6 +15,9 @@ namespace DeliveryRun.Managers.Subs
     {
         private const float ScenePollInterval = 0.25f;
         private const float NpcHitStunSeconds = 2f;
+        private const float NpcHitStopSeconds = 2f;
+        private const float NpcCollisionIgnoreSeconds = 3f;
+        private const float NpcIgnoreRefreshInterval = 0.25f;
         private const float NpcSpillScale = 12f;
         private const float NpcSpillMin = 0.01f;
         private const float NpcSpillMax = 0.18f;
@@ -25,6 +29,12 @@ namespace DeliveryRun.Managers.Subs
         private bool _runActive;
         private bool _isRunScene;
         private float _scenePollAccum;
+        private float _npcCollisionIgnoreUntil;
+        private float _npcIgnoreRefreshAccum;
+
+        private readonly HashSet<Collider> _ignoredNpcColliders = new HashSet<Collider>();
+        private readonly List<string> _activeFoodOfferIds = new List<string>(8);
+        private Collider[] _bikeColliders;
 
         public override string Name => nameof(NpcCollisionPenaltyManager);
         public override int InitOrder => 76;
@@ -48,10 +58,8 @@ namespace DeliveryRun.Managers.Subs
 
         protected override void OnTick(float unscaledDeltaTime)
         {
-            _scenePollAccum += unscaledDeltaTime;
-            if (_scenePollAccum >= ScenePollInterval)
+            if (ScenePollUtil.ShouldPoll(ref _scenePollAccum, ScenePollInterval, unscaledDeltaTime))
             {
-                _scenePollAccum = 0f;
                 bool runScene = SceneManager.GetActiveScene().name == SceneNames.RunScene;
                 if (_isRunScene != runScene)
                 {
@@ -73,6 +81,7 @@ namespace DeliveryRun.Managers.Subs
             }
 
             EnsureBikeHooked();
+            TickCollisionIgnoreWindow(unscaledDeltaTime);
         }
 
         protected override void OnShutdown()
@@ -90,6 +99,7 @@ namespace DeliveryRun.Managers.Subs
         private void OnRunEnded(DomainRunSessionEnded evt)
         {
             _runActive = false;
+            EndCollisionIgnoreWindow();
         }
 
         private void OnSceneTransitionStarted(SceneTransitionStarted evt)
@@ -100,6 +110,7 @@ namespace DeliveryRun.Managers.Subs
             }
 
             _isRunScene = false;
+            EndCollisionIgnoreWindow();
             UnhookBike();
         }
 
@@ -112,6 +123,7 @@ namespace DeliveryRun.Managers.Subs
             }
             else
             {
+                EndCollisionIgnoreWindow();
                 UnhookBike();
             }
         }
@@ -139,10 +151,17 @@ namespace DeliveryRun.Managers.Subs
                 _collisionReporter.CollidedDetailed -= OnBikeCollidedDetailed;
                 _collisionReporter.CollidedDetailed += OnBikeCollidedDetailed;
             }
+
+            if (_bikeColliders == null || _bikeColliders.Length == 0)
+            {
+                _bikeColliders = _bike.GetComponentsInChildren<Collider>(true);
+            }
         }
 
         private void UnhookBike()
         {
+            EndCollisionIgnoreWindow();
+
             if (_collisionReporter != null)
             {
                 _collisionReporter.CollidedDetailed -= OnBikeCollidedDetailed;
@@ -150,6 +169,7 @@ namespace DeliveryRun.Managers.Subs
             }
 
             _bike = null;
+            _bikeColliders = null;
         }
 
         private void OnBikeCollidedDetailed(BikeCollisionInfo info)
@@ -159,15 +179,30 @@ namespace DeliveryRun.Managers.Subs
                 return;
             }
 
-            if (!IsNpcCollision(info.Collision))
+            TrafficNpcVehicle npcVehicle;
+            if (!TryGetNpcVehicle(info.Collision, out npcVehicle))
             {
                 return;
+            }
+
+            if (IsCollisionIgnoreActive())
+            {
+                IgnoreNpcVehicleCollision(npcVehicle);
+                _npcCollisionIgnoreUntil = Time.unscaledTime + NpcCollisionIgnoreSeconds;
+                return;
+            }
+
+            if (npcVehicle != null)
+            {
+                npcVehicle.ForceStopForSeconds(NpcHitStopSeconds);
             }
 
             if (_bike != null)
             {
                 _bike.ApplyStun(NpcHitStunSeconds);
             }
+
+            BeginCollisionIgnoreWindow();
 
             if (_food == null)
             {
@@ -180,36 +215,177 @@ namespace DeliveryRun.Managers.Subs
             }
 
             float spillAdd = Mathf.Clamp(info.Impulse * _foodCfg.SpillFromCollision * NpcSpillScale, NpcSpillMin, NpcSpillMax);
-            _food.AddSpill(spillAdd, _foodCfg);
-
-            Events.Publish(new FoodStateTicked
+            _food.AddSpillToAll(spillAdd, _foodCfg);
+            int count = _food.CopyActiveOfferIdsNonAlloc(_activeFoodOfferIds);
+            for (int i = 0; i < count; i++)
             {
-                Temperature01 = _food.Temperature01,
-                Spill01 = _food.Spill01,
-                Quality01 = _food.ComputeQuality01()
-            });
+                string offerId = _activeFoodOfferIds[i];
+                float temperature;
+                float spill;
+                float quality;
+                if (!_food.TryGetState(offerId, out temperature, out spill, out quality))
+                {
+                    continue;
+                }
+
+                Events.Publish(new FoodStateTicked
+                {
+                    OfferId = offerId,
+                    Temperature01 = temperature,
+                    Spill01 = spill,
+                    Quality01 = quality
+                });
+            }
         }
 
-        private static bool IsNpcCollision(Collision collision)
+        private static bool TryGetNpcVehicle(Collision collision, out TrafficNpcVehicle vehicle)
         {
+            vehicle = null;
             if (collision == null)
             {
                 return false;
             }
 
             Collider c0 = collision.collider;
-            if (c0 != null && c0.GetComponentInParent<TrafficNpcVehicle>() != null)
+            if (c0 != null)
             {
-                return true;
+                vehicle = c0.GetComponentInParent<TrafficNpcVehicle>();
+                if (vehicle != null)
+                {
+                    return true;
+                }
             }
 
             Transform otherRoot = collision.transform;
-            if (otherRoot != null && otherRoot.GetComponentInParent<TrafficNpcVehicle>() != null)
+            if (otherRoot != null)
             {
-                return true;
+                vehicle = otherRoot.GetComponentInParent<TrafficNpcVehicle>();
+                if (vehicle != null)
+                {
+                    return true;
+                }
             }
 
             return false;
+        }
+
+        private bool IsCollisionIgnoreActive() => Time.unscaledTime < _npcCollisionIgnoreUntil;
+
+        private void BeginCollisionIgnoreWindow()
+        {
+            _npcCollisionIgnoreUntil = Time.unscaledTime + NpcCollisionIgnoreSeconds;
+            _npcIgnoreRefreshAccum = NpcIgnoreRefreshInterval;
+            RefreshIgnoredNpcCollisions();
+        }
+
+        private void TickCollisionIgnoreWindow(float unscaledDeltaTime)
+        {
+            if (!IsCollisionIgnoreActive())
+            {
+                EndCollisionIgnoreWindow();
+                return;
+            }
+
+            _npcIgnoreRefreshAccum += Mathf.Max(0f, unscaledDeltaTime);
+            if (_npcIgnoreRefreshAccum < NpcIgnoreRefreshInterval)
+            {
+                return;
+            }
+
+            _npcIgnoreRefreshAccum = 0f;
+            RefreshIgnoredNpcCollisions();
+        }
+
+        private void RefreshIgnoredNpcCollisions()
+        {
+            if (_bike == null)
+            {
+                return;
+            }
+
+            if (_bikeColliders == null || _bikeColliders.Length == 0)
+            {
+                _bikeColliders = _bike.GetComponentsInChildren<Collider>(true);
+            }
+
+            if (_bikeColliders == null || _bikeColliders.Length == 0)
+            {
+                return;
+            }
+
+            TrafficNpcVehicle[] npcVehicles = Object.FindObjectsByType<TrafficNpcVehicle>(FindObjectsSortMode.None);
+            for (int i = 0; i < npcVehicles.Length; i++)
+            {
+                IgnoreNpcVehicleCollision(npcVehicles[i]);
+            }
+        }
+
+        private void IgnoreNpcVehicleCollision(TrafficNpcVehicle npcVehicle)
+        {
+            if (npcVehicle == null || _bikeColliders == null || _bikeColliders.Length == 0)
+            {
+                return;
+            }
+
+            Collider[] npcColliders = npcVehicle.GetComponentsInChildren<Collider>(true);
+            for (int i = 0; i < npcColliders.Length; i++)
+            {
+                Collider npcCol = npcColliders[i];
+                if (npcCol == null || npcCol.isTrigger)
+                {
+                    continue;
+                }
+
+                for (int j = 0; j < _bikeColliders.Length; j++)
+                {
+                    Collider bikeCol = _bikeColliders[j];
+                    if (bikeCol == null || bikeCol.isTrigger)
+                    {
+                        continue;
+                    }
+
+                    if (!Physics.GetIgnoreCollision(bikeCol, npcCol))
+                    {
+                        Physics.IgnoreCollision(bikeCol, npcCol, true);
+                    }
+                }
+
+                _ignoredNpcColliders.Add(npcCol);
+            }
+        }
+
+        private void EndCollisionIgnoreWindow()
+        {
+            if (_ignoredNpcColliders.Count <= 0 || _bikeColliders == null || _bikeColliders.Length == 0)
+            {
+                _ignoredNpcColliders.Clear();
+                _npcCollisionIgnoreUntil = 0f;
+                _npcIgnoreRefreshAccum = 0f;
+                return;
+            }
+
+            foreach (Collider npcCol in _ignoredNpcColliders)
+            {
+                if (npcCol == null)
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < _bikeColliders.Length; i++)
+                {
+                    Collider bikeCol = _bikeColliders[i];
+                    if (bikeCol == null || bikeCol.isTrigger)
+                    {
+                        continue;
+                    }
+
+                    Physics.IgnoreCollision(bikeCol, npcCol, false);
+                }
+            }
+
+            _ignoredNpcColliders.Clear();
+            _npcCollisionIgnoreUntil = 0f;
+            _npcIgnoreRefreshAccum = 0f;
         }
     }
 }

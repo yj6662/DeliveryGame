@@ -6,6 +6,7 @@ namespace DeliveryRun.Managers.Subs
     {
         private readonly Dictionary<string, string> _pickupNames;
         private readonly Dictionary<string, string> _deliveryNames;
+        private readonly Dictionary<string, string> _foodNames;
         private readonly Dictionary<string, int> _baseRewards;
         private readonly Dictionary<string, bool> _carryingByOffer;
 
@@ -14,13 +15,14 @@ namespace DeliveryRun.Managers.Subs
             int size = capacity > 0 ? capacity : 1;
             _pickupNames = new Dictionary<string, string>(size);
             _deliveryNames = new Dictionary<string, string>(size);
+            _foodNames = new Dictionary<string, string>(size);
             _baseRewards = new Dictionary<string, int>(size);
             _carryingByOffer = new Dictionary<string, bool>(size);
         }
 
         internal Dictionary<string, bool> CarryingByOffer => _carryingByOffer;
 
-        internal void RecordOffer(string offerId, string pickupName, string deliveryName, int baseReward)
+        internal void RecordOffer(string offerId, string pickupName, string deliveryName, string foodName, int baseReward)
         {
             if (string.IsNullOrEmpty(offerId))
             {
@@ -29,6 +31,7 @@ namespace DeliveryRun.Managers.Subs
 
             _pickupNames[offerId] = pickupName ?? string.Empty;
             _deliveryNames[offerId] = deliveryName ?? string.Empty;
+            _foodNames[offerId] = foodName ?? string.Empty;
             _baseRewards[offerId] = baseReward;
         }
 
@@ -55,6 +58,17 @@ namespace DeliveryRun.Managers.Subs
             return fallback;
         }
 
+        internal string ResolveFoodName(string offerId, string fallback)
+        {
+            string foodName;
+            if (_foodNames.TryGetValue(offerId, out foodName) && !string.IsNullOrEmpty(foodName))
+            {
+                return foodName;
+            }
+
+            return fallback;
+        }
+
         internal void SetCarrying(string offerId, bool carrying)
         {
             if (string.IsNullOrEmpty(offerId))
@@ -74,6 +88,7 @@ namespace DeliveryRun.Managers.Subs
 
             _pickupNames.Remove(offerId);
             _deliveryNames.Remove(offerId);
+            _foodNames.Remove(offerId);
             _baseRewards.Remove(offerId);
             _carryingByOffer.Remove(offerId);
         }
@@ -82,6 +97,7 @@ namespace DeliveryRun.Managers.Subs
         {
             _pickupNames.Clear();
             _deliveryNames.Clear();
+            _foodNames.Clear();
             _baseRewards.Clear();
             _carryingByOffer.Clear();
         }

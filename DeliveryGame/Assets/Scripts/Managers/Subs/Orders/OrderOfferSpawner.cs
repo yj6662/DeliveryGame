@@ -103,6 +103,12 @@ namespace DeliveryRun.Managers.Subs
             int orderId = _nextOrderId;
             _nextOfferSerial++;
             _nextOrderId++;
+            float routeDistanceMeters = Vector3.Distance(restaurant.transform.position, destination.transform.position);
+            int offerReward = OrderRewardCalculator.ComputeOfferBaseReward(
+                BaseReward,
+                routeDistanceMeters,
+                food.RewardMultiplier,
+                food.IsSeafood);
 
             string restaurantName = OrderAnchorCatalog.GetAnchorDisplayName(restaurant, "Restaurant");
             string destinationName = OrderAnchorCatalog.GetAnchorDisplayName(destination, "Destination");
@@ -120,7 +126,7 @@ namespace DeliveryRun.Managers.Subs
                 OrderId = orderId,
                 PickupName = pickupLabel,
                 DeliveryName = destinationName,
-                Reward = BaseReward,
+                Reward = offerReward,
                 EndTime = clock.Now + ttl,
                 RestaurantAnchor = restaurant,
                 DestinationAnchor = destination,

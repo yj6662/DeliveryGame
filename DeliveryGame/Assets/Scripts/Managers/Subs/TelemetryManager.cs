@@ -1,4 +1,7 @@
 using DeliveryRun.Managers.Core;
+using DomainRunLastOrderStarted = DeliveryRun.Delivery.RunSession.RunLastOrderStarted;
+using DomainRunSessionEnded = DeliveryRun.Delivery.RunSession.RunSessionEnded;
+using DomainRunSessionStarted = DeliveryRun.Delivery.RunSession.RunSessionStarted;
 
 namespace DeliveryRun.Managers.Subs
 {
@@ -9,6 +12,8 @@ namespace DeliveryRun.Managers.Subs
         private readonly string[] _entries = new string[BufferCapacity];
         private int _writeIndex;
         private int _count;
+        private int _runSequence;
+        private bool _runActive;
 
         public override string Name => nameof(TelemetryManager);
         public override int InitOrder => 90;
@@ -16,12 +21,14 @@ namespace DeliveryRun.Managers.Subs
         protected override void OnInitialize()
         {
             ClearBuffer();
+            _runSequence = 0;
+            _runActive = false;
 
             Subs.Add<SceneTransitionStarted>(Events, OnSceneTransitionStarted);
             Subs.Add<SceneTransitionCompleted>(Events, OnSceneTransitionCompleted);
-            Subs.Add<RunSessionStarted>(Events, OnRunSessionStarted);
-            Subs.Add<RunSessionLastOrderStarted>(Events, OnRunSessionLastOrderStarted);
-            Subs.Add<RunSessionEnded>(Events, OnRunSessionEnded);
+            Subs.Add<DomainRunSessionStarted>(Events, OnRunSessionStarted);
+            Subs.Add<DomainRunLastOrderStarted>(Events, OnRunSessionLastOrderStarted);
+            Subs.Add<DomainRunSessionEnded>(Events, OnRunSessionEnded);
             Subs.Add<DeliveryOrderSpawned>(Events, OnDeliveryOrderSpawned);
             Subs.Add<DeliveryOrderCompleted>(Events, OnDeliveryOrderCompleted);
             Subs.Add<DeliveryOrderFailed>(Events, OnDeliveryOrderFailed);
@@ -29,11 +36,21 @@ namespace DeliveryRun.Managers.Subs
             Subs.Add<MusicChoiceApplied>(Events, OnMusicChoiceApplied);
             Subs.Add<RatingChanged>(Events, OnRatingChanged);
             Subs.Add<EconomyChanged>(Events, OnEconomyChanged);
+
+            RunSessionManager runSessionManager;
+            if (Services.TryGet(out runSessionManager) && runSessionManager != null && runSessionManager.HasActiveRun)
+            {
+                _runActive = true;
+                _runSequence = 1;
+                Add("RunSessionStarted", "run=1");
+            }
         }
 
         protected override void OnShutdown()
         {
             ClearBuffer();
+            _runSequence = 0;
+            _runActive = false;
         }
 
         public int CopyRecentEntriesNonAlloc(string[] destination)
@@ -68,19 +85,32 @@ namespace DeliveryRun.Managers.Subs
             Add("SceneTransitionCompleted", "scene=" + evt.SceneName);
         }
 
-        private void OnRunSessionStarted(RunSessionStarted evt)
+        private void OnRunSessionStarted(DomainRunSessionStarted evt)
         {
-            Add("RunSessionStarted", "run=" + evt.RunSequence);
+            _runSequence++;
+            _runActive = true;
+            Add("RunSessionStarted", "run=" + _runSequence);
         }
 
-        private void OnRunSessionLastOrderStarted(RunSessionLastOrderStarted evt)
+        private void OnRunSessionLastOrderStarted(DomainRunLastOrderStarted evt)
         {
-            Add("RunSessionLastOrderStarted", "run=" + evt.RunSequence);
+            if (!_runActive)
+            {
+                return;
+            }
+
+            Add("RunSessionLastOrderStarted", "run=" + _runSequence);
         }
 
-        private void OnRunSessionEnded(RunSessionEnded evt)
+        private void OnRunSessionEnded(DomainRunSessionEnded evt)
         {
-            Add("RunSessionEnded", "run=" + evt.RunSequence + ",reason=" + evt.Reason);
+            if (!_runActive)
+            {
+                return;
+            }
+
+            Add("RunSessionEnded", "run=" + _runSequence + ",reason=" + evt.Reason);
+            _runActive = false;
         }
 
         private void OnDeliveryOrderSpawned(DeliveryOrderSpawned evt)

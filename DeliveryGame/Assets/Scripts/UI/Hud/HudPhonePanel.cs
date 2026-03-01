@@ -1,22 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using DeliveryRun.Managers.Core;
 using DeliveryRun.UI.Run;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace DeliveryRun.Managers.Subs
 {
-    internal sealed class HudPhonePanel
+    internal sealed partial class HudPhonePanel
     {
         internal struct PhoneViewState
         {
             public int ActiveOrderCount;
-            public bool HasFoodState;
-            public float FoodTemperature01;
-            public float FoodSpill01;
-            public string FoodOfferId;
-
             public bool PreviewVisible;
             public bool OfferAcceptWindow;
             public float CurrentOfferDuration;
@@ -38,12 +34,15 @@ namespace DeliveryRun.Managers.Subs
         private const float ActiveOrderPanelGapY = 20f;
         private const float PhoneBasePosX = -34f;
         private const float PhoneBasePosY = 28f;
-        private const float PhonePreviewLiftY = 124f;
-        private const int GaugeBarSegments = 10;
+        private const float FoodDetailExtraHeight = 66f;
+        private const float FoodDetailPanelHeight = 58f;
+        private const float FoodDetailRowHeight = 16f;
+        private const float FoodDetailRowGap = 3f;
 
         private readonly StringBuilder _builder = new StringBuilder(256);
         private readonly HudActiveOrderStore _activeOrders;
         private readonly Dictionary<string, bool> _orderCarryingByOffer;
+        private readonly Dictionary<string, FoodStateTicked> _foodStateByOffer;
         private readonly int _maxTrackedOrders;
 
         private RectTransform _phonePanelRect;
@@ -52,6 +51,13 @@ namespace DeliveryRun.Managers.Subs
         private RectTransform _phoneActiveCardsRoot;
         private readonly RectTransform[] _phoneOrderCardRects;
         private readonly Text[] _phoneOrderCardTexts;
+        private readonly RectTransform[] _phoneOrderDetailRoots;
+        private readonly Image[] _phoneOrderTempFillImages;
+        private readonly Image[] _phoneOrderSpillFillImages;
+        private readonly Image[] _phoneOrderQualityFillImages;
+        private readonly Text[] _phoneOrderTempValueTexts;
+        private readonly Text[] _phoneOrderSpillValueTexts;
+        private readonly Text[] _phoneOrderQualityValueTexts;
         private RectTransform _newOfferPanelRect;
         private Text _newOfferHeaderText;
         private Text _phonePreviewText;
@@ -64,13 +70,24 @@ namespace DeliveryRun.Managers.Subs
         private float _activePanelCurrentPosY = ActiveOrderPanelBasePosY;
         private bool _dirty = true;
 
-        internal HudPhonePanel(HudActiveOrderStore activeOrders, Dictionary<string, bool> orderCarryingByOffer)
+        internal HudPhonePanel(
+            HudActiveOrderStore activeOrders,
+            Dictionary<string, bool> orderCarryingByOffer,
+            Dictionary<string, FoodStateTicked> foodStateByOffer)
         {
             _activeOrders = activeOrders ?? new HudActiveOrderStore(1);
             _orderCarryingByOffer = orderCarryingByOffer;
+            _foodStateByOffer = foodStateByOffer;
             _maxTrackedOrders = Mathf.Min(_activeOrders.Ids.Length, _activeOrders.Texts.Length);
             _phoneOrderCardRects = new RectTransform[_maxTrackedOrders];
             _phoneOrderCardTexts = new Text[_maxTrackedOrders];
+            _phoneOrderDetailRoots = new RectTransform[_maxTrackedOrders];
+            _phoneOrderTempFillImages = new Image[_maxTrackedOrders];
+            _phoneOrderSpillFillImages = new Image[_maxTrackedOrders];
+            _phoneOrderQualityFillImages = new Image[_maxTrackedOrders];
+            _phoneOrderTempValueTexts = new Text[_maxTrackedOrders];
+            _phoneOrderSpillValueTexts = new Text[_maxTrackedOrders];
+            _phoneOrderQualityValueTexts = new Text[_maxTrackedOrders];
         }
 
         internal void BuildIfNeeded(RunHudView view)
@@ -154,9 +171,13 @@ namespace DeliveryRun.Managers.Subs
                 cardImage.raycastTarget = false;
 
                 Text cardText = HudUiFactory.CreateText("Text", cardRect, defaultFont, 15, TextAnchor.UpperLeft);
-                HudUiFactory.AnchorStretch(cardText.rectTransform, 10f, 10f, 8f, 8f);
+                HudUiFactory.AnchorStretchTop(cardText.rectTransform, 10f, 10f, 8f, 24f);
+                cardText.horizontalOverflow = HorizontalWrapMode.Overflow;
+                cardText.verticalOverflow = VerticalWrapMode.Overflow;
                 cardText.lineSpacing = 1.05f;
                 cardText.color = new Color(0.96f, 0.98f, 1f, 1f);
+
+                CreateFoodDetailRows(i, cardRect, defaultFont);
 
                 _phoneOrderCardRects[i] = cardRect;
                 _phoneOrderCardTexts[i] = cardText;
@@ -210,379 +231,100 @@ namespace DeliveryRun.Managers.Subs
             _dirty = true;
         }
 
-        internal void UpdateLayout(float dt, PhoneViewState state)
+        private void CreateFoodDetailRows(int index, RectTransform parent, Font font)
         {
-            if (_phonePanelRect == null)
-            {
-                return;
-            }
+            GameObject detailsRootObject = new GameObject("FoodDetail", typeof(RectTransform));
+            RectTransform detailsRoot = detailsRootObject.GetComponent<RectTransform>();
+            detailsRoot.SetParent(parent, false);
+            detailsRoot.anchorMin = new Vector2(0f, 0f);
+            detailsRoot.anchorMax = new Vector2(1f, 0f);
+            detailsRoot.pivot = new Vector2(0.5f, 0f);
+            detailsRoot.anchoredPosition = new Vector2(0f, 6f);
+            detailsRoot.sizeDelta = new Vector2(0f, FoodDetailPanelHeight);
 
-            float activeTarget = ActiveOrderPanelBaseHeight + (state.ActiveOrderCount * ActiveOrderPanelRowHeight)
-                                 + (GetDetailedOrderCardCountForLayout(state) * 52f);
-            _activePanelCurrentHeight = Mathf.MoveTowards(_activePanelCurrentHeight, activeTarget, PhoneSlideSpeed * dt);
-            _phonePanelRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _activePanelCurrentHeight);
+            CreateFoodDetailRow(
+                detailsRoot, font, "TempRow", 0f, "TEMP",
+                new Color(0.24f, 0.26f, 0.3f, 0.96f),
+                out _phoneOrderTempFillImages[index],
+                out _phoneOrderTempValueTexts[index]);
 
-            if (_newOfferPanelRect == null)
-            {
-                _activePanelCurrentPosY = Mathf.MoveTowards(_activePanelCurrentPosY, ActiveOrderPanelBasePosY, PhoneSlideSpeed * dt);
-                _phonePanelRect.anchoredPosition = new Vector2(ActiveOrderPanelPosX, _activePanelCurrentPosY);
-                return;
-            }
+            CreateFoodDetailRow(
+                detailsRoot, font, "SpillRow", FoodDetailRowHeight + FoodDetailRowGap, "SPILL",
+                new Color(0.24f, 0.26f, 0.3f, 0.96f),
+                out _phoneOrderSpillFillImages[index],
+                out _phoneOrderSpillValueTexts[index]);
 
-            float previewTarget = state.PreviewVisible ? PhonePreviewHeight : PhoneBaseHeight;
-            float targetLift = state.PreviewVisible ? PhonePreviewLiftY : 0f;
-            _phoneCurrentHeight = Mathf.MoveTowards(_phoneCurrentHeight, previewTarget, PhoneSlideSpeed * dt);
-            _phoneCurrentLift = Mathf.MoveTowards(_phoneCurrentLift, targetLift, PhoneSlideSpeed * dt);
-            _newOfferPanelRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _phoneCurrentHeight);
-            _newOfferPanelRect.anchoredPosition = new Vector2(PhoneBasePosX, PhoneBasePosY + _phoneCurrentLift);
+            CreateFoodDetailRow(
+                detailsRoot, font, "QualityRow", (FoodDetailRowHeight + FoodDetailRowGap) * 2f, "QUALITY",
+                new Color(0.24f, 0.26f, 0.3f, 0.96f),
+                out _phoneOrderQualityFillImages[index],
+                out _phoneOrderQualityValueTexts[index]);
 
-            float offerTop = (PhoneBasePosY + _phoneCurrentLift) + _phoneCurrentHeight;
-            float activePosTargetY = Mathf.Max(ActiveOrderPanelBasePosY, offerTop + ActiveOrderPanelGapY);
-            _activePanelCurrentPosY = Mathf.MoveTowards(_activePanelCurrentPosY, activePosTargetY, PhoneSlideSpeed * dt);
-            _phonePanelRect.anchoredPosition = new Vector2(ActiveOrderPanelPosX, _activePanelCurrentPosY);
-
-            UpdateNewOfferProgressOverlay(state);
+            detailsRootObject.SetActive(false);
+            _phoneOrderDetailRoots[index] = detailsRoot;
         }
 
-        internal void RebuildTextIfNeeded(bool force, PhoneViewState state)
+        private static void CreateFoodDetailRow(
+            RectTransform parent,
+            Font font,
+            string rowName,
+            float topOffset,
+            string label,
+            Color barBackgroundColor,
+            out Image fillImage,
+            out Text valueText)
         {
-            if (!force && !_dirty)
-            {
-                return;
-            }
+            GameObject rowObject = new GameObject(rowName, typeof(RectTransform));
+            RectTransform rowRect = rowObject.GetComponent<RectTransform>();
+            rowRect.SetParent(parent, false);
+            rowRect.anchorMin = new Vector2(0f, 1f);
+            rowRect.anchorMax = new Vector2(1f, 1f);
+            rowRect.pivot = new Vector2(0.5f, 1f);
+            rowRect.anchoredPosition = new Vector2(0f, -topOffset);
+            rowRect.sizeDelta = new Vector2(0f, FoodDetailRowHeight);
 
-            if (_phoneHeaderText == null || _phonePreviewText == null)
-            {
-                return;
-            }
+            Text labelText = HudUiFactory.CreateText("Label", rowRect, font, 10, TextAnchor.MiddleLeft);
+            labelText.rectTransform.anchorMin = new Vector2(0f, 0f);
+            labelText.rectTransform.anchorMax = new Vector2(0f, 1f);
+            labelText.rectTransform.pivot = new Vector2(0f, 0.5f);
+            labelText.rectTransform.anchoredPosition = new Vector2(2f, 0f);
+            labelText.rectTransform.sizeDelta = new Vector2(58f, 0f);
+            labelText.text = label;
+            labelText.color = new Color(0.82f, 0.88f, 0.96f, 1f);
 
-            _dirty = false;
+            GameObject barObject = new GameObject("Bar", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            RectTransform barRect = barObject.GetComponent<RectTransform>();
+            barRect.SetParent(rowRect, false);
+            barRect.anchorMin = new Vector2(0f, 0f);
+            barRect.anchorMax = new Vector2(1f, 1f);
+            barRect.offsetMin = new Vector2(62f, 3f);
+            barRect.offsetMax = new Vector2(-42f, -3f);
 
-            _phoneHeaderText.text = state.ActiveOrderCount > 0
-                ? "ACTIVE ORDERS  " + state.ActiveOrderCount
-                : "ACTIVE ORDERS  0";
+            Image barImage = barObject.GetComponent<Image>();
+            barImage.color = barBackgroundColor;
+            barImage.raycastTarget = false;
 
-            RefreshActiveOrderCards(state);
+            GameObject fillObject = new GameObject("Fill", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            RectTransform fillRect = fillObject.GetComponent<RectTransform>();
+            fillRect.SetParent(barRect, false);
+            fillRect.anchorMin = new Vector2(0f, 0f);
+            fillRect.anchorMax = new Vector2(0f, 1f);
+            fillRect.pivot = new Vector2(0f, 0.5f);
+            fillRect.offsetMin = Vector2.zero;
+            fillRect.offsetMax = Vector2.zero;
 
-            if (_newOfferHeaderText != null)
-            {
-                _newOfferHeaderText.text = state.PreviewVisible ? "NEW ORDER" : "INCOMING ORDER";
-            }
+            fillImage = fillObject.GetComponent<Image>();
+            fillImage.color = new Color(0.36f, 1f, 0.42f, 1f);
+            fillImage.raycastTarget = false;
 
-            if (state.PreviewVisible)
-            {
-                _builder.Clear();
-                _builder.Append("<color=#FFD57A>NEW ORDER</color>");
-                if (!string.IsNullOrEmpty(state.CurrentPickupName))
-                {
-                    _builder.Append('\n').Append("Pickup  ").Append(state.CurrentPickupName);
-                }
-
-                if (!string.IsNullOrEmpty(state.CurrentDeliveryName))
-                {
-                    _builder.Append('\n').Append("Dropoff ").Append(state.CurrentDeliveryName);
-                }
-
-                _builder.Append('\n').Append("Base Reward  $").Append(state.CurrentOfferReward);
-                _builder.Append('\n').Append("Accept TTL   ").Append(state.CurrentOfferRemaining.ToString("0.0")).Append("s");
-                if (state.HasFoodState)
-                {
-                    _builder.Append('\n').Append("Temp ").Append(Mathf.RoundToInt(state.FoodTemperature01 * 100f)).Append("%");
-                    _builder.Append("  Spill ").Append(Mathf.RoundToInt(state.FoodSpill01 * 100f)).Append("%");
-                }
-
-                _builder.Append('\n').Append("<color=#9CD2FF>[SPACE]</color> Accept");
-                _phonePreviewText.text = _builder.ToString();
-                _phonePreviewText.gameObject.SetActive(true);
-            }
-            else
-            {
-                _phonePreviewText.text = "Waiting for offer...";
-                _phonePreviewText.gameObject.SetActive(true);
-            }
+            valueText = HudUiFactory.CreateText("Value", rowRect, font, 10, TextAnchor.MiddleRight);
+            valueText.rectTransform.anchorMin = new Vector2(1f, 0f);
+            valueText.rectTransform.anchorMax = new Vector2(1f, 1f);
+            valueText.rectTransform.pivot = new Vector2(1f, 0.5f);
+            valueText.rectTransform.anchoredPosition = new Vector2(-2f, 0f);
+            valueText.rectTransform.sizeDelta = new Vector2(40f, 0f);
+            valueText.color = new Color(0.86f, 0.92f, 1f, 1f);
         }
 
-        internal void SetDirty()
-        {
-            _dirty = true;
-        }
-
-        internal void ResetRuntimeState()
-        {
-            _phoneCurrentHeight = PhoneBaseHeight;
-            _phoneCurrentLift = 0f;
-            _activePanelCurrentHeight = ActiveOrderPanelBaseHeight;
-            _activePanelCurrentPosY = ActiveOrderPanelBasePosY;
-            _dirty = true;
-
-            if (_phonePanelRect != null)
-            {
-                _phonePanelRect.anchoredPosition = new Vector2(ActiveOrderPanelPosX, _activePanelCurrentPosY);
-                _phonePanelRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _activePanelCurrentHeight);
-            }
-
-            if (_newOfferPanelRect != null)
-            {
-                _newOfferPanelRect.anchoredPosition = new Vector2(PhoneBasePosX, PhoneBasePosY);
-                _newOfferPanelRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _phoneCurrentHeight);
-            }
-
-            if (_newOfferExpiryOverlay != null && _newOfferExpiryOverlay.gameObject.activeSelf)
-            {
-                _newOfferExpiryOverlay.gameObject.SetActive(false);
-            }
-        }
-
-        internal void Cleanup()
-        {
-            _phonePanelRect = null;
-            _phoneHeaderText = null;
-            _phoneActiveListText = null;
-            _phoneActiveCardsRoot = null;
-            for (int i = 0; i < _maxTrackedOrders; i++)
-            {
-                _phoneOrderCardRects[i] = null;
-                _phoneOrderCardTexts[i] = null;
-            }
-
-            _newOfferPanelRect = null;
-            _newOfferHeaderText = null;
-            _phonePreviewText = null;
-            _newOfferExpiryOverlay = null;
-            _newOfferExpiryOverlayRect = null;
-            _dirty = true;
-            _phoneCurrentHeight = PhoneBaseHeight;
-            _phoneCurrentLift = 0f;
-            _activePanelCurrentHeight = ActiveOrderPanelBaseHeight;
-            _activePanelCurrentPosY = ActiveOrderPanelBasePosY;
-        }
-
-        private void RefreshActiveOrderCards(PhoneViewState state)
-        {
-            if (_maxTrackedOrders <= 0 || _phoneOrderCardRects[0] == null || _phoneOrderCardTexts[0] == null)
-            {
-                if (_phoneActiveListText != null)
-                {
-                    _phoneActiveListText.gameObject.SetActive(true);
-                    string[] activeOrderTexts = _activeOrders.Texts;
-                    _phoneActiveListText.text = state.ActiveOrderCount <= 0
-                        ? "No active orders"
-                        : (activeOrderTexts.Length > 0 ? activeOrderTexts[0] : "No active orders");
-                }
-
-                return;
-            }
-
-            if (_phoneActiveListText != null)
-            {
-                _phoneActiveListText.gameObject.SetActive(false);
-            }
-
-            float y = 0f;
-            int visibleCount = state.ActiveOrderCount;
-            bool showFallback = visibleCount <= 0;
-            bool showFoodOnAllCarrying = ShouldShowFoodDetailsForAllCarryingSlots(state);
-            string[] activeOrderTextsRef = _activeOrders.Texts;
-            string[] activeOrderIdsRef = _activeOrders.Ids;
-            if (showFallback)
-            {
-                visibleCount = 1;
-            }
-
-            for (int i = 0; i < _maxTrackedOrders; i++)
-            {
-                RectTransform cardRect = _phoneOrderCardRects[i];
-                Text cardText = _phoneOrderCardTexts[i];
-                if (cardRect == null || cardText == null)
-                {
-                    continue;
-                }
-
-                bool visible = i < visibleCount;
-                cardRect.gameObject.SetActive(visible);
-                if (!visible)
-                {
-                    continue;
-                }
-
-                float rowHeight = ActiveOrderPanelRowHeight - 6f;
-                _builder.Clear();
-                if (showFallback)
-                {
-                    _builder.Append("No active orders");
-                }
-                else
-                {
-                    string text = i < activeOrderTextsRef.Length ? activeOrderTextsRef[i] : string.Empty;
-                    _builder.Append("#").Append(i + 1).Append("  ").Append(text);
-
-                    bool isFoodOrder = false;
-                    if (state.HasFoodState)
-                    {
-                        string offerId = i < activeOrderIdsRef.Length ? activeOrderIdsRef[i] : null;
-                        if (showFoodOnAllCarrying)
-                        {
-                            isFoodOrder = IsOfferCarrying(offerId);
-                        }
-                        else if (!string.IsNullOrEmpty(state.FoodOfferId))
-                        {
-                            isFoodOrder = string.Equals(offerId, state.FoodOfferId, StringComparison.Ordinal);
-                        }
-                        else
-                        {
-                            isFoodOrder = i == 0;
-                        }
-                    }
-
-                    if (isFoodOrder)
-                    {
-                        _builder.Append('\n');
-                        AppendFoodGaugeLine(_builder, "TEMP", state.FoodTemperature01, true);
-                        _builder.Append('\n');
-                        AppendFoodGaugeLine(_builder, "SPILL", state.FoodSpill01, false);
-                        rowHeight += 52f;
-                    }
-                }
-
-                cardText.text = _builder.ToString();
-                cardRect.sizeDelta = new Vector2(0f, rowHeight);
-                cardRect.anchoredPosition = new Vector2(0f, -y);
-                y += rowHeight + 6f;
-            }
-        }
-
-        private void UpdateNewOfferProgressOverlay(PhoneViewState state)
-        {
-            if (_newOfferExpiryOverlay == null || _newOfferExpiryOverlayRect == null)
-            {
-                return;
-            }
-
-            bool show = state.PreviewVisible && state.OfferAcceptWindow && state.CurrentOfferDuration > 0.001f;
-            if (!show)
-            {
-                if (_newOfferExpiryOverlay.gameObject.activeSelf)
-                {
-                    _newOfferExpiryOverlay.gameObject.SetActive(false);
-                }
-
-                _newOfferExpiryOverlayRect.anchorMin = new Vector2(0f, 1f);
-                _newOfferExpiryOverlayRect.anchorMax = new Vector2(1f, 1f);
-                _newOfferExpiryOverlayRect.offsetMin = Vector2.zero;
-                _newOfferExpiryOverlayRect.offsetMax = Vector2.zero;
-                return;
-            }
-
-            float normalized = Mathf.Clamp01(state.CurrentOfferRemaining / state.CurrentOfferDuration);
-            if (!_newOfferExpiryOverlay.gameObject.activeSelf)
-            {
-                _newOfferExpiryOverlay.gameObject.SetActive(true);
-            }
-
-            _newOfferExpiryOverlayRect.anchorMin = new Vector2(0f, 1f - normalized);
-            _newOfferExpiryOverlayRect.anchorMax = new Vector2(1f, 1f);
-            _newOfferExpiryOverlayRect.offsetMin = Vector2.zero;
-            _newOfferExpiryOverlayRect.offsetMax = Vector2.zero;
-        }
-
-        private bool ShouldShowFoodDetailsForAllCarryingSlots(PhoneViewState state)
-        {
-            if (!state.HasFoodState || state.ActiveOrderCount != 3)
-            {
-                return false;
-            }
-
-            string[] activeOrderIdsRef = _activeOrders.Ids;
-            for (int i = 0; i < state.ActiveOrderCount; i++)
-            {
-                if (!IsOfferCarrying(i < activeOrderIdsRef.Length ? activeOrderIdsRef[i] : null))
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        private int GetDetailedOrderCardCountForLayout(PhoneViewState state)
-        {
-            if (!state.HasFoodState || state.ActiveOrderCount <= 0)
-            {
-                return 0;
-            }
-
-            if (!ShouldShowFoodDetailsForAllCarryingSlots(state))
-            {
-                return 1;
-            }
-
-            string[] activeOrderIdsRef = _activeOrders.Ids;
-            int carryingCount = 0;
-            for (int i = 0; i < state.ActiveOrderCount; i++)
-            {
-                if (IsOfferCarrying(i < activeOrderIdsRef.Length ? activeOrderIdsRef[i] : null))
-                {
-                    carryingCount++;
-                }
-            }
-
-            return carryingCount;
-        }
-
-        private bool IsOfferCarrying(string offerId)
-        {
-            if (string.IsNullOrEmpty(offerId) || _orderCarryingByOffer == null)
-            {
-                return false;
-            }
-
-            bool isCarrying;
-            if (_orderCarryingByOffer.TryGetValue(offerId, out isCarrying))
-            {
-                return isCarrying;
-            }
-
-            return false;
-        }
-
-        private static void AppendFoodGaugeLine(StringBuilder builder, string label, float value01, bool higherIsBetter)
-        {
-            float value = Mathf.Clamp01(value01);
-            float score = higherIsBetter ? value : (1f - value);
-            int fillCount = Mathf.RoundToInt(value * GaugeBarSegments);
-            fillCount = Mathf.Clamp(fillCount, 0, GaugeBarSegments);
-
-            string stateLabel;
-            string colorTag;
-            if (score >= 0.66f)
-            {
-                stateLabel = "GOOD";
-                colorTag = "#6CFF6C";
-            }
-            else if (score >= 0.33f)
-            {
-                stateLabel = "CAUTION";
-                colorTag = "#FFD34D";
-            }
-            else
-            {
-                stateLabel = "RISK";
-                colorTag = "#FF5B5B";
-            }
-
-            builder.Append(label).Append(' ').Append('[');
-            for (int i = 0; i < GaugeBarSegments; i++)
-            {
-                builder.Append(i < fillCount ? '|' : '-');
-            }
-
-            builder.Append(']')
-                .Append(' ')
-                .Append("<color=").Append(colorTag).Append('>')
-                .Append(stateLabel)
-                .Append("</color>")
-                .Append(' ')
-                .Append(Mathf.RoundToInt(value * 100f)).Append('%');
-        }
     }
 }

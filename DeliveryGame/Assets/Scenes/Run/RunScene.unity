@@ -151755,14 +151755,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: DeliveryRun.Delivery::DeliveryRun.Delivery.Vehicle.SimpleFollowCamera
   target: {fileID: 1655860203}
   targetRb: {fileID: 1655860204}
-  heightOffset: 13
-  followDistance: 8
-  smoothTime: 0.3
-  pitchAngle: 35
-  yawFollowStrength: 0.1
-  yawSmoothTime: 0.5
-  yawDeadZoneDegrees: 2
-  extraBackAtHighSpeed: 4
+  heightOffset: 28.7
+  followDistance: 18.5
+  smoothTime: 0.1
+  pitchAngle: 52
+  lookAtTargetBlend: 0.62
+  yawFollowStrength: 0.25
+  yawSmoothTime: 0.2
+  yawDeadZoneDegrees: 0.5
+  extraBackAtHighSpeed: 6
   speedLagStart: 14
   speedLagEnd: 28
   followSharpnessLowSpeed: 10
@@ -151792,12 +151793,12 @@ MonoBehaviour:
   safeZ: 0.05
   safeZMargin: 0.02
   scanRadiusMultiplier: 1.5
-  checkInterval: 0.2
-  backstepSmoothTime: 0.45
-  backstepHysteresis: 0.25
-  backstepExpandSharpness: 6
-  backstepReleaseSharpness: 2
-  maxExtraDistance: 200
+  checkInterval: 0.24
+  backstepSmoothTime: 0.24
+  backstepHysteresis: 0.35
+  backstepExpandSharpness: 5
+  backstepReleaseSharpness: 1.8
+  maxExtraDistance: 90
   drawDebugGizmos: 0
   autoFindPlayer: 1
   playerTag: Player

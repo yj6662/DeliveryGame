@@ -25,19 +25,17 @@ namespace DeliveryRun.Managers.Subs
             FoodStateService food;
             if (services != null &&
                 services.TryGet(out food) &&
-                food != null &&
-                food.IsActive &&
-                string.Equals(food.ActiveOfferId, offerId, StringComparison.Ordinal))
+                food != null)
             {
-                quality = food.ComputeQuality01();
-                temperature = food.Temperature01;
-                spill = food.Spill01;
-                if (foodConfig != null)
+                if (food.TryGetState(offerId, out temperature, out spill, out quality))
                 {
-                    qualityMul = food.ComputeRewardMultiplier(quality, foodConfig);
-                }
+                    if (foodConfig != null)
+                    {
+                        qualityMul = food.ComputeRewardMultiplier(quality, foodConfig);
+                    }
 
-                food.Reset();
+                    food.StopForOffer(offerId);
+                }
             }
 
             float musicMul = stack != null ? stack.GetMul(RunStatId.RewardMultiplier) : 1f;
@@ -99,11 +97,9 @@ namespace DeliveryRun.Managers.Subs
             FoodStateService food;
             if (services != null &&
                 services.TryGet(out food) &&
-                food != null &&
-                food.IsActive &&
-                string.Equals(food.ActiveOfferId, offerId, StringComparison.Ordinal))
+                food != null)
             {
-                food.Reset();
+                food.StopForOffer(offerId);
             }
 
             events.Publish(new OrderTimedOut

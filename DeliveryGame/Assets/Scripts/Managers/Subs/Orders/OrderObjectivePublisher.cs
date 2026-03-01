@@ -12,6 +12,7 @@ namespace DeliveryRun.Managers.Subs
             internal string OfferId;
             internal string PickupName;
             internal string DeliveryName;
+            internal int BaseReward;
             internal bool IsCarrying;
             internal OrderInteractPoint PickupInteract;
             internal OrderInteractPoint DeliveryInteract;
@@ -45,7 +46,10 @@ namespace DeliveryRun.Managers.Subs
 
             ObjectiveOrderSnapshot primary = orders[primaryIndex];
             OrderInteractPoint interactPoint = primary.IsCarrying ? primary.DeliveryInteract : primary.PickupInteract;
-            string prefix = primary.IsCarrying ? "DELIVER TO: " : "GO PICKUP: ";
+            string rewardText = primary.BaseReward > 0 ? " [$" + primary.BaseReward + "]" : string.Empty;
+            string prefix = primary.IsCarrying
+                ? "DELIVER TO" + rewardText + ": "
+                : "GO PICKUP" + rewardText + ": ";
             string destination = primary.IsCarrying ? primary.DeliveryName : primary.PickupName;
 
             float distance = -1f;

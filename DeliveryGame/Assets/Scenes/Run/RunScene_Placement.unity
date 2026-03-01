@@ -151755,14 +151755,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: DeliveryRun.Delivery::DeliveryRun.Delivery.Vehicle.SimpleFollowCamera
   target: {fileID: 1655860203}
   targetRb: {fileID: 1655860204}
-  heightOffset: 13
-  followDistance: 8
-  smoothTime: 0.3
-  pitchAngle: 35
-  yawFollowStrength: 0.45
-  yawSmoothTime: 0.32
-  yawDeadZoneDegrees: 1.1
-  extraBackAtHighSpeed: 4
+  heightOffset: 28.7
+  followDistance: 18.5
+  smoothTime: 0.2
+  pitchAngle: 52
+  lookAtTargetBlend: 0.62
+  yawFollowStrength: 0.24
+  yawSmoothTime: 0.3
+  yawDeadZoneDegrees: 1.35
+  extraBackAtHighSpeed: 6
   speedLagStart: 14
   speedLagEnd: 28
   followSharpnessLowSpeed: 8
@@ -151794,12 +151795,12 @@ MonoBehaviour:
   safeZ: 0.05
   safeZMargin: 0.02
   scanRadiusMultiplier: 1.5
-  checkInterval: 0.14
-  backstepSmoothTime: 0.32
-  backstepHysteresis: 0.18
-  backstepExpandSharpness: 6
-  backstepReleaseSharpness: 2
-  maxExtraDistance: 200
+  checkInterval: 0.24
+  backstepSmoothTime: 0.24
+  backstepHysteresis: 0.35
+  backstepExpandSharpness: 5
+  backstepReleaseSharpness: 1.8
+  maxExtraDistance: 90
   drawDebugGizmos: 0
 --- !u!20 &1128534426
 Camera:

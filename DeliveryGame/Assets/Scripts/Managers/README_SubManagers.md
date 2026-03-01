@@ -3,16 +3,32 @@
 ## Current Runtime Managers
 - `SceneRouter`: scene load bridge for `SceneManager.LoadSceneAsync`.
 - `SceneFlowController`: Core/Lobby/Run/Loading transition orchestration.
-- `AudioManager`: low-level audio stub API (`PlayBgm/StopBgm`).
-- `SoundManager`: sound policy layer (scene BGM routing + delivery SFX routing).
+- `AudioManager`: BGM/SFX playback and scene audio routing.
+- `MusicDraftManager`: music track draft generation at run choice points.
+- `LobbyHubManager`: lobby interaction hub and panel orchestration.
 - `AddressablesService`: runtime asset loading facade (stub-safe fallback path).
-- `RunSessionManager`: 7-minute run clock, last-order phase, end conditions.
-- `UIManager`: runtime UI state and toast counters for debug/runtime sync.
-- `MusicChoiceManager`: music-choice timing windows and auto-resolve fallback.
-- `DeliveryManager`: order/delivery demo flow lifecycle for Run scene.
-- `RatingManager`: rating delta aggregation and depletion signal.
-- `EconomyManager`: run rewards settlement and total currency state.
-- `TelemetryManager`: lightweight runtime event ring-buffer diagnostics.
+- `RunSessionManager`: run clock/state machine, choice points, and end conditions.
+- `RunSessionLegacyBridgeManager`: bridges domain run-session events to legacy event contracts.
+- `RunDayNightLightingManager`: run-time directional light progression.
+- `RunModifierManager`: run modifier stack and music synergy application.
+- `MetaProgressionManager`: region/unlock/upgrade progression orchestration.
+- `SectorThemeManager`: run sector theme assignment and marker sync.
+- `RegionGateManager`: lobby/run region gate lock visuals and state.
+- `PlayerBikeModifierLink`: applies modifier stack values to bike controller.
+- `TrafficSystemManager`: road network snapshot for traffic systems.
+- `TrafficSignalManager`: signal state simulation and visual updates.
+- `TrafficNpcManager`: traffic NPC spawn/simulation lifecycle.
+- `RoadQueryManager`: nearest-road query service and cache.
+- `OrderFlowManager`: offer/order lifecycle and objective publishing.
+- `FuelManager`: fuel drain/refuel states and station interactions.
+- `FoodStateManager`: carry-food temperature/spill progression.
+- `NpcCollisionPenaltyManager`: NPC collision penalty handling.
+- `UIManager`: UI feature host and shared UI runtime state.
+- `MusicChoiceManager`: music choice request/apply/auto-resolve coordination.
+- `DeliveryManager`: delivery flow bridge events and compatibility path.
+- `RatingManager`: rating delta aggregation and depletion events.
+- `EconomyManager`: session/total currency state.
+- `TelemetryManager`: runtime event ring-buffer diagnostics.
 
 ## ISubManager Contract
 - `Initialize(CoreContext ctx)`: one-time setup only.

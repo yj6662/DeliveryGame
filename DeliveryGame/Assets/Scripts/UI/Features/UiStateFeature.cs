@@ -1,5 +1,7 @@
 using DeliveryRun;
 using DeliveryRun.Managers.Core;
+using DomainRunLastOrderStarted = DeliveryRun.Delivery.RunSession.RunLastOrderStarted;
+using DomainRunTimerTicked = DeliveryRun.Delivery.RunSession.RunTimerTicked;
 
 namespace DeliveryRun.UI.Features
 {
@@ -46,8 +48,8 @@ namespace DeliveryRun.UI.Features
 
             Subs.Add<SceneTransitionStarted>(Events, OnSceneTransitionStarted);
             Subs.Add<SceneTransitionCompleted>(Events, OnSceneTransitionCompleted);
-            Subs.Add<RunSessionTick>(Events, OnRunSessionTick);
-            Subs.Add<RunSessionLastOrderStarted>(Events, OnRunSessionLastOrderStarted);
+            Subs.Add<DomainRunTimerTicked>(Events, OnRunTimerTicked);
+            Subs.Add<DomainRunLastOrderStarted>(Events, OnRunLastOrderStarted);
             Subs.Add<DeliveryOrderSpawned>(Events, OnDeliveryOrderSpawned);
             Subs.Add<DeliveryOrderCompleted>(Events, OnDeliveryOrderCompleted);
             Subs.Add<DeliveryOrderFailed>(Events, OnDeliveryOrderFailed);
@@ -110,12 +112,12 @@ namespace DeliveryRun.UI.Features
             }
         }
 
-        private void OnRunSessionTick(RunSessionTick evt)
+        private void OnRunTimerTicked(DomainRunTimerTicked evt)
         {
             _runRemainingSeconds = evt.RemainingSeconds;
         }
 
-        private void OnRunSessionLastOrderStarted(RunSessionLastOrderStarted evt)
+        private void OnRunLastOrderStarted(DomainRunLastOrderStarted evt)
         {
             PushToast("Last Order Start");
         }

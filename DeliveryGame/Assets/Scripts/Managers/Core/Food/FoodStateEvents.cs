@@ -2,6 +2,7 @@ namespace DeliveryRun.Managers.Core
 {
     public struct FoodStateTicked
     {
+        public string OfferId;
         public float Temperature01;
         public float Spill01;
         public float Quality01;

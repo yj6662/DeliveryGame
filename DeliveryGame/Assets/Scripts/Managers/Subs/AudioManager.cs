@@ -2,6 +2,7 @@ using DeliveryRun;
 using DeliveryRun.Managers.Core;
 using DeliveryRun.UI;
 using UnityEngine;
+using DomainRunLastOrderStarted = DeliveryRun.Delivery.RunSession.RunLastOrderStarted;
 using DomainRunSessionStarted = DeliveryRun.Delivery.RunSession.RunSessionStarted;
 
 namespace DeliveryRun.Managers.Subs
@@ -61,7 +62,7 @@ namespace DeliveryRun.Managers.Subs
             Subs.Add<SceneTransitionCompleted>(Events, OnSceneTransitionCompleted);
             Subs.Add<DeliveryOrderCompleted>(Events, OnDeliveryOrderCompleted);
             Subs.Add<DeliveryOrderFailed>(Events, OnDeliveryOrderFailed);
-            Subs.Add<RunSessionLastOrderStarted>(Events, OnRunSessionLastOrderStarted);
+            Subs.Add<DomainRunLastOrderStarted>(Events, OnRunSessionLastOrderStarted);
             Subs.Add<RatingDepleted>(Events, OnRatingDepleted);
             Subs.Add<MusicChoiceRequested>(Events, OnMusicChoiceRequested);
             Subs.Add<MusicChoiceApplied>(Events, OnMusicChoiceApplied);
@@ -289,7 +290,7 @@ namespace DeliveryRun.Managers.Subs
 
         private void OnDeliveryOrderCompleted(DeliveryOrderCompleted evt) => PlaySfx(DeliverySuccessSfxKey);
         private void OnDeliveryOrderFailed(DeliveryOrderFailed evt) => PlaySfx(DeliveryFailSfxKey);
-        private void OnRunSessionLastOrderStarted(RunSessionLastOrderStarted evt) => PlaySfx(LastOrderSfxKey);
+        private void OnRunSessionLastOrderStarted(DomainRunLastOrderStarted evt) => PlaySfx(LastOrderSfxKey);
         private void OnRatingDepleted(RatingDepleted evt) => PlaySfx(RatingDepletedSfxKey);
         private void OnMusicChoiceRequested(MusicChoiceRequested evt) => PlaySfx(MusicChoiceOpenSfxKey);
         private void OnMusicChoiceApplied(MusicChoiceApplied evt) => PlaySfx(MusicChoiceApplySfxKey);

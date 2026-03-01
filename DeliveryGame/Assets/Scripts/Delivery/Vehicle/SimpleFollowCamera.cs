@@ -16,6 +16,8 @@ namespace DeliveryRun.Delivery.Vehicle
         [Header("Rotation")]
         [SerializeField] private float pitchAngle = 35f;
         [Range(0f, 1f)]
+        [SerializeField] private float lookAtTargetBlend = 0.55f;
+        [Range(0f, 1f)]
         [SerializeField] private float yawFollowStrength = 0.45f;
         [SerializeField] private float yawSmoothTime = 0.32f;
         [SerializeField] private float yawDeadZoneDegrees = 1.1f;
@@ -149,6 +151,7 @@ namespace DeliveryRun.Delivery.Vehicle
                 FollowDistance = followDistance,
                 SmoothTime = smoothTime,
                 PitchAngle = pitchAngle,
+                LookAtBlend = lookAtTargetBlend,
                 YawFollowStrength = yawFollowStrength,
                 YawSmoothTime = yawSmoothTime,
                 YawDeadZoneDegrees = yawDeadZoneDegrees,

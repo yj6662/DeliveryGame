@@ -45,10 +45,11 @@ namespace DeliveryRun.UI.Features
 
         private void TickRunResultModule(float unscaledDeltaTime)
         {
-            _runResultScenePollElapsed += unscaledDeltaTime;
-            if (_runResultScenePollElapsed >= RunResultScenePollInterval)
+            if (ScenePollUtil.ShouldPoll(
+                ref _runResultScenePollElapsed,
+                RunResultScenePollInterval,
+                unscaledDeltaTime))
             {
-                _runResultScenePollElapsed = 0f;
                 HandleRunResultSceneChanged(SceneManager.GetActiveScene().name);
             }
         }

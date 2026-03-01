@@ -1,4 +1,6 @@
 using DeliveryRun.Managers.Core;
+using DomainRunSessionEnded = DeliveryRun.Delivery.RunSession.RunSessionEnded;
+using DomainRunSessionStarted = DeliveryRun.Delivery.RunSession.RunSessionStarted;
 
 namespace DeliveryRun.Managers.Subs
 {
@@ -21,9 +23,17 @@ namespace DeliveryRun.Managers.Subs
             _sessionCoins = 0;
             _totalCoins = 0;
 
-            Subs.Add<RunSessionStarted>(Events, OnRunSessionStarted);
-            Subs.Add<RunSessionEnded>(Events, OnRunSessionEnded);
+            Subs.Add<DomainRunSessionStarted>(Events, OnRunSessionStarted);
+            Subs.Add<DomainRunSessionEnded>(Events, OnRunSessionEnded);
             Subs.Add<DeliveryOrderCompleted>(Events, OnDeliveryOrderCompleted);
+
+            RunSessionManager runSessionManager;
+            if (Services.TryGet(out runSessionManager) && runSessionManager != null && runSessionManager.HasActiveRun)
+            {
+                _runActive = true;
+                _sessionCoins = 0;
+                PublishChanged(0);
+            }
         }
 
         protected override void OnShutdown()
@@ -33,14 +43,14 @@ namespace DeliveryRun.Managers.Subs
             _totalCoins = 0;
         }
 
-        private void OnRunSessionStarted(RunSessionStarted evt)
+        private void OnRunSessionStarted(DomainRunSessionStarted evt)
         {
             _runActive = true;
             _sessionCoins = 0;
             PublishChanged(0);
         }
 
-        private void OnRunSessionEnded(RunSessionEnded evt)
+        private void OnRunSessionEnded(DomainRunSessionEnded evt)
         {
             if (_runActive)
             {

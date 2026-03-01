@@ -44,13 +44,11 @@ namespace DeliveryRun.Managers.Subs
 
         protected override void OnTick(float unscaledDeltaTime)
         {
-            _scenePollAccum += unscaledDeltaTime;
-            if (_scenePollAccum < ScenePollInterval)
+            if (!ScenePollUtil.ShouldPoll(ref _scenePollAccum, ScenePollInterval, unscaledDeltaTime))
             {
                 return;
             }
 
-            _scenePollAccum = 0f;
             HandleSceneChanged(SceneManager.GetActiveScene().name, false);
         }
 

@@ -19,6 +19,7 @@ namespace DeliveryRun.Managers.Subs
         internal string[] Texts => _texts;
         internal int Count => _count;
         internal string PrimaryOfferId => _count > 0 ? _ids[0] : null;
+        internal bool Contains(string offerId) => IndexOf(offerId) >= 0;
 
         internal void Upsert(string offerId, string text)
         {
@@ -27,15 +28,7 @@ namespace DeliveryRun.Managers.Subs
                 return;
             }
 
-            int existingIndex = -1;
-            for (int i = 0; i < _count; i++)
-            {
-                if (string.Equals(_ids[i], offerId, StringComparison.Ordinal))
-                {
-                    existingIndex = i;
-                    break;
-                }
-            }
+            int existingIndex = IndexOf(offerId);
 
             if (existingIndex >= 0)
             {
@@ -60,15 +53,7 @@ namespace DeliveryRun.Managers.Subs
                 return;
             }
 
-            int index = -1;
-            for (int i = 0; i < _count; i++)
-            {
-                if (string.Equals(_ids[i], offerId, StringComparison.Ordinal))
-                {
-                    index = i;
-                    break;
-                }
-            }
+            int index = IndexOf(offerId);
 
             if (index < 0)
             {
@@ -95,6 +80,24 @@ namespace DeliveryRun.Managers.Subs
             }
 
             _count = 0;
+        }
+
+        private int IndexOf(string offerId)
+        {
+            if (string.IsNullOrEmpty(offerId) || _count <= 0)
+            {
+                return -1;
+            }
+
+            for (int i = 0; i < _count; i++)
+            {
+                if (string.Equals(_ids[i], offerId, StringComparison.Ordinal))
+                {
+                    return i;
+                }
+            }
+
+            return -1;
         }
     }
 }

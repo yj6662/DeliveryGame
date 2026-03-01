@@ -8,7 +8,7 @@ namespace DeliveryRun.Delivery.RunSession
         public const int LastOrder = 1 << 3;
         public const int TimeExpired = 1 << 4;
 
-        private const int ExpectedChoiceCount = 3;
+        private const int ExpectedChoiceCount = RunChoiceConstants.ChoiceCount;
 
         private readonly float _durationSeconds;
         private readonly float[] _choiceTimesSeconds;
