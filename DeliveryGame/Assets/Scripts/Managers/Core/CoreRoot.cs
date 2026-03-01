@@ -197,11 +197,8 @@ namespace DeliveryRun.Managers.Core
             AddSubManager(new SceneRouter());
             AddSubManager(new SceneFlowController());
             AddSubManager(new AudioManager());
-            AddSubManager(new SoundManager());
             AddSubManager(new MusicDraftManager());
             AddSubManager(new LobbyHubManager());
-            AddSubManager(new UiMusicChoiceManager());
-            AddSubManager(new UiRunHudManager());
             AddSubManager(new AddressablesService());
             AddSubManager(new RunSessionManager());
             AddSubManager(new RunDayNightLightingManager());
@@ -212,12 +209,10 @@ namespace DeliveryRun.Managers.Core
             AddSubManager(new PlayerBikeModifierLink());
             AddSubManager(new TrafficSystemManager());
             AddSubManager(new TrafficSignalManager());
-            AddSubManager(new TrafficSignalVisualManager());
             AddSubManager(new TrafficNpcManager());
             AddSubManager(new RoadQueryManager());
             AddSubManager(new OrderFlowManager());
             AddSubManager(new FuelManager());
-            AddSubManager(new FuelStationManager());
             AddSubManager(new FoodStateManager());
             AddSubManager(new NpcCollisionPenaltyManager());
             AddSubManager(new UIManager());
@@ -225,7 +220,6 @@ namespace DeliveryRun.Managers.Core
             AddSubManager(new DeliveryManager());
             AddSubManager(new RatingManager());
             AddSubManager(new EconomyManager());
-            AddSubManager(new UiRunResultManager());
             AddSubManager(new TelemetryManager());
 
             _subManagers.Sort(SubManagerSort.Compare);

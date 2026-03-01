@@ -26,6 +26,9 @@ namespace DeliveryRun.Managers.Core
         public int RunSequence;
         public int ChoiceIndex;
         public string ModifierId;
+        public int OptionIndex;
+        public string TrackId;
+        public string GenreId;
     }
 
     public struct MusicChoiceApplied
@@ -33,6 +36,9 @@ namespace DeliveryRun.Managers.Core
         public int RunSequence;
         public int ChoiceIndex;
         public string ModifierId;
+        public int OptionIndex;
+        public string TrackId;
+        public string GenreId;
         public bool AutoSelected;
     }
 }

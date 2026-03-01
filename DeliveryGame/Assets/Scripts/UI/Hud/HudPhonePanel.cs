@@ -42,8 +42,7 @@ namespace DeliveryRun.Managers.Subs
         private const int GaugeBarSegments = 10;
 
         private readonly StringBuilder _builder = new StringBuilder(256);
-        private readonly string[] _activeOrderIds;
-        private readonly string[] _activeOrderTexts;
+        private readonly HudActiveOrderStore _activeOrders;
         private readonly Dictionary<string, bool> _orderCarryingByOffer;
         private readonly int _maxTrackedOrders;
 
@@ -65,12 +64,11 @@ namespace DeliveryRun.Managers.Subs
         private float _activePanelCurrentPosY = ActiveOrderPanelBasePosY;
         private bool _dirty = true;
 
-        internal HudPhonePanel(string[] activeOrderIds, string[] activeOrderTexts, Dictionary<string, bool> orderCarryingByOffer)
+        internal HudPhonePanel(HudActiveOrderStore activeOrders, Dictionary<string, bool> orderCarryingByOffer)
         {
-            _activeOrderIds = activeOrderIds ?? Array.Empty<string>();
-            _activeOrderTexts = activeOrderTexts ?? Array.Empty<string>();
+            _activeOrders = activeOrders ?? new HudActiveOrderStore(1);
             _orderCarryingByOffer = orderCarryingByOffer;
-            _maxTrackedOrders = Mathf.Min(_activeOrderIds.Length, _activeOrderTexts.Length);
+            _maxTrackedOrders = Mathf.Min(_activeOrders.Ids.Length, _activeOrders.Texts.Length);
             _phoneOrderCardRects = new RectTransform[_maxTrackedOrders];
             _phoneOrderCardTexts = new Text[_maxTrackedOrders];
         }
@@ -366,7 +364,10 @@ namespace DeliveryRun.Managers.Subs
                 if (_phoneActiveListText != null)
                 {
                     _phoneActiveListText.gameObject.SetActive(true);
-                    _phoneActiveListText.text = state.ActiveOrderCount <= 0 ? "No active orders" : (_activeOrderTexts.Length > 0 ? _activeOrderTexts[0] : "No active orders");
+                    string[] activeOrderTexts = _activeOrders.Texts;
+                    _phoneActiveListText.text = state.ActiveOrderCount <= 0
+                        ? "No active orders"
+                        : (activeOrderTexts.Length > 0 ? activeOrderTexts[0] : "No active orders");
                 }
 
                 return;
@@ -381,6 +382,8 @@ namespace DeliveryRun.Managers.Subs
             int visibleCount = state.ActiveOrderCount;
             bool showFallback = visibleCount <= 0;
             bool showFoodOnAllCarrying = ShouldShowFoodDetailsForAllCarryingSlots(state);
+            string[] activeOrderTextsRef = _activeOrders.Texts;
+            string[] activeOrderIdsRef = _activeOrders.Ids;
             if (showFallback)
             {
                 visibleCount = 1;
@@ -410,13 +413,13 @@ namespace DeliveryRun.Managers.Subs
                 }
                 else
                 {
-                    string text = i < _activeOrderTexts.Length ? _activeOrderTexts[i] : string.Empty;
+                    string text = i < activeOrderTextsRef.Length ? activeOrderTextsRef[i] : string.Empty;
                     _builder.Append("#").Append(i + 1).Append("  ").Append(text);
 
                     bool isFoodOrder = false;
                     if (state.HasFoodState)
                     {
-                        string offerId = i < _activeOrderIds.Length ? _activeOrderIds[i] : null;
+                        string offerId = i < activeOrderIdsRef.Length ? activeOrderIdsRef[i] : null;
                         if (showFoodOnAllCarrying)
                         {
                             isFoodOrder = IsOfferCarrying(offerId);
@@ -489,9 +492,10 @@ namespace DeliveryRun.Managers.Subs
                 return false;
             }
 
+            string[] activeOrderIdsRef = _activeOrders.Ids;
             for (int i = 0; i < state.ActiveOrderCount; i++)
             {
-                if (!IsOfferCarrying(i < _activeOrderIds.Length ? _activeOrderIds[i] : null))
+                if (!IsOfferCarrying(i < activeOrderIdsRef.Length ? activeOrderIdsRef[i] : null))
                 {
                     return false;
                 }
@@ -512,10 +516,11 @@ namespace DeliveryRun.Managers.Subs
                 return 1;
             }
 
+            string[] activeOrderIdsRef = _activeOrders.Ids;
             int carryingCount = 0;
             for (int i = 0; i < state.ActiveOrderCount; i++)
             {
-                if (IsOfferCarrying(i < _activeOrderIds.Length ? _activeOrderIds[i] : null))
+                if (IsOfferCarrying(i < activeOrderIdsRef.Length ? activeOrderIdsRef[i] : null))
                 {
                     carryingCount++;
                 }

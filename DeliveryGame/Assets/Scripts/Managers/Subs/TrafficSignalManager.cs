@@ -1,16 +1,42 @@
+using System.Collections.Generic;
 using DeliveryRun;
 using DeliveryRun.Managers.Core;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Object = UnityEngine.Object;
 
 namespace DeliveryRun.Managers.Subs
 {
     public sealed class TrafficSignalManager : SubManagerBase
     {
+        private struct SignalVisual
+        {
+            public int NodeId;
+            public Renderer VerticalRed;
+            public Renderer VerticalYellow;
+            public Renderer VerticalGreen;
+            public Renderer HorizontalRed;
+            public Renderer HorizontalYellow;
+            public Renderer HorizontalGreen;
+        }
+
         private const float ScenePollInterval = 0.5f;
+        private const float SignalCornerOffset = 8.5f;
+        private const float SignalBaseYOffset = 0.05f;
+        private const string SignalTemplateName = "TrafficSignalTemplate";
+
+        private readonly List<SignalVisual> _visuals = new List<SignalVisual>(64);
 
         private TrafficSignalService _signals;
         private TrafficRoadNetworkService _network;
+        private Transform _visualRoot;
+        private GameObject _signalTemplate;
+
+        private Material _offMat;
+        private Material _redMat;
+        private Material _yellowMat;
+        private Material _greenMat;
+
         private bool _isRunScene;
         private float _scenePollAccum;
 
@@ -46,6 +72,7 @@ namespace DeliveryRun.Managers.Subs
             }
 
             _signals.Tick(unscaledDeltaTime);
+            TickVisuals();
         }
 
         protected override void OnShutdown()
@@ -55,6 +82,8 @@ namespace DeliveryRun.Managers.Subs
                 _signals.Clear();
             }
 
+            DestroyVisuals();
+            DestroyMaterials();
             _isRunScene = false;
         }
 
@@ -70,6 +99,8 @@ namespace DeliveryRun.Managers.Subs
             {
                 _signals.Clear();
             }
+
+            DestroyVisuals();
         }
 
         private void OnSceneTransitionCompleted(SceneTransitionCompleted evt)
@@ -85,6 +116,7 @@ namespace DeliveryRun.Managers.Subs
             }
 
             RebuildSignals();
+            RebuildVisuals();
         }
 
         private void HandleSceneChanged(string sceneName, bool forceRebuild)
@@ -98,6 +130,7 @@ namespace DeliveryRun.Managers.Subs
                     _signals.Clear();
                 }
 
+                DestroyVisuals();
                 return;
             }
 
@@ -106,6 +139,7 @@ namespace DeliveryRun.Managers.Subs
             if (enteredNow || forceRebuild)
             {
                 RebuildSignals();
+                RebuildVisuals();
             }
         }
 
@@ -126,6 +160,315 @@ namespace DeliveryRun.Managers.Subs
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             Debug.Log("[TrafficSignalManager] Rebuilt signals: " + _signals.SignalCount);
 #endif
+        }
+
+        // ── Visual rendering ──────────────────────────────────────────
+
+        private void TickVisuals()
+        {
+            if (_visuals.Count == 0 || _signals == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < _visuals.Count; i++)
+            {
+                SignalVisual visual = _visuals[i];
+                TrafficSignalState state;
+                if (!_signals.TryGetState(visual.NodeId, out state))
+                {
+                    continue;
+                }
+
+                ApplyPhaseVisual(ref visual, state.Phase);
+            }
+        }
+
+        private void RebuildVisuals()
+        {
+            DestroyVisuals();
+
+            if (_network == null)
+            {
+                Services.TryGet(out _network);
+            }
+
+            if (_network == null || _network.NodeCount <= 0)
+            {
+                return;
+            }
+
+            EnsureMaterials();
+            _signalTemplate = GameObject.Find(SignalTemplateName);
+
+            GameObject root = new GameObject("TrafficSignalVisualRoot");
+            _visualRoot = root.transform;
+
+            for (int nodeId = 0; nodeId < _network.NodeCount; nodeId++)
+            {
+                TrafficNodeData node;
+                if (!_network.TryGetNode(nodeId, out node) || !node.IsIntersection)
+                {
+                    continue;
+                }
+
+                SignalVisual visual = CreateSignalVisual(nodeId, node.Position, _visualRoot, _signalTemplate);
+                _visuals.Add(visual);
+            }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.Log("[TrafficSignalManager] Created temp traffic lights: " + _visuals.Count);
+#endif
+        }
+
+        private SignalVisual CreateSignalVisual(int nodeId, Vector3 intersectionPosition, Transform parent, GameObject signalTemplate)
+        {
+            GameObject signalRoot = new GameObject("Signal_" + nodeId.ToString());
+            signalRoot.transform.SetParent(parent, false);
+            signalRoot.transform.position = ResolveSignalRoadsidePosition(nodeId, intersectionPosition);
+
+            float mastTopY = 3.0f;
+            if (!TryInstantiateSignalBody(signalRoot.transform, signalTemplate, out mastTopY))
+            {
+                GameObject pole = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                pole.name = "Pole";
+                pole.transform.SetParent(signalRoot.transform, false);
+                pole.transform.localPosition = new Vector3(0f, 1.8f, 0f);
+                pole.transform.localScale = new Vector3(0.12f, 1.8f, 0.12f);
+                DestroyColliderIfExists(pole);
+                SetRendererMaterial(pole, _offMat);
+            }
+
+            GameObject verticalHead = new GameObject("HeadVertical");
+            verticalHead.transform.SetParent(signalRoot.transform, false);
+            verticalHead.transform.localPosition = new Vector3(-0.34f, mastTopY, 0f);
+
+            GameObject horizontalHead = new GameObject("HeadHorizontal");
+            horizontalHead.transform.SetParent(signalRoot.transform, false);
+            horizontalHead.transform.localPosition = new Vector3(0.34f, mastTopY, 0f);
+
+            SignalVisual visual = new SignalVisual
+            {
+                NodeId = nodeId,
+                VerticalRed = CreateLamp(verticalHead.transform, "Vertical_Red", new Vector3(0f, 0.22f, 0f)),
+                VerticalYellow = CreateLamp(verticalHead.transform, "Vertical_Yellow", new Vector3(0f, 0f, 0f)),
+                VerticalGreen = CreateLamp(verticalHead.transform, "Vertical_Green", new Vector3(0f, -0.22f, 0f)),
+                HorizontalRed = CreateLamp(horizontalHead.transform, "Horizontal_Red", new Vector3(0f, 0.22f, 0f)),
+                HorizontalYellow = CreateLamp(horizontalHead.transform, "Horizontal_Yellow", new Vector3(0f, 0f, 0f)),
+                HorizontalGreen = CreateLamp(horizontalHead.transform, "Horizontal_Green", new Vector3(0f, -0.22f, 0f))
+            };
+
+            ApplyPhaseVisual(ref visual, TrafficSignalPhase.VerticalGreen);
+            return visual;
+        }
+
+        private static Vector3 ResolveSignalRoadsidePosition(int nodeId, Vector3 intersectionPosition)
+        {
+            int corner = nodeId & 3;
+            float signX = 1f;
+            float signZ = 1f;
+            if (corner == 1)
+            {
+                signX = -1f;
+            }
+            else if (corner == 2)
+            {
+                signX = -1f;
+                signZ = -1f;
+            }
+            else if (corner == 3)
+            {
+                signZ = -1f;
+            }
+
+            return new Vector3(
+                intersectionPosition.x + (signX * SignalCornerOffset),
+                intersectionPosition.y + SignalBaseYOffset,
+                intersectionPosition.z + (signZ * SignalCornerOffset));
+        }
+
+        private bool TryInstantiateSignalBody(Transform parent, GameObject signalTemplate, out float mastTopY)
+        {
+            mastTopY = 3.0f;
+            if (parent == null || signalTemplate == null)
+            {
+                return false;
+            }
+
+            GameObject body = Object.Instantiate(signalTemplate, parent);
+            if (body == null)
+            {
+                return false;
+            }
+
+            body.name = "SignalBody";
+            body.transform.localPosition = Vector3.zero;
+            body.transform.localRotation = Quaternion.identity;
+            body.transform.localScale = Vector3.one;
+
+            Collider[] colliders = body.GetComponentsInChildren<Collider>(true);
+            for (int i = 0; i < colliders.Length; i++)
+            {
+                if (colliders[i] != null)
+                {
+                    Object.Destroy(colliders[i]);
+                }
+            }
+
+            Renderer[] renderers = body.GetComponentsInChildren<Renderer>(true);
+            if (renderers == null || renderers.Length == 0)
+            {
+                return false;
+            }
+
+            Bounds bounds = renderers[0].bounds;
+            for (int i = 1; i < renderers.Length; i++)
+            {
+                bounds.Encapsulate(renderers[i].bounds);
+            }
+
+            float localTop = bounds.max.y - parent.position.y;
+            mastTopY = Mathf.Max(2.6f, localTop - 0.45f);
+            return true;
+        }
+
+        private Renderer CreateLamp(Transform parent, string name, Vector3 localPos)
+        {
+            GameObject lamp = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            lamp.name = name;
+            lamp.transform.SetParent(parent, false);
+            lamp.transform.localPosition = localPos;
+            lamp.transform.localScale = new Vector3(0.16f, 0.16f, 0.16f);
+            DestroyColliderIfExists(lamp);
+
+            Renderer renderer = lamp.GetComponent<Renderer>();
+            renderer.sharedMaterial = _offMat;
+            return renderer;
+        }
+
+        private void ApplyPhaseVisual(ref SignalVisual visual, TrafficSignalPhase phase)
+        {
+            bool verticalGreen = phase == TrafficSignalPhase.VerticalGreen;
+            bool verticalYellow = phase == TrafficSignalPhase.VerticalYellow;
+            bool horizontalGreen = phase == TrafficSignalPhase.HorizontalGreen;
+            bool horizontalYellow = phase == TrafficSignalPhase.HorizontalYellow;
+
+            bool verticalRed = !verticalGreen && !verticalYellow;
+            bool horizontalRed = !horizontalGreen && !horizontalYellow;
+
+            SetLampActive(visual.VerticalRed, verticalRed, _redMat);
+            SetLampActive(visual.VerticalYellow, verticalYellow, _yellowMat);
+            SetLampActive(visual.VerticalGreen, verticalGreen, _greenMat);
+
+            SetLampActive(visual.HorizontalRed, horizontalRed, _redMat);
+            SetLampActive(visual.HorizontalYellow, horizontalYellow, _yellowMat);
+            SetLampActive(visual.HorizontalGreen, horizontalGreen, _greenMat);
+        }
+
+        private void SetLampActive(Renderer renderer, bool active, Material activeMat)
+        {
+            if (renderer == null)
+            {
+                return;
+            }
+
+            Material target = active ? activeMat : _offMat;
+            if (renderer.sharedMaterial != target)
+            {
+                renderer.sharedMaterial = target;
+            }
+        }
+
+        private void EnsureMaterials()
+        {
+            if (_offMat != null)
+            {
+                return;
+            }
+
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+            {
+                shader = Shader.Find("Standard");
+            }
+
+            _offMat = CreateMaterial(shader, new Color(0.12f, 0.12f, 0.12f, 1f), 0f);
+            _redMat = CreateMaterial(shader, new Color(0.90f, 0.10f, 0.10f, 1f), 0f);
+            _yellowMat = CreateMaterial(shader, new Color(1.00f, 0.85f, 0.10f, 1f), 0f);
+            _greenMat = CreateMaterial(shader, new Color(0.10f, 0.85f, 0.20f, 1f), 0f);
+        }
+
+        private Material CreateMaterial(Shader shader, Color color, float metallic)
+        {
+            Material mat = new Material(shader);
+            mat.color = color;
+            if (mat.HasProperty("_Metallic"))
+            {
+                mat.SetFloat("_Metallic", metallic);
+            }
+
+            if (mat.HasProperty("_Smoothness"))
+            {
+                mat.SetFloat("_Smoothness", 0.2f);
+            }
+
+            return mat;
+        }
+
+        private void DestroyVisuals()
+        {
+            _visuals.Clear();
+
+            if (_visualRoot != null)
+            {
+                Object.Destroy(_visualRoot.gameObject);
+                _visualRoot = null;
+            }
+        }
+
+        private void DestroyMaterials()
+        {
+            if (_offMat != null)
+            {
+                Object.Destroy(_offMat);
+                _offMat = null;
+            }
+
+            if (_redMat != null)
+            {
+                Object.Destroy(_redMat);
+                _redMat = null;
+            }
+
+            if (_yellowMat != null)
+            {
+                Object.Destroy(_yellowMat);
+                _yellowMat = null;
+            }
+
+            if (_greenMat != null)
+            {
+                Object.Destroy(_greenMat);
+                _greenMat = null;
+            }
+        }
+
+        private void DestroyColliderIfExists(GameObject go)
+        {
+            Collider col = go.GetComponent<Collider>();
+            if (col != null)
+            {
+                Object.Destroy(col);
+            }
+        }
+
+        private void SetRendererMaterial(GameObject go, Material mat)
+        {
+            Renderer renderer = go.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.sharedMaterial = mat;
+            }
         }
     }
 }

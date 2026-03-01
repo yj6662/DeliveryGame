@@ -13,8 +13,8 @@ namespace DeliveryRun.Managers.Subs
         private readonly RectTransform[] _worldOrderTimerRows = new RectTransform[MaxWorldOrderTimerSlots];
         private readonly Image[] _worldOrderTimerRowImages = new Image[MaxWorldOrderTimerSlots];
         private readonly Image[] _worldOrderTimerFillImages = new Image[MaxWorldOrderTimerSlots];
-        private readonly OrderFlowManager.ActiveOrderTimerView[] _worldOrderTimerViews =
-            new OrderFlowManager.ActiveOrderTimerView[MaxWorldOrderTimerSlots];
+        private readonly ActiveOrderTimerView[] _worldOrderTimerViews =
+            new ActiveOrderTimerView[MaxWorldOrderTimerSlots];
         private Camera _worldUiCamera;
 
         internal void BuildIfNeeded()
@@ -123,7 +123,7 @@ namespace DeliveryRun.Managers.Subs
                     continue;
                 }
 
-                OrderFlowManager.ActiveOrderTimerView info = _worldOrderTimerViews[i];
+                ActiveOrderTimerView info = _worldOrderTimerViews[i];
                 float remaining = Mathf.Max(0f, info.RemainingSeconds);
                 float limit = Mathf.Max(1f, info.LimitSeconds);
                 float ratio = remaining / limit;

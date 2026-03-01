@@ -37,7 +37,7 @@ namespace DeliveryRun.Managers.Subs
         private int _runSequence;
         private float _unexpectedPauseAccum;
         private bool _unexpectedPauseLogged;
-        private UiRunHudManager _uiRunHudManager;
+        private UIManager _uiManager;
 
         public override string Name => nameof(RunSessionManager);
         public override int InitOrder => 40;
@@ -490,12 +490,12 @@ namespace DeliveryRun.Managers.Subs
             bool expectedPause = _session != null && _session.State == DomainRunSessionState.PauseForChoice;
             if (!expectedPause)
             {
-                if (_uiRunHudManager == null)
+                if (_uiManager == null)
                 {
-                    Services.TryGet(out _uiRunHudManager);
+                    Services.TryGet(out _uiManager);
                 }
 
-                expectedPause = _uiRunHudManager != null && _uiRunHudManager.IsPauseMenuOpen;
+                expectedPause = _uiManager != null && _uiManager.IsPauseMenuOpen;
             }
 
             if (expectedPause)

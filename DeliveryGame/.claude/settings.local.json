@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(find:*)",
-      "Bash(sort -rn -k2)"
+      "Bash(sort -rn -k2)",
+      "Bash(ls:*)"
     ]
   }
 }

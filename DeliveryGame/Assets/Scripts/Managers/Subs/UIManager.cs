@@ -1,192 +1,224 @@
-using DeliveryRun;
+﻿using System;
+using System.Collections.Generic;
 using DeliveryRun.Managers.Core;
+using DeliveryRun.UI;
+using DeliveryRun.UI.Features;
+using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace DeliveryRun.Managers.Subs
 {
     public sealed class UIManager : SubManagerBase
     {
-        private const double ToastDurationSeconds = 2.0d;
+        private readonly List<IUiFeature> _features = new List<IUiFeature>(8);
 
-        private string _currentScreen;
-        private string _lastToast;
-        private double _toastExpireAt;
-        private int _activeOrderCount;
-        private int _completedOrderCount;
-        private int _failedOrderCount;
-        private float _runRemainingSeconds;
-        private float _ratingValue;
-        private int _sessionCoins;
-        private int _totalCoins;
-        private int _pendingMusicChoiceIndex;
+        private UiPrefabCatalogSO _catalog;
+        private AddressablesService _addressables;
+
+        private UiStateFeature _stateFeature;
+        private RunHudUiFeature _runHudFeature;
 
         public override string Name => nameof(UIManager);
         public override int InitOrder => 35;
 
-        public string CurrentScreen => _currentScreen;
-        public string LastToast => _lastToast;
-        public int ActiveOrderCount => _activeOrderCount;
-        public int CompletedOrderCount => _completedOrderCount;
-        public int FailedOrderCount => _failedOrderCount;
-        public float RunRemainingSeconds => _runRemainingSeconds;
-        public float RatingValue => _ratingValue;
-        public int SessionCoins => _sessionCoins;
-        public int TotalCoins => _totalCoins;
-        public int PendingMusicChoiceIndex => _pendingMusicChoiceIndex;
+        public string CurrentScreen => _stateFeature != null ? _stateFeature.CurrentScreen : null;
+        public string LastToast => _stateFeature != null ? _stateFeature.LastToast : null;
+        public int ActiveOrderCount => _stateFeature != null ? _stateFeature.ActiveOrderCount : 0;
+        public int CompletedOrderCount => _stateFeature != null ? _stateFeature.CompletedOrderCount : 0;
+        public int FailedOrderCount => _stateFeature != null ? _stateFeature.FailedOrderCount : 0;
+        public float RunRemainingSeconds => _stateFeature != null ? _stateFeature.RunRemainingSeconds : 0f;
+        public float RatingValue => _stateFeature != null ? _stateFeature.RatingValue : 5f;
+        public int SessionCoins => _stateFeature != null ? _stateFeature.SessionCoins : 0;
+        public int TotalCoins => _stateFeature != null ? _stateFeature.TotalCoins : 0;
+        public int PendingMusicChoiceIndex => _stateFeature != null ? _stateFeature.PendingMusicChoiceIndex : -1;
+        public bool IsPauseMenuOpen => _runHudFeature != null && _runHudFeature.IsPauseMenuOpen;
+
+        internal UiPrefabCatalogSO Catalog => _catalog;
 
         protected override void OnInitialize()
         {
-            _currentScreen = SceneNames.CoreScene;
-            _lastToast = null;
-            _toastExpireAt = 0d;
-            _activeOrderCount = 0;
-            _completedOrderCount = 0;
-            _failedOrderCount = 0;
-            _runRemainingSeconds = 0f;
-            _ratingValue = 5f;
-            _sessionCoins = 0;
-            _totalCoins = 0;
-            _pendingMusicChoiceIndex = -1;
+            EnsureUiBootstrap();
 
-            Subs.Add<SceneTransitionStarted>(Events, OnSceneTransitionStarted);
-            Subs.Add<SceneTransitionCompleted>(Events, OnSceneTransitionCompleted);
-            Subs.Add<RunSessionTick>(Events, OnRunSessionTick);
-            Subs.Add<RunSessionLastOrderStarted>(Events, OnRunSessionLastOrderStarted);
-            Subs.Add<DeliveryOrderSpawned>(Events, OnDeliveryOrderSpawned);
-            Subs.Add<DeliveryOrderCompleted>(Events, OnDeliveryOrderCompleted);
-            Subs.Add<DeliveryOrderFailed>(Events, OnDeliveryOrderFailed);
-            Subs.Add<RatingChanged>(Events, OnRatingChanged);
-            Subs.Add<EconomyChanged>(Events, OnEconomyChanged);
-            Subs.Add<MusicChoiceRequested>(Events, OnMusicChoiceRequested);
-            Subs.Add<MusicChoiceApplied>(Events, OnMusicChoiceApplied);
+            RegisterFeature(_stateFeature = new UiStateFeature());
+            RegisterFeature(new MusicChoiceUiFeature());
+            RegisterFeature(new LobbyUiFeature());
+            RegisterFeature(_runHudFeature = new RunHudUiFeature());
+            RegisterFeature(new RunResultUiFeature());
         }
 
         protected override void OnTick(float unscaledDeltaTime)
         {
-            if (_lastToast == null)
+            for (int i = 0; i < _features.Count; i++)
             {
-                return;
-            }
+                IUiFeature feature = _features[i];
+                if (feature == null)
+                {
+                    continue;
+                }
 
-            if (Clock.Now >= _toastExpireAt)
-            {
-                _lastToast = null;
-                _toastExpireAt = 0d;
+                feature.Tick(unscaledDeltaTime);
             }
         }
 
         protected override void OnShutdown()
         {
-            _currentScreen = null;
-            _lastToast = null;
-            _toastExpireAt = 0d;
-            _activeOrderCount = 0;
-            _completedOrderCount = 0;
-            _failedOrderCount = 0;
-            _runRemainingSeconds = 0f;
-            _ratingValue = 5f;
-            _sessionCoins = 0;
-            _totalCoins = 0;
-            _pendingMusicChoiceIndex = -1;
-        }
-
-        private void OnSceneTransitionStarted(SceneTransitionStarted evt)
-        {
-            _currentScreen = SceneNames.LoadingScene;
-            PushToast("Loading...");
-        }
-
-        private void OnSceneTransitionCompleted(SceneTransitionCompleted evt)
-        {
-            _currentScreen = evt.SceneName;
-
-            if (evt.SceneName == SceneNames.LobbyScene)
+            for (int i = _features.Count - 1; i >= 0; i--)
             {
-                PushToast("Lobby Ready");
-                return;
+                IUiFeature feature = _features[i];
+                if (feature == null)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    feature.Shutdown();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError("[UIManager] UI feature shutdown failed: " + feature.GetType().FullName);
+                    Debug.LogException(ex);
+                }
             }
 
-            if (evt.SceneName == SceneNames.RunScene)
-            {
-                PushToast("Run Started");
-                _activeOrderCount = 0;
-                _runRemainingSeconds = 420f;
-            }
+            _features.Clear();
+            _stateFeature = null;
+            _runHudFeature = null;
+            _catalog = null;
+            _addressables = null;
         }
 
-        private void OnRunSessionTick(RunSessionTick evt)
+        private void RegisterFeature(IUiFeature feature)
         {
-            _runRemainingSeconds = evt.RemainingSeconds;
-        }
-
-        private void OnRunSessionLastOrderStarted(RunSessionLastOrderStarted evt)
-        {
-            PushToast("Last Order Start");
-        }
-
-        private void OnDeliveryOrderSpawned(DeliveryOrderSpawned evt)
-        {
-            _activeOrderCount++;
-            PushToast("New Order #" + evt.OrderSequence);
-        }
-
-        private void OnDeliveryOrderCompleted(DeliveryOrderCompleted evt)
-        {
-            if (_activeOrderCount > 0)
-            {
-                _activeOrderCount--;
-            }
-
-            _completedOrderCount++;
-            PushToast("Order #" + evt.OrderSequence + " Completed");
-        }
-
-        private void OnDeliveryOrderFailed(DeliveryOrderFailed evt)
-        {
-            if (_activeOrderCount > 0)
-            {
-                _activeOrderCount--;
-            }
-
-            _failedOrderCount++;
-            PushToast("Order #" + evt.OrderSequence + " Failed");
-        }
-
-        private void OnRatingChanged(RatingChanged evt)
-        {
-            _ratingValue = evt.Value;
-            if (evt.Value <= 1.0f)
-            {
-                PushToast("Rating Critical");
-            }
-        }
-
-        private void OnEconomyChanged(EconomyChanged evt)
-        {
-            _sessionCoins = evt.SessionCoins;
-            _totalCoins = evt.TotalCoins;
-        }
-
-        private void OnMusicChoiceRequested(MusicChoiceRequested evt)
-        {
-            _pendingMusicChoiceIndex = evt.ChoiceIndex;
-            PushToast("Music Choice #" + (evt.ChoiceIndex + 1));
-        }
-
-        private void OnMusicChoiceApplied(MusicChoiceApplied evt)
-        {
-            _pendingMusicChoiceIndex = -1;
-            PushToast("Modifier Applied");
-        }
-
-        private void PushToast(string message)
-        {
-            if (string.IsNullOrEmpty(message))
+            if (feature == null)
             {
                 return;
             }
 
-            _lastToast = message;
-            _toastExpireAt = Clock.Now + ToastDurationSeconds;
+            _features.Add(feature);
+            feature.Initialize(Ctx, this);
+        }
+
+        internal bool TryGetService<T>(out T service) where T : class
+        {
+            service = null;
+            return Services != null && Services.TryGet(out service);
+        }
+
+        internal void EnsureUiBootstrap()
+        {
+            EnsureCatalogLoaded();
+            EnsureEventSystem();
+            EnsureAddressablesService();
+        }
+
+        internal void EnsureEventSystem()
+        {
+            UiEventSystemBootstrap.EnsureNow();
+        }
+
+        internal void EnsureCatalogLoaded()
+        {
+            if (_catalog != null)
+            {
+                return;
+            }
+
+            _catalog = UiPrefabCatalogLoader.LoadOrNull();
+        }
+
+        internal void InstantiateRunHud(Action<GameObject> onDone)
+        {
+            EnsureCatalogLoaded();
+            InstantiateCatalogPrefab(
+                _catalog != null ? _catalog.RunHudKey : null,
+                _catalog != null ? _catalog.RunHudPrefab : null,
+                onDone);
+        }
+
+        internal void InstantiateMusicSelectionModal(Action<GameObject> onDone)
+        {
+            EnsureCatalogLoaded();
+            InstantiateCatalogPrefab(
+                _catalog != null ? _catalog.MusicSelectionModalKey : null,
+                _catalog != null ? _catalog.MusicSelectionModalPrefab : null,
+                onDone);
+        }
+
+        internal void InstantiateRunResultModal(Action<GameObject> onDone)
+        {
+            EnsureCatalogLoaded();
+            InstantiateCatalogPrefab(
+                _catalog != null ? _catalog.RunResultModalKey : null,
+                _catalog != null ? _catalog.RunResultModalPrefab : null,
+                onDone);
+        }
+
+        internal void InstantiateCatalogPrefab(string addressableKey, GameObject fallbackPrefab, Action<GameObject> onDone)
+        {
+            EnsureUiBootstrap();
+
+            if (onDone == null)
+            {
+                return;
+            }
+
+            if (_addressables != null && _addressables.IsAvailable && !string.IsNullOrEmpty(addressableKey))
+            {
+                _addressables.InstantiatePrefab(addressableKey, null, instance =>
+                {
+                    if (instance != null)
+                    {
+                        onDone(instance);
+                        return;
+                    }
+
+                    onDone(fallbackPrefab != null ? Object.Instantiate(fallbackPrefab) : null);
+                });
+                return;
+            }
+
+            onDone(fallbackPrefab != null ? Object.Instantiate(fallbackPrefab) : null);
+        }
+
+        internal void ReleaseUiInstance(GameObject instance)
+        {
+            if (instance == null)
+            {
+                return;
+            }
+
+            EnsureAddressablesService();
+            if (_addressables != null)
+            {
+                _addressables.ReleaseInstance(instance);
+                return;
+            }
+
+            Object.Destroy(instance);
+        }
+
+        internal void PlayUiClick()
+        {
+            EnsureCatalogLoaded();
+
+            AudioManager audioManager;
+            if (!TryGetService(out audioManager) || audioManager == null || _catalog == null)
+            {
+                return;
+            }
+
+            audioManager.PlayUiClick(_catalog.UiClickKey);
+        }
+
+        private void EnsureAddressablesService()
+        {
+            if (_addressables != null)
+            {
+                return;
+            }
+
+            Services.TryGet(out _addressables);
         }
     }
 }

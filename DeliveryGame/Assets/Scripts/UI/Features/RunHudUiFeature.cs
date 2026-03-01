@@ -1,10 +1,10 @@
 using System;
-using System.Collections.Generic;
 using DeliveryRun;
 using DeliveryRun.Delivery.Orders;
 using DeliveryRun.Delivery.Input;
 using DeliveryRun.Delivery.Vehicle;
 using DeliveryRun.Managers.Core;
+using DeliveryRun.Managers.Subs;
 using DeliveryRun.Music;
 using DeliveryRun.UI;
 using DeliveryRun.UI.Run;
@@ -13,10 +13,24 @@ using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 using DomainRunSessionStarted = DeliveryRun.Delivery.RunSession.RunSessionStarted;
 
-namespace DeliveryRun.Managers.Subs
+
+namespace DeliveryRun.UI.Features
 {
-    public sealed class UiRunHudManager : SubManagerBase
+    internal sealed class RunHudUiFeature : UiFeatureBase
     {
+        protected override void OnInitialize()
+        {
+            InitializeRunHudModule();
+        }
+        protected override void OnTick(float unscaledDeltaTime)
+        {
+            TickRunHudModule(unscaledDeltaTime);
+        }
+        protected override void OnShutdown()
+        {
+            ShutdownRunHudModule();
+        }
+
         private const float ScenePollInterval = 0.25f;
         private const float UiRefreshInterval = 0.1f;
         private const float MinimapRefreshInterval = 0.05f;
@@ -26,16 +40,8 @@ namespace DeliveryRun.Managers.Subs
 
         private readonly string[] _pickedGenreByChoice = new string[ChoiceSlots];
         private readonly string[] _pickedTrackNameByChoice = new string[ChoiceSlots];
-        private readonly string[] _activeOrderIds = new string[MaxTrackedOrders];
-        private readonly string[] _activeOrderTexts = new string[MaxTrackedOrders];
-        private readonly Dictionary<string, string> _offerPickupNames = new Dictionary<string, string>(MaxTrackedOrders);
-        private readonly Dictionary<string, string> _offerDeliveryNames = new Dictionary<string, string>(MaxTrackedOrders);
-        private readonly Dictionary<string, int> _offerBaseRewards = new Dictionary<string, int>(MaxTrackedOrders);
-        private readonly Dictionary<string, bool> _orderCarryingByOffer = new Dictionary<string, bool>(MaxTrackedOrders);
+        private readonly HudPhoneState _phoneState = new HudPhoneState(MaxTrackedOrders);
 
-        private UiPrefabCatalogSO _catalog;
-        private AddressablesService _addressables;
-        private AudioManager _audioManager;
         private MusicLibraryService _musicLibrary;
         private ModifierStackService _modifierStack;
         private OrderFlowManager _orderFlowManager;
@@ -53,11 +59,6 @@ namespace DeliveryRun.Managers.Subs
 
         private float _speedMultiplier;
         private float _currentSpeedKmh;
-        private float _foodTemperature01;
-        private float _foodSpill01;
-        private float _foodQuality01;
-        private bool _hasFoodState;
-        private string _foodOfferId;
 
         private MotorbikeController _player;
 
@@ -72,35 +73,15 @@ namespace DeliveryRun.Managers.Subs
 
         private HudWorldOrderTimerPanel _worldOrderTimerPanel;
 
-        private string _currentOfferId;
-        private string _currentPickupName;
-        private string _currentDeliveryName;
-        private int _currentOfferReward;
-        private float _currentOfferRemaining;
-        private float _currentOfferDuration;
-        private bool _offerAcceptWindow;
-        private bool _previewVisible;
-        private double _offerUiExpireAt;
-        private bool _offerUiPauseActive;
-        private double _offerUiPauseStartedAt;
-        private int _offerUiLastTenth;
-
-        private int _activeOrderCount;
         private int _sessionBalance;
-        private int _sessionBonus;
 
         private HudPausePanel _pausePanelController;
         private HudStatusDisplay _statusDisplay;
 
-        public override string Name => nameof(UiRunHudManager);
-        public override int InitOrder => 36;
-        public bool IsPauseMenuOpen => _pausePanelController != null && _pausePanelController.IsOpen;
+        internal bool IsPauseMenuOpen => _pausePanelController != null && _pausePanelController.IsOpen;
 
-        protected override void OnInitialize()
+        private void InitializeRunHudModule()
         {
-            _catalog = UiPrefabCatalogLoader.LoadOrNull();
-            Services.TryGet(out _addressables);
-            Services.TryGet(out _audioManager);
             Services.TryGet(out _musicLibrary);
             Services.TryGet(out _modifierStack);
             Services.TryGet(out _orderFlowManager);
@@ -135,7 +116,7 @@ namespace DeliveryRun.Managers.Subs
             HandleSceneChanged(SceneManager.GetActiveScene().name);
         }
 
-        protected override void OnTick(float unscaledDeltaTime)
+        private void TickRunHudModule(float unscaledDeltaTime)
         {
             _scenePollElapsed += unscaledDeltaTime;
             if (_scenePollElapsed >= ScenePollInterval)
@@ -179,7 +160,7 @@ namespace DeliveryRun.Managers.Subs
             }
         }
 
-        protected override void OnShutdown()
+        private void ShutdownRunHudModule()
         {
             ClosePause(true);
             DestroyHud();
@@ -195,17 +176,7 @@ namespace DeliveryRun.Managers.Subs
             }
 
             _isRunScene = false;
-            _offerAcceptWindow = false;
-            _previewVisible = false;
-            _currentOfferRemaining = 0f;
-            _currentOfferDuration = 0f;
-            _offerUiExpireAt = 0d;
-            _offerUiPauseActive = false;
-            _offerUiPauseStartedAt = 0d;
-            _offerUiLastTenth = -1;
-            _foodOfferId = null;
-            _hasFoodState = false;
-            _orderCarryingByOffer.Clear();
+            _phoneState.ResetForSceneExit();
             _minimapPanel?.ResetRuntimeState();
             _musicChoiceModalOpen = false;
             ClosePause(true);
@@ -220,7 +191,6 @@ namespace DeliveryRun.Managers.Subs
         private void OnRunSessionStarted(DomainRunSessionStarted evt)
         {
             _sessionBalance = 0;
-            _sessionBonus = 0;
             _speedMultiplier = 1f;
             _currentSpeedKmh = 0f;
             _statusDisplay?.Reset();
@@ -229,27 +199,10 @@ namespace DeliveryRun.Managers.Subs
                 _pickedGenreByChoice[i] = null;
                 _pickedTrackNameByChoice[i] = null;
             }
-            _hasFoodState = false;
-            _foodOfferId = null;
-            _foodTemperature01 = 0f;
-            _foodSpill01 = 0f;
-            _foodQuality01 = 0f;
             _fuel01 = 1f;
 
-            _offerAcceptWindow = false;
-            _previewVisible = false;
-            _currentOfferRemaining = 0f;
-            _currentOfferDuration = 0f;
-            _offerUiExpireAt = 0d;
-            _offerUiPauseActive = false;
-            _offerUiPauseStartedAt = 0d;
-            _offerUiLastTenth = -1;
             _musicChoiceModalOpen = false;
-            _activeOrderCount = 0;
-            _offerPickupNames.Clear();
-            _offerDeliveryNames.Clear();
-            _offerBaseRewards.Clear();
-            _orderCarryingByOffer.Clear();
+            _phoneState.ResetForRunSession();
             _phonePanel?.ResetRuntimeState();
             MarkPhoneDirty();
             _minimapPanel?.ResetRuntimeState();
@@ -282,38 +235,7 @@ namespace DeliveryRun.Managers.Subs
         private void OnMusicChoiceModalStateChanged(MusicChoiceModalStateChanged evt)
         {
             _musicChoiceModalOpen = evt.IsOpen;
-
-            if (!_offerAcceptWindow || !_previewVisible)
-            {
-                _offerUiPauseActive = false;
-                _offerUiPauseStartedAt = 0d;
-                return;
-            }
-
-            if (evt.IsOpen)
-            {
-                if (_offerUiPauseActive)
-                {
-                    return;
-                }
-
-                _offerUiPauseActive = true;
-                _offerUiPauseStartedAt = Clock.Now;
-                return;
-            }
-
-            if (!_offerUiPauseActive)
-            {
-                return;
-            }
-
-            _offerUiPauseActive = false;
-            double pausedSeconds = Clock.Now - _offerUiPauseStartedAt;
-            _offerUiPauseStartedAt = 0d;
-            if (pausedSeconds > 0d && _offerUiExpireAt > 0d)
-            {
-                _offerUiExpireAt += pausedSeconds;
-            }
+            _phoneState.OnMusicChoiceModalStateChanged(evt.IsOpen, Clock.Now);
         }
 
         private void OnSpeedMultiplierChanged(PlayerMoveSpeedMultiplierChanged evt)
@@ -345,34 +267,13 @@ namespace DeliveryRun.Managers.Subs
 
         private void OnOfferSpawned(OfferSpawned evt)
         {
-            _currentOfferId = string.IsNullOrEmpty(evt.OfferId) ? "A1" : evt.OfferId;
-            _currentPickupName = evt.PickupName;
-            _currentDeliveryName = evt.DeliveryName;
-            _offerPickupNames[_currentOfferId] = _currentPickupName ?? string.Empty;
-            _offerDeliveryNames[_currentOfferId] = _currentDeliveryName ?? string.Empty;
-            _offerBaseRewards[_currentOfferId] = evt.Reward;
-            _currentOfferReward = evt.Reward;
-            _currentOfferRemaining = evt.TtlSeconds;
-            _currentOfferDuration = Mathf.Max(0.01f, evt.TtlSeconds);
-            _offerAcceptWindow = true;
-            _previewVisible = true;
-            _offerUiPauseActive = false;
-            _offerUiPauseStartedAt = 0d;
-            _offerUiLastTenth = Mathf.FloorToInt(_currentOfferRemaining * 10f);
-            _offerUiExpireAt = Clock.Now + evt.TtlSeconds;
+            _phoneState.OnOfferSpawned(evt, Clock.Now);
             MarkPhoneDirty();
         }
 
         private void OnOfferTicked(OfferTicked evt)
         {
-            if (!string.Equals(evt.OfferId, _currentOfferId, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            _currentOfferRemaining = evt.RemainingSeconds;
-            _offerUiLastTenth = Mathf.FloorToInt(_currentOfferRemaining * 10f);
-            if (_previewVisible)
+            if (_phoneState.OnOfferTicked(evt))
             {
                 MarkPhoneDirty();
             }
@@ -380,143 +281,42 @@ namespace DeliveryRun.Managers.Subs
 
         private void OnOfferExpired(OfferExpired evt)
         {
-            if (!string.Equals(evt.OfferId, _currentOfferId, StringComparison.Ordinal))
+            if (_phoneState.OnOfferExpired(evt))
             {
-                return;
+                MarkPhoneDirty();
             }
-
-            _offerAcceptWindow = false;
-            _previewVisible = false;
-            _currentOfferRemaining = 0f;
-            _offerUiExpireAt = 0d;
-            _offerUiPauseActive = false;
-            _offerUiPauseStartedAt = 0d;
-            _offerUiLastTenth = -1;
-            RemoveActiveOrder(evt.OfferId);
-            _offerPickupNames.Remove(evt.OfferId);
-            _offerDeliveryNames.Remove(evt.OfferId);
-            _offerBaseRewards.Remove(evt.OfferId);
-            _orderCarryingByOffer.Remove(evt.OfferId);
-            MarkPhoneDirty();
         }
         private void OnOfferAccepted(OfferAccepted evt)
         {
-            if (string.Equals(evt.OfferId, _currentOfferId, StringComparison.Ordinal))
-            {
-                _offerAcceptWindow = false;
-                _previewVisible = false;
-                _offerUiExpireAt = 0d;
-                _offerUiPauseActive = false;
-                _offerUiPauseStartedAt = 0d;
-                _offerUiLastTenth = -1;
-            }
-
-            string pickupName;
-            if (!_offerPickupNames.TryGetValue(evt.OfferId, out pickupName))
-            {
-                pickupName = _currentPickupName;
-            }
-            UpsertActiveOrder(evt.OfferId, string.IsNullOrEmpty(pickupName) ? "GO PICKUP" : "GO PICKUP: " + pickupName);
-            _orderCarryingByOffer[evt.OfferId] = false;
+            _phoneState.OnOfferAccepted(evt);
             MarkPhoneDirty();
         }
 
         private void OnOrderPickupReached(OrderPickupReached evt)
         {
-            string deliveryName;
-            if (!_offerDeliveryNames.TryGetValue(evt.OfferId, out deliveryName))
-            {
-                deliveryName = _currentDeliveryName;
-            }
-            _foodOfferId = evt.OfferId;
-            _orderCarryingByOffer[evt.OfferId] = true;
-            UpsertActiveOrder(evt.OfferId, string.IsNullOrEmpty(deliveryName) ? "DELIVER TO" : "DELIVER TO: " + deliveryName);
+            _phoneState.OnOrderPickupReached(evt);
             MarkPhoneDirty();
         }
 
         private void OnOrderCompleted(OrderCompleted evt)
         {
-            if (string.Equals(evt.OfferId, _currentOfferId, StringComparison.Ordinal))
-            {
-                _offerAcceptWindow = false;
-                _previewVisible = false;
-                _offerUiExpireAt = 0d;
-                _offerUiPauseActive = false;
-                _offerUiPauseStartedAt = 0d;
-                _offerUiLastTenth = -1;
-            }
-
-            int baseReward;
-            if (!_offerBaseRewards.TryGetValue(evt.OfferId, out baseReward) || baseReward <= 0)
-            {
-                baseReward = _currentOfferReward > 0 ? _currentOfferReward : evt.Reward;
-            }
-            _sessionBonus += evt.Reward - baseReward;
-            RemoveActiveOrder(evt.OfferId);
-            _offerPickupNames.Remove(evt.OfferId);
-            _offerDeliveryNames.Remove(evt.OfferId);
-            _offerBaseRewards.Remove(evt.OfferId);
-            _orderCarryingByOffer.Remove(evt.OfferId);
-            if (string.Equals(_foodOfferId, evt.OfferId, StringComparison.Ordinal))
-            {
-                _foodOfferId = null;
-                _hasFoodState = false;
-                _foodTemperature01 = 0f;
-                _foodSpill01 = 0f;
-                _foodQuality01 = 0f;
-            }
+            _phoneState.OnOrderCompleted(evt);
             MarkPhoneDirty();
             ApplyCashLabel();
         }
 
         private void OnOrderTimedOut(OrderTimedOut evt)
         {
-            if (string.Equals(evt.OfferId, _currentOfferId, StringComparison.Ordinal))
-            {
-                _offerAcceptWindow = false;
-                _previewVisible = false;
-                _offerUiExpireAt = 0d;
-                _offerUiPauseActive = false;
-                _offerUiPauseStartedAt = 0d;
-                _offerUiLastTenth = -1;
-            }
-
-            RemoveActiveOrder(evt.OfferId);
-            _offerPickupNames.Remove(evt.OfferId);
-            _offerDeliveryNames.Remove(evt.OfferId);
-            _offerBaseRewards.Remove(evt.OfferId);
-            _orderCarryingByOffer.Remove(evt.OfferId);
-            if (string.Equals(_foodOfferId, evt.OfferId, StringComparison.Ordinal))
-            {
-                _foodOfferId = null;
-                _hasFoodState = false;
-                _foodTemperature01 = 0f;
-                _foodSpill01 = 0f;
-                _foodQuality01 = 0f;
-            }
-
+            _phoneState.OnOrderTimedOut(evt);
             MarkPhoneDirty();
         }
 
         private void OnOrderObjectiveUpdated(OrderObjectiveUpdated evt)
         {
-            if (string.IsNullOrEmpty(evt.Text) || _activeOrderCount <= 0)
+            if (_phoneState.OnOrderObjectiveUpdated(evt))
             {
-                return;
+                MarkPhoneDirty();
             }
-
-            string targetOfferId = evt.OfferId;
-            if (string.IsNullOrEmpty(targetOfferId))
-            {
-                targetOfferId = _activeOrderIds[0];
-            }
-            if (string.IsNullOrEmpty(targetOfferId))
-            {
-                return;
-            }
-
-            UpsertActiveOrder(targetOfferId, evt.Text);
-            MarkPhoneDirty();
         }
 
         private void OnOrderObjectiveMarkerUpdated(OrderObjectiveMarkerUpdated evt)
@@ -537,10 +337,7 @@ namespace DeliveryRun.Managers.Subs
 
         private void OnFoodStateTicked(FoodStateTicked evt)
         {
-            _hasFoodState = true;
-            _foodTemperature01 = Mathf.Clamp01(evt.Temperature01);
-            _foodSpill01 = Mathf.Clamp01(evt.Spill01);
-            _foodQuality01 = Mathf.Clamp01(evt.Quality01);
+            _phoneState.OnFoodStateTicked(evt);
             MarkPhoneDirty();
         }
 
@@ -572,8 +369,7 @@ namespace DeliveryRun.Managers.Subs
             _isRunScene = shouldRun;
             if (!_isRunScene)
             {
-                _offerAcceptWindow = false;
-                _previewVisible = false;
+                _phoneState.ResetForSceneExit();
                 _minimapPanel?.ResetRuntimeState();
                 ClosePause(true);
                 DestroyHud();
@@ -594,40 +390,13 @@ namespace DeliveryRun.Managers.Subs
                 return;
             }
 
-            if (_catalog == null)
+            if (_hudLoadRequested)
             {
-                _catalog = UiPrefabCatalogLoader.LoadOrNull();
-                if (_catalog == null)
-                {
-                    return;
-                }
-            }
-
-            if (_addressables == null)
-            {
-                Services.TryGet(out _addressables);
-            }
-
-            if (_addressables != null && _addressables.IsAvailable && !string.IsNullOrEmpty(_catalog.RunHudKey))
-            {
-                if (_hudLoadRequested)
-                {
-                    return;
-                }
-
-                _hudLoadRequested = true;
-                _addressables.InstantiatePrefab(_catalog.RunHudKey, null, OnHudInstantiated);
                 return;
             }
 
-            if (_catalog.RunHudPrefab == null)
-            {
-                Debug.LogError("[UiRunHudManager] RunHUD key/prefab is not available.");
-                return;
-            }
-
-            _hudInstance = Object.Instantiate(_catalog.RunHudPrefab);
-            BindHud(_hudInstance);
+            _hudLoadRequested = true;
+            Ui.InstantiateRunHud(OnHudInstantiated);
         }
 
         private void OnHudInstantiated(GameObject hudObject)
@@ -718,40 +487,24 @@ namespace DeliveryRun.Managers.Subs
                 return;
             }
 
-            if (_addressables == null)
-            {
-                Services.TryGet(out _addressables);
-            }
-
-            if (_addressables != null)
-            {
-                _addressables.ReleaseInstance(hudObject);
-                return;
-            }
-
-            Object.Destroy(hudObject);
+            Ui.ReleaseUiInstance(hudObject);
         }
 
         private void HandleOfferAcceptInput()
         {
-            if (_musicChoiceModalOpen)
-            {
-                return;
-            }
-
-            if (!_offerAcceptWindow)
-            {
-                return;
-            }
-
             if (!RuntimeInput.WasOfferAcceptPressedThisFrame())
             {
                 return;
             }
 
-            _offerAcceptWindow = false;
+            string offerId;
+            if (!_phoneState.TryConsumeOfferAccept(_musicChoiceModalOpen, out offerId))
+            {
+                return;
+            }
+
             TryPlayUiClick();
-            Events.Publish(new AcceptOfferRequested { OfferId = _currentOfferId });
+            Events.Publish(new AcceptOfferRequested { OfferId = offerId });
         }
 
         private void RefreshTimeLabel()
@@ -857,74 +610,7 @@ namespace DeliveryRun.Managers.Subs
 
         private void ApplyCashLabel()
         {
-            _statusDisplay?.ApplyCash(_view, _sessionBalance, _sessionBonus);
-        }
-
-        private void UpsertActiveOrder(string offerId, string text)
-        {
-            if (string.IsNullOrEmpty(offerId))
-            {
-                return;
-            }
-
-            int idx = -1;
-            for (int i = 0; i < _activeOrderCount; i++)
-            {
-                if (string.Equals(_activeOrderIds[i], offerId, StringComparison.Ordinal))
-                {
-                    idx = i;
-                    break;
-                }
-            }
-
-            if (idx >= 0)
-            {
-                _activeOrderTexts[idx] = text;
-                return;
-            }
-
-            if (_activeOrderCount >= MaxTrackedOrders)
-            {
-                _activeOrderCount = MaxTrackedOrders - 1;
-            }
-
-            _activeOrderIds[_activeOrderCount] = offerId;
-            _activeOrderTexts[_activeOrderCount] = text;
-            _activeOrderCount++;
-        }
-
-        private void RemoveActiveOrder(string offerId)
-        {
-            if (string.IsNullOrEmpty(offerId) || _activeOrderCount <= 0)
-            {
-                return;
-            }
-
-            int idx = -1;
-            for (int i = 0; i < _activeOrderCount; i++)
-            {
-                if (string.Equals(_activeOrderIds[i], offerId, StringComparison.Ordinal))
-                {
-                    idx = i;
-                    break;
-                }
-            }
-
-            if (idx < 0)
-            {
-                return;
-            }
-
-            for (int i = idx; i < _activeOrderCount - 1; i++)
-            {
-                _activeOrderIds[i] = _activeOrderIds[i + 1];
-                _activeOrderTexts[i] = _activeOrderTexts[i + 1];
-            }
-
-            _activeOrderCount--;
-            _activeOrderIds[_activeOrderCount] = null;
-            _activeOrderTexts[_activeOrderCount] = null;
-            _orderCarryingByOffer.Remove(offerId);
+            _statusDisplay?.ApplyCash(_view, _sessionBalance, _phoneState.SessionBonus);
         }
 
         private void MarkPhoneDirty()
@@ -934,52 +620,22 @@ namespace DeliveryRun.Managers.Subs
 
         private HudPhonePanel.PhoneViewState BuildPhoneViewState()
         {
-            return new HudPhonePanel.PhoneViewState
-            {
-                ActiveOrderCount = _activeOrderCount,
-                HasFoodState = _hasFoodState,
-                FoodTemperature01 = _foodTemperature01,
-                FoodSpill01 = _foodSpill01,
-                FoodOfferId = _foodOfferId,
-                PreviewVisible = _previewVisible,
-                OfferAcceptWindow = _offerAcceptWindow,
-                CurrentOfferDuration = _currentOfferDuration,
-                CurrentOfferRemaining = _currentOfferRemaining,
-                CurrentPickupName = _currentPickupName,
-                CurrentDeliveryName = _currentDeliveryName,
-                CurrentOfferReward = _currentOfferReward
-            };
+            return _phoneState.BuildViewState();
         }
 
         private void UpdateOfferCountdownFromClock()
         {
-            if (!_offerAcceptWindow || !_previewVisible || _offerUiPauseActive || _offerUiExpireAt <= 0d)
+            if (_phoneState.TickOfferCountdown(Clock.Now))
             {
-                return;
-            }
-
-            double remainingSeconds = _offerUiExpireAt - Clock.Now;
-            if (remainingSeconds < 0d)
-            {
-                remainingSeconds = 0d;
-            }
-
-            float remainingFloat = (float)remainingSeconds;
-            int tenth = Mathf.FloorToInt(remainingFloat * 10f);
-            if (tenth != _offerUiLastTenth)
-            {
-                _offerUiLastTenth = tenth;
                 MarkPhoneDirty();
             }
-
-            _currentOfferRemaining = remainingFloat;
         }
 
         private void BuildPhoneUi()
         {
             if (_phonePanel == null)
             {
-                _phonePanel = new HudPhonePanel(_activeOrderIds, _activeOrderTexts, _orderCarryingByOffer);
+                _phonePanel = new HudPhonePanel(_phoneState.ActiveOrders, _phoneState.CarryingByOffer);
             }
 
             _phonePanel.BuildIfNeeded(_view);
@@ -1165,17 +821,7 @@ namespace DeliveryRun.Managers.Subs
 
         private void TryPlayUiClick()
         {
-            if (_audioManager == null)
-            {
-                Services.TryGet(out _audioManager);
-            }
-
-            if (_audioManager == null || _catalog == null)
-            {
-                return;
-            }
-
-            _audioManager.PlayUiClick(_catalog.UiClickKey);
+            Ui.PlayUiClick();
         }
 
         private void ResetState()
@@ -1189,26 +835,8 @@ namespace DeliveryRun.Managers.Subs
 
             _statusDisplay.Reset();
             _speedMultiplier = 1f;
-            _hasFoodState = false;
-            _foodOfferId = null;
-            _foodTemperature01 = 0f;
-            _foodSpill01 = 0f;
-            _foodQuality01 = 0f;
-            _offerAcceptWindow = false;
-            _previewVisible = false;
-            _currentOfferId = "A1";
-            _currentPickupName = string.Empty;
-            _currentDeliveryName = string.Empty;
-            _currentOfferReward = 0;
-            _currentOfferRemaining = 0f;
-            _currentOfferDuration = 0f;
-            _offerUiExpireAt = 0d;
-            _offerUiPauseActive = false;
-            _offerUiPauseStartedAt = 0d;
-            _offerUiLastTenth = -1;
-            _activeOrderCount = 0;
+            _phoneState.ResetAll();
             _sessionBalance = 0;
-            _sessionBonus = 0;
             _phonePanel?.ResetRuntimeState();
             MarkPhoneDirty();
             _lastWholeSecond = int.MinValue;
@@ -1218,10 +846,6 @@ namespace DeliveryRun.Managers.Subs
             }
 
             _minimapPanel.ResetRuntimeState();
-            _offerPickupNames.Clear();
-            _offerDeliveryNames.Clear();
-            _offerBaseRewards.Clear();
-            _orderCarryingByOffer.Clear();
             for (int i = 0; i < ChoiceSlots; i++)
             {
                 _pickedGenreByChoice[i] = null;
@@ -1230,8 +854,3 @@ namespace DeliveryRun.Managers.Subs
         }
     }
 }
-
-
-
-
-
