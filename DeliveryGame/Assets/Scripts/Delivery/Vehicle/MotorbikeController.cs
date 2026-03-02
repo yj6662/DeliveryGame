@@ -52,6 +52,10 @@ namespace DeliveryRun.Delivery.Vehicle
         [SerializeField] private float angularDrag = 5f;
         [SerializeField] private float downforce = 5f;
 
+        [Header("Collision Reaction")]
+        [SerializeField] private float externalPushDamping = 8.5f;
+        [SerializeField] private float maxExternalPushSpeed = 9f;
+
         [Header("Body")]
         [SerializeField] private Vector3 centerOfMassOffset = new Vector3(0f, -0.45f, 0f);
         [SerializeField] private LayerMask groundMask = ~0;
@@ -64,6 +68,7 @@ namespace DeliveryRun.Delivery.Vehicle
         private float _reverseHoldTimer;
         private float _currentLeanAngle;
         private float _stunRemaining;
+        private Vector3 _externalPushVelocity;
 
         private float _turnSensitivityMul = 1f;
         private float _accelerationMul = 1f;
@@ -134,6 +139,27 @@ namespace DeliveryRun.Delivery.Vehicle
             }
 
             _stunRemaining = Mathf.Max(_stunRemaining, seconds);
+        }
+
+        public void ApplyCollisionPush(Vector3 worldDirection, float pushSpeed)
+        {
+            if (pushSpeed <= 0f)
+            {
+                return;
+            }
+
+            Vector3 planarDirection = Vector3.ProjectOnPlane(worldDirection, Vector3.up);
+            if (planarDirection.sqrMagnitude <= 0.0001f)
+            {
+                return;
+            }
+
+            _externalPushVelocity += planarDirection.normalized * pushSpeed;
+            float maxPushSpeed = Mathf.Max(0f, maxExternalPushSpeed);
+            if (maxPushSpeed > 0f && _externalPushVelocity.sqrMagnitude > (maxPushSpeed * maxPushSpeed))
+            {
+                _externalPushVelocity = _externalPushVelocity.normalized * maxPushSpeed;
+            }
         }
 
         private void FixedUpdate()
@@ -278,6 +304,17 @@ namespace DeliveryRun.Delivery.Vehicle
                 float speedFactor = _currentSpeed / maxSpeedForRatio;
                 Vector3 lateralDrift = -transform.right * _steeringInput * driftIntensity * speedFactor * _currentSpeed;
                 forwardMovement += lateralDrift * dt;
+            }
+
+            if (_externalPushVelocity.sqrMagnitude > 0.0001f)
+            {
+                forwardMovement += _externalPushVelocity;
+                float damping = Mathf.Max(0f, externalPushDamping);
+                _externalPushVelocity = Vector3.MoveTowards(_externalPushVelocity, Vector3.zero, damping * dt);
+            }
+            else
+            {
+                _externalPushVelocity = Vector3.zero;
             }
 
             Vector3 nextPosition = rb.position + (forwardMovement * dt);

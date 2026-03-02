@@ -21,6 +21,10 @@ namespace DeliveryRun.Managers.Subs
         private const float NpcSpillScale = 12f;
         private const float NpcSpillMin = 0.01f;
         private const float NpcSpillMax = 0.18f;
+        private const float NpcHitPushMinSpeed = 1.4f;
+        private const float NpcHitPushMaxSpeed = 7f;
+        private const float NpcHitPushRelativeVelocityScale = 0.85f;
+        private const float NpcHitPushImpulseScale = 0.03f;
 
         private MotorbikeController _bike;
         private BikeCollisionReporter _collisionReporter;
@@ -200,6 +204,9 @@ namespace DeliveryRun.Managers.Subs
             if (_bike != null)
             {
                 _bike.ApplyStun(NpcHitStunSeconds);
+                Vector3 pushDirection = ComputeBikePushDirection(info.Collision, npcVehicle);
+                float pushSpeed = ComputeBikePushSpeed(info);
+                _bike.ApplyCollisionPush(pushDirection, pushSpeed);
             }
 
             BeginCollisionIgnoreWindow();
@@ -267,6 +274,60 @@ namespace DeliveryRun.Managers.Subs
             }
 
             return false;
+        }
+
+        private Vector3 ComputeBikePushDirection(Collision collision, TrafficNpcVehicle npcVehicle)
+        {
+            Vector3 direction = Vector3.zero;
+            if (collision != null)
+            {
+                int contactCount = collision.contactCount;
+                for (int i = 0; i < contactCount; i++)
+                {
+                    direction += collision.GetContact(i).normal;
+                }
+            }
+
+            Transform bikeTransform = _bike != null ? _bike.transform : null;
+            Transform npcTransform = npcVehicle != null ? npcVehicle.transform : null;
+
+            if (bikeTransform != null && npcTransform != null)
+            {
+                Vector3 bikeFromNpc = bikeTransform.position - npcTransform.position;
+                bikeFromNpc.y = 0f;
+
+                if (direction.sqrMagnitude > 0.0001f && Vector3.Dot(direction, bikeFromNpc) < 0f)
+                {
+                    direction = -direction;
+                }
+
+                if (direction.sqrMagnitude <= 0.0001f)
+                {
+                    direction = bikeFromNpc;
+                }
+            }
+
+            direction.y = 0f;
+            if (direction.sqrMagnitude <= 0.0001f && bikeTransform != null)
+            {
+                direction = bikeTransform.right;
+            }
+
+            return direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.zero;
+        }
+
+        private static float ComputeBikePushSpeed(BikeCollisionInfo info)
+        {
+            float relativeSpeed = 0f;
+            if (info.Collision != null)
+            {
+                relativeSpeed = info.Collision.relativeVelocity.magnitude;
+            }
+
+            float pushFromRelativeSpeed = relativeSpeed * NpcHitPushRelativeVelocityScale;
+            float pushFromImpulse = info.Impulse * NpcHitPushImpulseScale;
+            float pushSpeed = Mathf.Max(pushFromRelativeSpeed, pushFromImpulse);
+            return Mathf.Clamp(pushSpeed, NpcHitPushMinSpeed, NpcHitPushMaxSpeed);
         }
 
         private bool IsCollisionIgnoreActive() => Time.unscaledTime < _npcCollisionIgnoreUntil;
