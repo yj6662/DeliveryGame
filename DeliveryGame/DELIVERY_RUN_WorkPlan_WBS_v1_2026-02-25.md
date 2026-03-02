@@ -235,7 +235,7 @@ Unity Version: 6000.3.9f1
 
 #### (Feature) 오퍼 생성/표시/만료(수락 제한 5초)
 - [ENG] OfferSpawner:
-  - 런 진행에 따라 오퍼 생성(Phase A: 1개 고정)
+  - 동시 pending 오퍼 1개 유지, 수락/만료 시 respawn 지연 후 다음 오퍼 생성
   - Offer TTL 5초(수락 제한)
 - [UI] 오퍼 알림(토스트/카드) + 카운트다운
 - [ENG] 만료 이벤트 발행: `OfferExpired` → 평판/경제 연동(Phase B)
@@ -505,7 +505,7 @@ Unity Version: 6000.3.9f1
 ## 5.3 Phase C 체크리스트(P0/P1)
 - [P0] Economy 메타/세션 분리 + 정산 → 메타 반영
 - [P0] Sector 해금 + 업그레이드 구매/적용(ModifierStack 통합)
-- [P0] Save/Load(메타 데이터)
+- [P0] Save/Load(메타 데이터, 3 슬롯)
 - [P1] 로비 월드맵 UI 개선(노드/애니메이션)
 
 ## 5.4 Phase D 체크리스트(P0/P1/P2)

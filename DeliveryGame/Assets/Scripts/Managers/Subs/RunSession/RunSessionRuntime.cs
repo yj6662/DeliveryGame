@@ -20,7 +20,7 @@ namespace DeliveryRun.Managers.Subs
         private const float RunDurationSecondsConst = 420f;
         private const float LastOrderStartSecondsConst = 360f;
         private const float TickPublishIntervalSeconds = 0.1f;
-        private static readonly float[] ChoiceTimesSeconds = { 0f, 180f, 300f };
+        private static readonly float[] ChoiceTimesSeconds = { 0f, 180f, 360f };
 
         private readonly ServiceRegistry _services;
         private readonly EventBus _events;

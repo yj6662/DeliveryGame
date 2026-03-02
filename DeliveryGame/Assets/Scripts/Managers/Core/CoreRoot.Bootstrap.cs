@@ -33,6 +33,7 @@ namespace DeliveryRun.Managers.Core
             AddSubManager(new MetaProgressionManager());
             AddSubManager(new SectorThemeManager());
             AddSubManager(new RegionGateManager());
+            AddSubManager(new RunRegionMiniatureManager());
             AddSubManager(new PlayerBikeModifierLink());
             AddSubManager(new TrafficSystemManager());
             AddSubManager(new TrafficSignalManager());

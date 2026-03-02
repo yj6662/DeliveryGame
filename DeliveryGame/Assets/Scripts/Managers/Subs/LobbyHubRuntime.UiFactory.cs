@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
@@ -64,16 +67,34 @@ namespace DeliveryRun.Managers.Subs
         {
             _promptText = null;
             _metaText = null;
+            _mainPanel = null;
+            _mainTitleText = null;
+            _homeNavButton = null;
+            _garageNavButton = null;
+            _regionNavButton = null;
+            _homePanel = null;
+            _homeSummaryText = null;
+            _homeStartButton = null;
             _garagePanel = null;
+            _upgradeHoverText = null;
             _regionPanel = null;
             _regionText = null;
+            _regionDetailText = null;
             _unlockButton = null;
             _unlockButtonText = null;
+            _nextRegionButton = null;
             _pendingUnlockRegionId = null;
+
             for (int i = 0; i < _upgradeRows.Length; i++)
             {
                 _upgradeRows[i] = null;
                 _upgradeButtons[i] = null;
+            }
+
+            for (int i = 0; i < _regionItemButtons.Length; i++)
+            {
+                _regionItemButtons[i] = null;
+                _regionItemTexts[i] = null;
             }
 
             if (_uiRoot != null)
@@ -104,7 +125,7 @@ namespace DeliveryRun.Managers.Subs
             }
             else
             {
-                image.color = new Color(0.08f, 0.11f, 0.16f, 0.95f);
+                image.color = new Color(0.94f, 0.95f, 0.98f, 0.98f);
             }
 
             return go;
@@ -163,26 +184,93 @@ namespace DeliveryRun.Managers.Subs
             }
             else
             {
-                bg.color = accent ? new Color(0.74f, 0.55f, 0.14f, 0.98f) : new Color(0.18f, 0.24f, 0.34f, 0.98f);
+                bg.color = accent ? new Color(0.93f, 0.76f, 0.38f, 0.98f) : new Color(0.9f, 0.92f, 0.96f, 1f);
             }
 
             Button b = go.GetComponent<Button>();
             ColorBlock colors = b.colors;
             colors.normalColor = Color.white;
-            colors.highlightedColor = new Color(1f, 1f, 1f, 0.96f);
-            colors.pressedColor = new Color(0.92f, 0.92f, 0.92f, 0.96f);
+            colors.highlightedColor = new Color(0.95f, 0.95f, 1f, 1f);
+            colors.pressedColor = new Color(0.87f, 0.87f, 0.93f, 1f);
             colors.selectedColor = colors.highlightedColor;
-            colors.disabledColor = new Color(0.74f, 0.74f, 0.74f, 0.62f);
+            colors.disabledColor = new Color(0.72f, 0.72f, 0.72f, 0.62f);
             b.colors = colors;
 
-            Color textColor = accent
-                ? new Color(0.13f, 0.18f, 0.25f, 1f)
-                : new Color(0.97f, 0.97f, 0.99f, 1f);
-            Text t = CreateText(rt, font, 18, TextAnchor.MiddleCenter, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), textColor, label);
+            Text t = CreateText(
+                rt,
+                font,
+                18,
+                TextAnchor.MiddleCenter,
+                Vector2.zero,
+                Vector2.zero,
+                Vector2.zero,
+                Vector2.one,
+                new Vector2(0.5f, 0.5f),
+                new Color(0.08f, 0.08f, 0.1f, 1f),
+                label);
             t.fontStyle = FontStyle.Bold;
             t.rectTransform.offsetMin = Vector2.zero;
             t.rectTransform.offsetMax = Vector2.zero;
             return b;
+        }
+
+        private static void AddButtonHoverEvents(Button button, Action onEnter, Action onExit)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            EventTrigger trigger = button.GetComponent<EventTrigger>();
+            if (trigger == null)
+            {
+                trigger = button.gameObject.AddComponent<EventTrigger>();
+            }
+
+            if (trigger.triggers == null)
+            {
+                trigger.triggers = new List<EventTrigger.Entry>();
+            }
+
+            if (onEnter != null)
+            {
+                EventTrigger.Entry entry = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
+                entry.callback = new EventTrigger.TriggerEvent();
+                entry.callback.AddListener(_ => onEnter());
+                trigger.triggers.Add(entry);
+            }
+
+            if (onExit != null)
+            {
+                EventTrigger.Entry entry = new EventTrigger.Entry { eventID = EventTriggerType.PointerExit };
+                entry.callback = new EventTrigger.TriggerEvent();
+                entry.callback.AddListener(_ => onExit());
+                trigger.triggers.Add(entry);
+            }
+        }
+
+        private static void SetButtonSelectedState(Button button, bool selected)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            Image image = button.GetComponent<Image>();
+            if (image != null)
+            {
+                image.color = selected
+                    ? new Color(0.2f, 0.44f, 0.86f, 0.98f)
+                    : Color.white;
+            }
+
+            Text label = button.GetComponentInChildren<Text>();
+            if (label != null)
+            {
+                label.color = selected
+                    ? Color.white
+                    : new Color(0.08f, 0.08f, 0.1f, 1f);
+            }
         }
     }
 }

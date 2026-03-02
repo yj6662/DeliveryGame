@@ -57,4 +57,25 @@ namespace DeliveryRun.Managers.Core
         public string UpgradeId;
         public int Level;
     }
+
+    public struct MetaSaveSlotLoadRequested
+    {
+        public int SlotIndex;
+    }
+
+    public struct MetaSaveSlotSaveRequested
+    {
+        public int SlotIndex;
+    }
+
+    public struct MetaSaveSlotLoaded
+    {
+        public int SlotIndex;
+        public bool HadData;
+    }
+
+    public struct MetaSaveSlotSaved
+    {
+        public int SlotIndex;
+    }
 }

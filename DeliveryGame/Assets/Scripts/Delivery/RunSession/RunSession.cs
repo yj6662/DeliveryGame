@@ -50,7 +50,7 @@ namespace DeliveryRun.Delivery.RunSession
             {
                 _choiceTimesSeconds[0] = 0f;
                 _choiceTimesSeconds[1] = 180f;
-                _choiceTimesSeconds[2] = 300f;
+                _choiceTimesSeconds[2] = 360f;
             }
 
             _state = RunSessionState.Ready;

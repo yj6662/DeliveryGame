@@ -60,7 +60,7 @@ namespace DeliveryRun.Managers.Subs
 
             if ((flags & DomainRunSession.Choice2) != 0)
             {
-                PublishChoicePointReached(2, 300f);
+                PublishChoicePointReached(2, 360f);
             }
 
             if ((flags & DomainRunSession.LastOrder) != 0)

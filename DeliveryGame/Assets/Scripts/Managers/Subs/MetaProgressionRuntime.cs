@@ -22,7 +22,7 @@ namespace DeliveryRun.Managers.Subs
             RunStatId.RewardMultiplier
         };
 
-        private static readonly float[] UpgradePerLevelMulDelta = { 0.06f, 0.08f, 0.07f, 0.15f, 0.05f, 0.05f, 0.04f };
+        private static readonly float[] UpgradePerLevelMulDelta = MetaProgressionConstants.UpgradePerLevelMulDelta;
         private static readonly int[] AutoUpgradeLevelCash = { 1800, 6200, 15000 };
 
         private readonly ServiceRegistry _services;

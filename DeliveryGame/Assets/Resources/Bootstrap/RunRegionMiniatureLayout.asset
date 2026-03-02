@@ -1,0 +1,63 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b4ac8d6284c6430db9a4fd2e7d2f7b7d, type: 3}
+  m_Name: RunRegionMiniatureLayout
+  m_EditorClassIdentifier: DeliveryRun.Managers::DeliveryRun.Managers.Subs.RunRegionMiniatureLayoutSO
+  regions:
+  - RegionId: central
+    LocalPosition: {x: -64, y: 0, z: -6}
+    LocalEuler: {x: 0, y: 36, z: 0}
+    LocalScale: 0.055
+    BuildingChildLimit: 0
+  - RegionId: rushdistrict
+    LocalPosition: {x: -30, y: 0, z: -16}
+    LocalEuler: {x: 0, y: 24, z: 0}
+    LocalScale: 0.055
+    BuildingChildLimit: 0
+  - RegionId: frostlands
+    LocalPosition: {x: 2, y: 0, z: -10}
+    LocalEuler: {x: 0, y: 18, z: 0}
+    LocalScale: 0.055
+    BuildingChildLimit: 0
+  - RegionId: hillcrest
+    LocalPosition: {x: 36, y: 0, z: -2}
+    LocalEuler: {x: 0, y: 14, z: 0}
+    LocalScale: 0.055
+    BuildingChildLimit: 0
+  - RegionId: stormcoast
+    LocalPosition: {x: -49, y: 0, z: 27}
+    LocalEuler: {x: 0, y: 30, z: 0}
+    LocalScale: 0.055
+    BuildingChildLimit: 0
+  - RegionId: oldtown
+    LocalPosition: {x: -11, y: 0, z: 35}
+    LocalEuler: {x: 0, y: 20, z: 0}
+    LocalScale: 0.055
+    BuildingChildLimit: 0
+  - RegionId: seaside
+    LocalPosition: {x: 30, y: 0, z: 30}
+    LocalEuler: {x: 0, y: 12, z: 0}
+    LocalScale: 0.055
+    BuildingChildLimit: 0
+  camera:
+    LocalPosition: {x: 0, y: 86, z: -144}
+    LookAtOffset: {x: 0, y: 4, z: 0}
+    FieldOfView: 27
+    Viewport:
+      serializedVersion: 2
+      x: 0.62
+      y: 0.03
+      width: 0.35
+      height: 0.34
+  ui:
+    PanelAnchoredPosition: {x: -18, y: 18}
+    PanelSize: {x: 560, y: 236}

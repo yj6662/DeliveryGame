@@ -20,6 +20,8 @@ namespace DeliveryRun.Managers.Subs
             Subs.Add<PermanentUpgradePurchaseRequested>(Events, OnPermanentUpgradePurchaseRequested);
             Subs.Add<SelectNextRegionRequested>(Events, OnSelectNextRegionRequested);
             Subs.Add<UnlockRegionRequested>(Events, OnUnlockRegionRequested);
+            Subs.Add<MetaSaveSlotLoadRequested>(Events, OnMetaSaveSlotLoadRequested);
+            Subs.Add<MetaSaveSlotSaveRequested>(Events, OnMetaSaveSlotSaveRequested);
             Subs.Add<DomainRunSessionStarted>(Events, OnRunStarted);
             Subs.Add<DomainRunSessionEnded>(Events, OnRunEnded);
         }
@@ -48,6 +50,16 @@ namespace DeliveryRun.Managers.Subs
         private void OnUnlockRegionRequested(UnlockRegionRequested evt)
         {
             _runtime?.OnUnlockRegionRequested(evt);
+        }
+
+        private void OnMetaSaveSlotLoadRequested(MetaSaveSlotLoadRequested evt)
+        {
+            _runtime?.OnMetaSaveSlotLoadRequested(evt);
+        }
+
+        private void OnMetaSaveSlotSaveRequested(MetaSaveSlotSaveRequested evt)
+        {
+            _runtime?.OnMetaSaveSlotSaveRequested(evt);
         }
 
         private void OnRunStarted(DomainRunSessionStarted evt)
