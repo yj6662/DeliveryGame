@@ -55,7 +55,7 @@ namespace DeliveryRun.Managers.Core
             string activeScene = SceneManager.GetActiveScene().name;
             if (activeScene == SceneNames.CoreScene)
             {
-                _events.Publish(new BootToLobbyRequested());
+                _events.Publish(new BootToStartRequested());
             }
         }
 

@@ -89,6 +89,10 @@ namespace DeliveryRun.UI.Features
                     _musicChoiceLibrary);
                 _musicChoiceModal.SetOption(i, optionViewData.Title, optionViewData.Sub, optionViewData.Detail);
                 _musicChoiceModal.SetOptionVisual(i, optionViewData.TierCode, optionViewData.ImmediateSynergy);
+                _musicChoiceModal.SetOptionSynergyPreview(
+                    i,
+                    optionViewData.ImmediateSynergyPreview,
+                    optionViewData.ImmediateSynergy);
             }
         }
 

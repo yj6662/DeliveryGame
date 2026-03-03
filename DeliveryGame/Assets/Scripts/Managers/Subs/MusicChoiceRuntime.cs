@@ -8,7 +8,7 @@ namespace DeliveryRun.Managers.Subs
     internal sealed partial class MusicChoiceRuntime
     {
         private const int ChoiceCount = DomainRunChoiceConstants.ChoiceCount;
-        private const float DecisionTimeLimitSeconds = 8f;
+        private const float DecisionTimeLimitSeconds = -1f;
 
         private readonly string[] _pendingDraftTrackIds = new string[ChoiceCount];
         private readonly ServiceRegistry _services;
@@ -21,7 +21,6 @@ namespace DeliveryRun.Managers.Subs
         private int _runSequence;
         private int _pendingChoiceIndex;
         private float _elapsedSeconds;
-        private float _pendingDeadlineSeconds;
 
         internal MusicChoiceRuntime(ServiceRegistry services, EventBus events)
         {
@@ -32,8 +31,7 @@ namespace DeliveryRun.Managers.Subs
         internal bool IsRunActive => _runActive;
         internal bool HasPendingChoice => _pendingChoice;
         internal int PendingChoiceIndex => _pendingChoice ? _pendingChoiceIndex : -1;
-        internal float PendingChoiceRemainingSeconds =>
-            _pendingChoice ? Mathf.Max(0f, _pendingDeadlineSeconds - _elapsedSeconds) : 0f;
+        internal float PendingChoiceRemainingSeconds => _pendingChoice ? -1f : 0f;
 
         internal void Initialize()
         {
@@ -60,11 +58,6 @@ namespace DeliveryRun.Managers.Subs
             }
 
             _elapsedSeconds += dt;
-
-            if (_pendingChoice && _elapsedSeconds >= _pendingDeadlineSeconds)
-            {
-                AutoResolvePendingChoice();
-            }
         }
 
         internal void OnRunSessionStarted()
@@ -74,7 +67,6 @@ namespace DeliveryRun.Managers.Subs
             _elapsedSeconds = 0f;
             _pendingChoice = false;
             _pendingChoiceIndex = -1;
-            _pendingDeadlineSeconds = 0f;
             _ignoreSelectedEvent = false;
             ClearPendingDraft();
         }
@@ -84,7 +76,6 @@ namespace DeliveryRun.Managers.Subs
             _runActive = false;
             _pendingChoice = false;
             _pendingChoiceIndex = -1;
-            _pendingDeadlineSeconds = 0f;
             _elapsedSeconds = 0f;
             _ignoreSelectedEvent = false;
             ClearPendingDraft();
@@ -126,7 +117,6 @@ namespace DeliveryRun.Managers.Subs
         {
             _pendingChoice = true;
             _pendingChoiceIndex = choiceIndex;
-            _pendingDeadlineSeconds = _elapsedSeconds + DecisionTimeLimitSeconds;
 
             _events.Publish(new MusicChoiceRequested
             {
@@ -158,7 +148,6 @@ namespace DeliveryRun.Managers.Subs
             _pendingChoice = false;
             _ignoreSelectedEvent = false;
             _pendingChoiceIndex = -1;
-            _pendingDeadlineSeconds = 0f;
             _elapsedSeconds = 0f;
             ClearPendingDraft();
 

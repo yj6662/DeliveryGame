@@ -58,6 +58,3 @@ MonoBehaviour:
       y: 0.03
       width: 0.35
       height: 0.34
-  ui:
-    PanelAnchoredPosition: {x: -18, y: 18}
-    PanelSize: {x: 560, y: 236}

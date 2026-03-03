@@ -19,10 +19,18 @@ namespace DeliveryRun.Managers.Subs
             Texture2D panelTexture = _catalog != null ? _catalog.LobbyPanelTexture : null;
             Texture2D buttonTexture = _catalog != null ? _catalog.LobbyButtonTexture : null;
             Texture2D accentTexture = _catalog != null ? _catalog.LobbyButtonAccentTexture : null;
+            Texture2D lockedIconTexture = _catalog != null ? _catalog.LobbyRegionLockedIconTexture : null;
+            Texture2D unlockableIconTexture = _catalog != null ? _catalog.LobbyRegionUnlockableIconTexture : null;
+            Texture2D openIconTexture = _catalog != null ? _catalog.LobbyRegionOpenIconTexture : null;
+            Texture2D selectedIconTexture = _catalog != null ? _catalog.LobbyRegionSelectedIconTexture : null;
 
             _panelSkinSprite = CreateSpriteFromTexture(panelTexture, new Vector4(28f, 28f, 28f, 28f));
             _buttonSkinSprite = CreateSpriteFromTexture(buttonTexture, new Vector4(22f, 22f, 22f, 22f));
             _buttonAccentSkinSprite = CreateSpriteFromTexture(accentTexture, new Vector4(22f, 22f, 22f, 22f));
+            _regionLockedIconSprite = CreateSpriteFromTexture(lockedIconTexture, Vector4.zero);
+            _regionUnlockableIconSprite = CreateSpriteFromTexture(unlockableIconTexture, Vector4.zero);
+            _regionOpenIconSprite = CreateSpriteFromTexture(openIconTexture, Vector4.zero);
+            _regionSelectedIconSprite = CreateSpriteFromTexture(selectedIconTexture, Vector4.zero);
         }
 
         private static Sprite CreateSpriteFromTexture(Texture2D texture, Vector4 border)
@@ -61,6 +69,30 @@ namespace DeliveryRun.Managers.Subs
                 Object.Destroy(_buttonAccentSkinSprite);
                 _buttonAccentSkinSprite = null;
             }
+
+            if (_regionLockedIconSprite != null)
+            {
+                Object.Destroy(_regionLockedIconSprite);
+                _regionLockedIconSprite = null;
+            }
+
+            if (_regionUnlockableIconSprite != null)
+            {
+                Object.Destroy(_regionUnlockableIconSprite);
+                _regionUnlockableIconSprite = null;
+            }
+
+            if (_regionOpenIconSprite != null)
+            {
+                Object.Destroy(_regionOpenIconSprite);
+                _regionOpenIconSprite = null;
+            }
+
+            if (_regionSelectedIconSprite != null)
+            {
+                Object.Destroy(_regionSelectedIconSprite);
+                _regionSelectedIconSprite = null;
+            }
         }
 
         private void DestroyUi()
@@ -84,17 +116,28 @@ namespace DeliveryRun.Managers.Subs
             _unlockButtonText = null;
             _nextRegionButton = null;
             _pendingUnlockRegionId = null;
+            _canvasScaler = null;
+            _mainPanelRect = null;
+            _headerBarRect = null;
+            _contentRootRect = null;
+            _promptPanelRect = null;
+            _lastScreenWidth = 0;
+            _lastScreenHeight = 0;
 
             for (int i = 0; i < _upgradeRows.Length; i++)
             {
                 _upgradeRows[i] = null;
                 _upgradeButtons[i] = null;
+                _upgradeRowImages[i] = null;
+                _upgradeStateTexts[i] = null;
             }
 
             for (int i = 0; i < _regionItemButtons.Length; i++)
             {
                 _regionItemButtons[i] = null;
                 _regionItemTexts[i] = null;
+                _regionItemIcons[i] = null;
+                _regionItemStateTexts[i] = null;
             }
 
             if (_uiRoot != null)

@@ -66,7 +66,7 @@ namespace DeliveryRun.UI.Run
             }
 
             _suppressHoverUntilPointerMove = false;
-            SetSelectedIndex(index, false);
+            SetSelectedIndex(index, false, SelectionInputSource.Pointer);
         }
 
         private void OnCardClicked(int index)
@@ -77,19 +77,31 @@ namespace DeliveryRun.UI.Run
             }
 
             _suppressHoverUntilPointerMove = false;
-            SetSelectedIndex(index, false);
+            SetSelectedIndex(index, false, SelectionInputSource.Pointer);
             ConfirmSelection(index);
         }
 
-        private void SetSelectedIndex(int index, bool force)
+        private void SetSelectedIndex(int index, bool force, SelectionInputSource source)
         {
             int clamped = Mathf.Clamp(index, 0, 2);
-            if (!force && clamped == _selectedIndex)
+            bool changed = clamped != _selectedIndex;
+            if (!force && !changed)
             {
+                if (source != SelectionInputSource.Unknown)
+                {
+                    _selectionInputSource = source;
+                }
+
+                RefreshSynergyPopupForSelection();
                 return;
             }
 
             _selectedIndex = clamped;
+            if (source != SelectionInputSource.Unknown)
+            {
+                _selectionInputSource = source;
+            }
+
             for (int i = 0; i < 3; i++)
             {
                 bool selected = i == _selectedIndex;
@@ -107,6 +119,8 @@ namespace DeliveryRun.UI.Run
                     ApplyDetailAlpha(i, _detailCurrentAlpha[i]);
                 }
             }
+
+            RefreshSynergyPopupForSelection();
         }
 
         private void ConfirmSelection(int index)
@@ -168,7 +182,7 @@ namespace DeliveryRun.UI.Run
 
             if (hoveredIndex >= 0)
             {
-                SetSelectedIndex(hoveredIndex, false);
+                SetSelectedIndex(hoveredIndex, false, SelectionInputSource.Pointer);
             }
         }
     }

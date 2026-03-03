@@ -21,6 +21,11 @@ MonoBehaviour:
   UiRunLabel: ui:run
   TestBgmKey: audio/bgm/test_bgm
   UiClickKey: audio/ui/click
+  LobbyPrimaryFont: {fileID: 12800000, guid: 87c41bcc622aafa41a0690969378be3b, type: 3}
   LobbyPanelTexture: {fileID: 2800000, guid: cd819431dc89cd0448a2e2850793d496, type: 3}
   LobbyButtonTexture: {fileID: 2800000, guid: 24fb460960af1824e868f94c1d99c1ff, type: 3}
   LobbyButtonAccentTexture: {fileID: 2800000, guid: d76d5de3423077142ab14be677ea1551, type: 3}
+  LobbyRegionLockedIconTexture: {fileID: 2800000, guid: 00e44482ab5a63e4bab15de4f03a8d91, type: 3}
+  LobbyRegionUnlockableIconTexture: {fileID: 2800000, guid: 2cfb52be1c2ab8f4191876d91943dee0, type: 3}
+  LobbyRegionOpenIconTexture: {fileID: 2800000, guid: b6736fc22c19fe64ebac229cb04ac0a2, type: 3}
+  LobbyRegionSelectedIconTexture: {fileID: 2800000, guid: e2800a62fd128d84fa1d6ce4b68e28bf, type: 3}

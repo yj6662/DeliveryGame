@@ -59,27 +59,64 @@ namespace DeliveryRun.Managers.Subs
                 }
 
                 int level = _meta.GetUpgradeLevel(UpgradeIds[i]);
+                Image rowImage = _upgradeRowImages[i];
+                Text stateLabel = _upgradeStateTexts[i];
                 Text buttonLabel = _upgradeButtons[i].GetComponentInChildren<Text>();
                 if (level >= 3)
                 {
                     _upgradeRows[i].text = UpgradeLabels[i] + " Lv." + level + " (MAX)";
+                    _upgradeRows[i].color = new Color(0.05f, 0.06f, 0.08f, 1f);
                     _upgradeButtons[i].interactable = false;
                     if (buttonLabel != null)
                     {
                         buttonLabel.text = "MAX";
                     }
+
+                    if (stateLabel != null)
+                    {
+                        stateLabel.text = "MAX";
+                        stateLabel.color = new Color(0.12f, 0.36f, 0.74f, 1f);
+                    }
+
+                    if (rowImage != null)
+                    {
+                        rowImage.color = new Color(0.84f, 0.91f, 1f, 0.96f);
+                    }
+
+                    SetUpgradeButtonVisual(_upgradeButtons[i], false, true);
                 }
                 else
                 {
                     int next = level + 1;
                     int price = UpgradePrice(next);
                     _upgradeRows[i].text = UpgradeLabels[i] + " Lv." + level + " -> Lv." + next + "   Cost $" + price;
+                    _upgradeRows[i].color = new Color(0.05f, 0.06f, 0.08f, 1f);
                     bool canBuy = _meta.TotalCash >= price;
                     _upgradeButtons[i].interactable = canBuy;
                     if (buttonLabel != null)
                     {
-                        buttonLabel.text = canBuy ? "UPGRADE" : "NEED $" + price;
+                        buttonLabel.text = canBuy ? "UPGRADE" : "LOCKED";
+                        buttonLabel.color = canBuy
+                            ? new Color(0.08f, 0.08f, 0.1f, 1f)
+                            : new Color(0.28f, 0.12f, 0.12f, 1f);
                     }
+
+                    if (stateLabel != null)
+                    {
+                        stateLabel.text = canBuy ? "BUYABLE" : "NEED $" + price;
+                        stateLabel.color = canBuy
+                            ? new Color(0.11f, 0.47f, 0.12f, 1f)
+                            : new Color(0.62f, 0.17f, 0.17f, 1f);
+                    }
+
+                    if (rowImage != null)
+                    {
+                        rowImage.color = canBuy
+                            ? new Color(0.87f, 0.97f, 0.88f, 0.96f)
+                            : new Color(0.98f, 0.88f, 0.86f, 0.96f);
+                    }
+
+                    SetUpgradeButtonVisual(_upgradeButtons[i], canBuy, false);
                 }
             }
 
@@ -105,15 +142,15 @@ namespace DeliveryRun.Managers.Subs
                 bool unlocked = _meta.IsRegionUnlocked(regionId);
                 bool selected = string.Equals(regionId, _meta.SelectedRegionId, StringComparison.Ordinal);
                 bool inspected = string.Equals(regionId, _inspectedRegionId, StringComparison.Ordinal);
+                bool unlockable = !unlocked && CanUnlockRegionNow(regionId);
 
                 _regionItemButtons[i].interactable = true;
                 _regionItemTexts[i].text =
                     (inspected ? "> " : "  ") +
-                    (unlocked ? "[OPEN] " : "[LOCK] ") +
                     LobbyRegionMetaUtil.FormatRegionName(regionId) +
                     (selected ? " *" : string.Empty);
 
-                SetRegionItemVisual(i, unlocked, selected, inspected);
+                SetRegionItemVisual(i, unlocked, selected, inspected, unlockable);
             }
 
             bool inspectedUnlocked;
@@ -165,17 +202,50 @@ namespace DeliveryRun.Managers.Subs
                 if (_upgradeRows[i] != null)
                 {
                     _upgradeRows[i].text = UpgradeLabels[i] + " Lv.0";
+                    _upgradeRows[i].color = new Color(0.05f, 0.06f, 0.08f, 1f);
                 }
 
                 if (_upgradeButtons[i] != null)
                 {
                     _upgradeButtons[i].interactable = false;
+                    SetUpgradeButtonVisual(_upgradeButtons[i], false, false);
+                }
+
+                if (_upgradeStateTexts[i] != null)
+                {
+                    _upgradeStateTexts[i].text = "N/A";
+                    _upgradeStateTexts[i].color = new Color(0.25f, 0.25f, 0.3f, 1f);
+                }
+
+                if (_upgradeRowImages[i] != null)
+                {
+                    _upgradeRowImages[i].color = new Color(0.9f, 0.91f, 0.94f, 0.96f);
                 }
             }
 
             if (_regionText != null)
             {
                 _regionText.text = "Region List";
+            }
+
+            for (int i = 0; i < _regionItemButtons.Length; i++)
+            {
+                if (_regionItemTexts[i] != null)
+                {
+                    _regionItemTexts[i].text = LobbyRegionMetaUtil.FormatRegionName(RegionIds[i]);
+                    _regionItemTexts[i].color = new Color(0.08f, 0.08f, 0.1f, 1f);
+                }
+
+                if (_regionItemStateTexts[i] != null)
+                {
+                    _regionItemStateTexts[i].text = "N/A";
+                    _regionItemStateTexts[i].color = new Color(0.25f, 0.25f, 0.3f, 1f);
+                }
+
+                if (_regionItemIcons[i] != null)
+                {
+                    _regionItemIcons[i].enabled = false;
+                }
             }
 
             if (_regionDetailText != null)
@@ -307,7 +377,7 @@ namespace DeliveryRun.Managers.Subs
             return builder.ToString();
         }
 
-        private void SetRegionItemVisual(int index, bool unlocked, bool selected, bool inspected)
+        private void SetRegionItemVisual(int index, bool unlocked, bool selected, bool inspected, bool unlockable)
         {
             Button button = _regionItemButtons[index];
             Text label = _regionItemTexts[index];
@@ -317,29 +387,123 @@ namespace DeliveryRun.Managers.Subs
             }
 
             Image image = button.GetComponent<Image>();
-            if (image != null)
+            Image icon = _regionItemIcons[index];
+            Text stateText = _regionItemStateTexts[index];
+            bool focused = selected || inspected;
+
+            string stateLabel;
+            Sprite stateSprite;
+            Color stateColor;
+            Color backgroundColor;
+            Color labelColor;
+
+            if (focused)
             {
-                if (inspected)
-                {
-                    image.color = new Color(0.2f, 0.44f, 0.86f, 0.98f);
-                }
-                else if (selected)
-                {
-                    image.color = new Color(0.3f, 0.62f, 0.34f, 0.98f);
-                }
-                else if (unlocked)
-                {
-                    image.color = new Color(0.94f, 0.95f, 0.99f, 1f);
-                }
-                else
-                {
-                    image.color = new Color(0.8f, 0.82f, 0.86f, 1f);
-                }
+                stateLabel = "SELECTED";
+                stateSprite = _regionSelectedIconSprite != null ? _regionSelectedIconSprite : _regionOpenIconSprite;
+                stateColor = Color.white;
+                backgroundColor = new Color(0.2f, 0.44f, 0.86f, 0.98f);
+                labelColor = Color.white;
+            }
+            else if (unlocked)
+            {
+                stateLabel = "OPEN";
+                stateSprite = _regionOpenIconSprite;
+                stateColor = new Color(0.11f, 0.47f, 0.12f, 1f);
+                backgroundColor = new Color(0.91f, 0.97f, 0.91f, 1f);
+                labelColor = new Color(0.08f, 0.09f, 0.1f, 1f);
+            }
+            else if (unlockable)
+            {
+                stateLabel = "UNLOCKABLE";
+                stateSprite = _regionUnlockableIconSprite;
+                stateColor = new Color(0.7f, 0.52f, 0.05f, 1f);
+                backgroundColor = new Color(1f, 0.95f, 0.85f, 1f);
+                labelColor = new Color(0.08f, 0.09f, 0.1f, 1f);
+            }
+            else
+            {
+                stateLabel = "LOCKED";
+                stateSprite = _regionLockedIconSprite;
+                stateColor = new Color(0.62f, 0.17f, 0.17f, 1f);
+                backgroundColor = new Color(0.88f, 0.89f, 0.92f, 1f);
+                labelColor = new Color(0.16f, 0.16f, 0.18f, 1f);
             }
 
-            label.color = (inspected || selected)
+            if (image != null)
+            {
+                image.color = backgroundColor;
+            }
+
+            label.color = labelColor;
+
+            if (icon != null)
+            {
+                icon.enabled = stateSprite != null;
+                icon.sprite = stateSprite;
+                icon.color = focused ? Color.white : stateColor;
+            }
+
+            if (stateText != null)
+            {
+                stateText.text = stateLabel;
+                stateText.color = focused ? Color.white : stateColor;
+            }
+        }
+
+        private bool CanUnlockRegionNow(string regionId)
+        {
+            if (_meta == null || string.IsNullOrEmpty(regionId) || _meta.IsRegionUnlocked(regionId))
+            {
+                return false;
+            }
+
+            RegionUnlockRule rule;
+            if (!RegionProgressionCatalog.TryGetRule(regionId, out rule))
+            {
+                return true;
+            }
+
+            if (!_meta.IsRegionUnlocked(rule.PreviousRegionId))
+            {
+                return false;
+            }
+
+            if (_meta.GetBestRunCash(rule.PreviousRegionId) < rule.RequiredRunCash)
+            {
+                return false;
+            }
+
+            if (_meta.GetBestRunRating(rule.PreviousRegionId) < rule.RequiredRunRating)
+            {
+                return false;
+            }
+
+            return _meta.TotalCash >= rule.UnlockCost;
+        }
+
+        private static void SetUpgradeButtonVisual(Button button, bool canBuy, bool isMax)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            Image image = button.GetComponent<Image>();
+            if (image == null)
+            {
+                return;
+            }
+
+            if (isMax)
+            {
+                image.color = new Color(0.86f, 0.92f, 1f, 1f);
+                return;
+            }
+
+            image.color = canBuy
                 ? Color.white
-                : new Color(0.08f, 0.08f, 0.1f, 1f);
+                : new Color(0.92f, 0.84f, 0.84f, 1f);
         }
 
         private static bool IsKnownRegion(string regionId)

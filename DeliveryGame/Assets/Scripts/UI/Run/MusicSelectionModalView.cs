@@ -77,10 +77,12 @@ namespace DeliveryRun.UI.Run
             ConfigureTitleTextLayout();
             CacheCardRects();
             BindInteractiveRelays();
-            SetSelectedIndex(0, true);
+            _selectionInputSource = SelectionInputSource.Unknown;
+            SetSelectedIndex(0, true, SelectionInputSource.Unknown);
 
             _suppressHoverUntilPointerMove = false;
             _pointerAtKeySelect = Vector2.zero;
+            HideSynergyPopup();
 
             if (canvasGroup != null)
             {
@@ -101,6 +103,7 @@ namespace DeliveryRun.UI.Run
                 canvasGroup.blocksRaycasts = false;
             }
 
+            HideSynergyPopup();
             _shown = false;
         }
 
@@ -144,6 +147,22 @@ namespace DeliveryRun.UI.Run
             ApplyCardThemeImmediate(i);
         }
 
+        public void SetOptionSynergyPreview(int i, string previewText, bool canActivateNow)
+        {
+            if (i < 0 || i >= 3)
+            {
+                return;
+            }
+
+            _optionSynergyPreviewTexts[i] = previewText ?? string.Empty;
+            _optionCanActivateSynergyNow[i] = canActivateNow && !string.IsNullOrEmpty(_optionSynergyPreviewTexts[i]);
+
+            if (i == _selectedIndex)
+            {
+                RefreshSynergyPopupForSelection();
+            }
+        }
+
         public bool ConfirmSelectionForTests(int index)
         {
             if (!_shown || _onSelect == null)
@@ -151,7 +170,7 @@ namespace DeliveryRun.UI.Run
                 return false;
             }
 
-            SetSelectedIndex(index, false);
+            SetSelectedIndex(index, false, SelectionInputSource.Keyboard);
             ConfirmSelection(index);
             return true;
         }
@@ -166,7 +185,7 @@ namespace DeliveryRun.UI.Run
             int keyIndex = RuntimeInput.ReadMusicOptionIndexPressedThisFrame();
             if (keyIndex >= 0)
             {
-                SetSelectedIndex(keyIndex, false);
+                SetSelectedIndex(keyIndex, false, SelectionInputSource.Keyboard);
                 _suppressHoverUntilPointerMove = true;
                 if (!RuntimeInput.TryReadPointerScreenPosition(out _pointerAtKeySelect))
                 {
@@ -180,6 +199,7 @@ namespace DeliveryRun.UI.Run
             UpdateCardScaleAnimation(dt);
             UpdateContentAnimation(dt);
             UpdateCardThemeAnimation(dt);
+            UpdateSynergyPopup(dt);
 
             if (RuntimeInput.WasSubmitPressedThisFrame())
             {

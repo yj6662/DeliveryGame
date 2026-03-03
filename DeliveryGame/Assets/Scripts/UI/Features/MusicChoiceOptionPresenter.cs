@@ -5,13 +5,20 @@ namespace DeliveryRun.UI.Features
 {
     internal readonly struct MusicChoiceOptionViewData
     {
-        internal MusicChoiceOptionViewData(string title, string sub, string detail, int tierCode, bool immediateSynergy)
+        internal MusicChoiceOptionViewData(
+            string title,
+            string sub,
+            string detail,
+            int tierCode,
+            bool immediateSynergy,
+            string immediateSynergyPreview)
         {
             Title = title;
             Sub = sub;
             Detail = detail;
             TierCode = tierCode;
             ImmediateSynergy = immediateSynergy;
+            ImmediateSynergyPreview = immediateSynergyPreview;
         }
 
         internal string Title { get; }
@@ -19,6 +26,7 @@ namespace DeliveryRun.UI.Features
         internal string Detail { get; }
         internal int TierCode { get; }
         internal bool ImmediateSynergy { get; }
+        internal string ImmediateSynergyPreview { get; }
     }
 
     internal sealed class MusicChoiceOptionPresenter
@@ -42,22 +50,41 @@ namespace DeliveryRun.UI.Features
             string detail = "Theme: -";
             int tierCode = 0;
             bool immediateSynergy = false;
+            string immediateSynergyPreview = string.Empty;
 
             if (optionIndex < 0 || optionIndex >= optionCount || currentTrackIds == null || library == null)
             {
-                return new MusicChoiceOptionViewData(title, sub, detail, tierCode, immediateSynergy);
+                return new MusicChoiceOptionViewData(
+                    title,
+                    sub,
+                    detail,
+                    tierCode,
+                    immediateSynergy,
+                    immediateSynergyPreview);
             }
 
             string trackId = currentTrackIds[optionIndex];
             if (string.IsNullOrEmpty(trackId))
             {
-                return new MusicChoiceOptionViewData(title, sub, detail, tierCode, immediateSynergy);
+                return new MusicChoiceOptionViewData(
+                    title,
+                    sub,
+                    detail,
+                    tierCode,
+                    immediateSynergy,
+                    immediateSynergyPreview);
             }
 
             MusicTrackSO track;
             if (!library.TryGetTrack(trackId, out track) || track == null)
             {
-                return new MusicChoiceOptionViewData(title, sub, detail, tierCode, immediateSynergy);
+                return new MusicChoiceOptionViewData(
+                    title,
+                    sub,
+                    detail,
+                    tierCode,
+                    immediateSynergy,
+                    immediateSynergyPreview);
             }
 
             title = NormalizeTrackCardTitle(string.IsNullOrEmpty(track.DisplayName) ? trackId : track.DisplayName);
@@ -71,9 +98,19 @@ namespace DeliveryRun.UI.Features
 
             sub = genreName + " | " + track.Tier.ToString().ToUpperInvariant();
             detail = BuildDetailText(track, library);
-            immediateSynergy = WouldActivateSynergyNow(track.Genre, library, openChoiceIndex);
+            immediateSynergy = TryBuildImmediateSynergyPreview(
+                track.Genre,
+                library,
+                openChoiceIndex,
+                out immediateSynergyPreview);
 
-            return new MusicChoiceOptionViewData(title, sub, detail, tierCode, immediateSynergy);
+            return new MusicChoiceOptionViewData(
+                title,
+                sub,
+                detail,
+                tierCode,
+                immediateSynergy,
+                immediateSynergyPreview);
         }
 
         internal string ResolveGenreIdForOption(
@@ -125,7 +162,7 @@ namespace DeliveryRun.UI.Features
                 synergyLine = BuildSynergyLine(track.Genre, library);
             }
 
-            string buffLine = BuildModifierSummary(track.Modifiers);
+            string buffLine = BuildModifierSummary(track.Modifiers, "BUFF");
             return themeTitle + "\n" + synergyLine + "\n" + buffLine;
         }
 
@@ -168,8 +205,13 @@ namespace DeliveryRun.UI.Features
             return "Synergy: " + (!string.IsNullOrEmpty(duoName) ? duoName : trioName);
         }
 
-        private bool WouldActivateSynergyNow(MusicGenreSO genre, MusicLibraryService library, int skipChoiceIndex)
+        private bool TryBuildImmediateSynergyPreview(
+            MusicGenreSO genre,
+            MusicLibraryService library,
+            int skipChoiceIndex,
+            out string previewText)
         {
+            previewText = string.Empty;
             if (genre == null || library == null || string.IsNullOrEmpty(genre.GenreId))
             {
                 return false;
@@ -183,17 +225,33 @@ namespace DeliveryRun.UI.Features
                 return false;
             }
 
-            if (before == null)
+            bool activatesNow = before == null
+                                || after.RequiredCount > before.RequiredCount
+                                || !string.Equals(after.SynergyId, before.SynergyId, System.StringComparison.Ordinal);
+            if (!activatesNow)
             {
+                return false;
+            }
+
+            string synergyName = string.IsNullOrEmpty(after.DisplayName)
+                ? (string.IsNullOrEmpty(genre.DisplayName) ? "Synergy" : genre.DisplayName + " Synergy")
+                : after.DisplayName;
+            string genreName = string.IsNullOrEmpty(genre.DisplayName) ? genre.GenreId : genre.DisplayName;
+
+            int nextCount = existingCount + 1;
+            int requiredCount = after.RequiredCount > 0 ? after.RequiredCount : nextCount;
+            string conditionLine = "Condition: " + genreName + " " + nextCount + "/" + requiredCount;
+            string effectLine = BuildModifierSummary(after.Modifiers, "EFFECT");
+
+            string description = string.IsNullOrWhiteSpace(after.Description) ? string.Empty : after.Description.Trim();
+            if (string.IsNullOrEmpty(description))
+            {
+                previewText = "SYNERGY READY: " + synergyName + "\n" + conditionLine + "\n" + effectLine;
                 return true;
             }
 
-            if (after.RequiredCount > before.RequiredCount)
-            {
-                return true;
-            }
-
-            return !string.Equals(after.SynergyId, before.SynergyId, System.StringComparison.Ordinal);
+            previewText = "SYNERGY READY: " + synergyName + "\n" + conditionLine + "\n" + description + "\n" + effectLine;
+            return true;
         }
 
         private int CountPickedGenre(string genreId, int skipChoiceIndex)
@@ -255,15 +313,20 @@ namespace DeliveryRun.UI.Features
             return title;
         }
 
-        private static string BuildModifierSummary(MusicModifierDef[] modifiers)
+        private static string BuildModifierSummary(MusicModifierDef[] modifiers, string prefix)
         {
+            if (string.IsNullOrEmpty(prefix))
+            {
+                prefix = "BUFF";
+            }
+
             if (modifiers == null || modifiers.Length == 0)
             {
-                return "BUFF: -";
+                return prefix + ": -";
             }
 
             System.Text.StringBuilder builder = new System.Text.StringBuilder(96);
-            builder.Append("BUFF: ");
+            builder.Append(prefix).Append(": ");
             int appended = 0;
             for (int i = 0; i < modifiers.Length; i++)
             {
@@ -293,7 +356,7 @@ namespace DeliveryRun.UI.Features
 
             if (appended <= 0)
             {
-                return "BUFF: -";
+                return prefix + ": -";
             }
 
             return builder.ToString();

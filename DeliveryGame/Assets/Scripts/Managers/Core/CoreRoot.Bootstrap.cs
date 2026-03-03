@@ -25,6 +25,7 @@ namespace DeliveryRun.Managers.Core
             AddSubManager(new AudioManager());
             AddSubManager(new MusicDraftManager());
             AddSubManager(new LobbyHubManager());
+            AddSubManager(new StartMenuManager());
             AddSubManager(new AddressablesService());
             AddSubManager(new RunSessionManager());
             AddSubManager(new RunSessionLegacyBridgeManager());

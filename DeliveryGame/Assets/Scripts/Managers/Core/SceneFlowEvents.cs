@@ -1,5 +1,9 @@
 namespace DeliveryRun.Managers.Core
 {
+    public struct BootToStartRequested
+    {
+    }
+
     public struct BootToLobbyRequested
     {
     }

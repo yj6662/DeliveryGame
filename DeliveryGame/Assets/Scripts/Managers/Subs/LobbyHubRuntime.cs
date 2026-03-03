@@ -55,20 +55,35 @@ namespace DeliveryRun.Managers.Subs
         private GameObject _garagePanel;
         private readonly Text[] _upgradeRows = new Text[7];
         private readonly Button[] _upgradeButtons = new Button[7];
+        private readonly Image[] _upgradeRowImages = new Image[7];
+        private readonly Text[] _upgradeStateTexts = new Text[7];
         private Text _upgradeHoverText;
         private GameObject _regionPanel;
         private Text _regionText;
         private readonly Button[] _regionItemButtons = new Button[MetaProgressionConstants.RegionIds.Length];
         private readonly Text[] _regionItemTexts = new Text[MetaProgressionConstants.RegionIds.Length];
+        private readonly Image[] _regionItemIcons = new Image[MetaProgressionConstants.RegionIds.Length];
+        private readonly Text[] _regionItemStateTexts = new Text[MetaProgressionConstants.RegionIds.Length];
         private Text _regionDetailText;
         private Button _unlockButton;
         private Text _unlockButtonText;
         private Button _nextRegionButton;
         private string _pendingUnlockRegionId;
         private string _inspectedRegionId;
+        private CanvasScaler _canvasScaler;
+        private RectTransform _mainPanelRect;
+        private RectTransform _headerBarRect;
+        private RectTransform _contentRootRect;
+        private RectTransform _promptPanelRect;
+        private int _lastScreenWidth;
+        private int _lastScreenHeight;
         private Sprite _panelSkinSprite;
         private Sprite _buttonSkinSprite;
         private Sprite _buttonAccentSkinSprite;
+        private Sprite _regionLockedIconSprite;
+        private Sprite _regionUnlockableIconSprite;
+        private Sprite _regionOpenIconSprite;
+        private Sprite _regionSelectedIconSprite;
 
         internal LobbyHubRuntime(ServiceRegistry services, EventBus events)
         {
@@ -98,6 +113,7 @@ namespace DeliveryRun.Managers.Subs
             }
 
             EnsureRefs();
+            UpdateResponsiveLayoutIfNeeded();
             _scanElapsed += unscaledDeltaTime;
             if (_scanElapsed >= ScanInterval)
             {

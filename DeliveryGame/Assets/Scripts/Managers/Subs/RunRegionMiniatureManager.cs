@@ -1,6 +1,6 @@
 using System;
-using System.Text;
 using DeliveryRun.Managers.Core;
+using DeliveryRun.UI;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
@@ -17,12 +17,18 @@ namespace DeliveryRun.Managers.Subs
         private const float MiniatureRaycastDistance = 900f;
         private const float HoverScaleMul = 1.08f;
         private const float SelectedScaleMul = 1.04f;
-        private const float FeedbackDuration = 2.1f;
+        private const float HoverPanelOffsetX = 16f;
+        private const float HoverPanelOffsetY = -16f;
+        private const float HoverPanelWidth = 468f;
+        private const float HoverPanelMinHeight = 186f;
+        private const float HoverPanelPadding = 16f;
+        private const float HoverHeaderHeight = 44f;
 
         private const string CityRootName = "CityRoot";
         private const string MiniatureRootName = "RunRegionMiniatureRoot";
         private const string MiniatureCameraName = "RunRegionMiniatureCamera";
-        private const string UiRootName = "RunRegionMiniatureUI";
+        private const string MiniatureHoverUiName = "RunRegionMiniatureHoverUI";
+        private const string MiniatureSourcePrimaryScene = "RunScene_Placement";
         private const string LayoutResourcePath = "Bootstrap/RunRegionMiniatureLayout";
         private const string LayoutFallbackResourcePath = "RunRegionMiniatureLayout";
 
@@ -56,20 +62,33 @@ namespace DeliveryRun.Managers.Subs
         private readonly MaterialPropertyBlock _materialPropertyBlock = new MaterialPropertyBlock();
 
         private MetaProgressionService _meta;
+        private UiPrefabCatalogSO _uiCatalog;
         private RunRegionMiniatureLayoutSO _layout;
         private GameObject _miniatureRoot;
         private Camera _miniatureCamera;
-        private Canvas _canvas;
-        private Text _titleText;
-        private Text _detailText;
+        private GameObject _hoverUiRoot;
+        private RectTransform _hoverPanelRect;
+        private RectTransform _hoverHeaderRect;
+        private Image _hoverPanelImage;
+        private Image _hoverHeaderImage;
+        private Image _hoverStatusIconImage;
+        private Text _hoverTitleText;
+        private Text _hoverText;
+        private AsyncOperation _sourceSceneLoadOperation;
+        private AsyncOperation _sourceSceneUnloadOperation;
+        private bool _sourceSceneLoadedByMiniature;
+        private string _loadedSourceSceneName;
+        private Sprite _hoverPanelSprite;
+        private Sprite _hoverHeaderSprite;
+        private Sprite _hoverLockedIconSprite;
+        private Sprite _hoverUnlockableIconSprite;
+        private Sprite _hoverOpenIconSprite;
 
         private int _entryCount;
         private string _hoveredRegionId;
         private string _pendingUnlockRegionId;
-        private string _feedbackMessage;
-        private float _feedbackUntil;
         private float _scenePollElapsed;
-        private bool _isRunScene;
+        private bool _isLobby;
         private bool _missingCityRootLogged;
 
         public override string Name => nameof(RunRegionMiniatureManager);
@@ -78,12 +97,11 @@ namespace DeliveryRun.Managers.Subs
         protected override void OnInitialize()
         {
             Services.TryGet(out _meta);
+            _uiCatalog = UiPrefabCatalogLoader.LoadOrNull();
+            EnsureHoverSkins();
 
             Subs.Add<SceneTransitionStarted>(Events, OnSceneTransitionStarted);
             Subs.Add<SceneTransitionCompleted>(Events, OnSceneTransitionCompleted);
-            Subs.Add<MetaBalanceChanged>(Events, OnMetaChanged);
-            Subs.Add<SelectedRegionChanged>(Events, OnMetaChanged);
-            Subs.Add<RegionUnlockStatusChanged>(Events, OnMetaChanged);
             Subs.Add<RegionUnlocked>(Events, OnRegionUnlocked);
             Subs.Add<RegionUnlockFailed>(Events, OnRegionUnlockFailed);
 
@@ -97,7 +115,7 @@ namespace DeliveryRun.Managers.Subs
                 HandleScene(SceneManager.GetActiveScene().name, false);
             }
 
-            if (!_isRunScene)
+            if (!_isLobby)
             {
                 return;
             }
@@ -115,26 +133,30 @@ namespace DeliveryRun.Managers.Subs
 
             HandlePointer();
             RefreshEntryVisuals();
-            RefreshInfoPanel();
+            RefreshHoverUi();
         }
 
         protected override void OnShutdown()
         {
             DestroyMiniatureRig();
+            EnsureSourceSceneUnloaded();
             _layout = null;
             _meta = null;
-            _isRunScene = false;
+            _uiCatalog = null;
+            ReleaseHoverSkins();
+            _isLobby = false;
         }
 
         private void OnSceneTransitionStarted(SceneTransitionStarted evt)
         {
-            if (SceneNames.IsRunSceneLike(evt.To))
+            if (evt.To == SceneNames.LobbyScene)
             {
                 return;
             }
 
-            _isRunScene = false;
+            _isLobby = false;
             DestroyMiniatureRig();
+            EnsureSourceSceneUnloaded();
         }
 
         private void OnSceneTransitionCompleted(SceneTransitionCompleted evt)
@@ -142,39 +164,9 @@ namespace DeliveryRun.Managers.Subs
             HandleScene(evt.SceneName, true);
         }
 
-        private void OnMetaChanged(MetaBalanceChanged evt)
-        {
-            if (!_isRunScene)
-            {
-                return;
-            }
-
-            RefreshInfoPanel();
-        }
-
-        private void OnMetaChanged(SelectedRegionChanged evt)
-        {
-            if (!_isRunScene)
-            {
-                return;
-            }
-
-            RefreshInfoPanel();
-        }
-
-        private void OnMetaChanged(RegionUnlockStatusChanged evt)
-        {
-            if (!_isRunScene)
-            {
-                return;
-            }
-
-            RefreshInfoPanel();
-        }
-
         private void OnRegionUnlocked(RegionUnlocked evt)
         {
-            if (!_isRunScene)
+            if (!_isLobby)
             {
                 return;
             }
@@ -184,13 +176,11 @@ namespace DeliveryRun.Managers.Subs
             {
                 _pendingUnlockRegionId = null;
             }
-
-            SetFeedback(LobbyRegionMetaUtil.FormatRegionName(evt.RegionId) + " unlocked.");
         }
 
         private void OnRegionUnlockFailed(RegionUnlockFailed evt)
         {
-            if (!_isRunScene)
+            if (!_isLobby)
             {
                 return;
             }
@@ -200,29 +190,25 @@ namespace DeliveryRun.Managers.Subs
             {
                 _pendingUnlockRegionId = null;
             }
-
-            SetFeedback(
-                LobbyRegionMetaUtil.FormatRegionName(evt.RegionId) + " unlock failed: " +
-                FormatUnlockFailReason(evt.Reason));
         }
 
         private void HandleScene(string sceneName, bool forceRefresh)
         {
-            bool shouldRun = SceneNames.IsRunSceneLike(sceneName);
-            if (!shouldRun)
+            bool shouldLobby = sceneName == SceneNames.LobbyScene;
+            if (!shouldLobby)
             {
-                _isRunScene = false;
+                _isLobby = false;
                 DestroyMiniatureRig();
+                EnsureSourceSceneUnloaded();
                 return;
             }
 
-            if (!_isRunScene || forceRefresh)
+            if (!_isLobby || forceRefresh)
             {
-                _isRunScene = true;
+                _isLobby = true;
                 _missingCityRootLogged = false;
                 EnsureMiniatureRig();
                 RefreshEntryVisuals();
-                RefreshInfoPanel();
             }
         }
 
@@ -244,20 +230,11 @@ namespace DeliveryRun.Managers.Subs
                 CreateMiniatureCamera();
             }
 
-            if (_canvas == null)
-            {
-                CreateOverlayUi();
-            }
+            EnsureHoverUi();
         }
 
         private void DestroyMiniatureRig()
         {
-            if (_canvas != null)
-            {
-                Object.Destroy(_canvas.gameObject);
-                _canvas = null;
-            }
-
             if (_miniatureCamera != null)
             {
                 Object.Destroy(_miniatureCamera.gameObject);
@@ -278,11 +255,9 @@ namespace DeliveryRun.Managers.Subs
             _entryCount = 0;
             _hoveredRegionId = null;
             _pendingUnlockRegionId = null;
-            _feedbackMessage = null;
-            _feedbackUntil = 0f;
-            _titleText = null;
-            _detailText = null;
             _missingCityRootLogged = false;
+
+            DestroyHoverUi();
         }
         private void BuildMiniatureEntries()
         {
@@ -293,24 +268,26 @@ namespace DeliveryRun.Managers.Subs
                 return;
             }
 
-            GameObject cityRootObject = GameObject.Find(CityRootName);
-            if (cityRootObject == null)
+            Transform cityRoot = ResolveCityRootSource();
+            if (cityRoot == null)
             {
                 if (!_missingCityRootLogged)
                 {
                     _missingCityRootLogged = true;
-                    Debug.LogWarning("[RunRegionMiniatureManager] CityRoot not found in RunScene.");
+                    Debug.LogWarning("[RunRegionMiniatureManager] CityRoot source not ready. Waiting for RunScene miniature source load.");
                 }
 
                 return;
             }
+
+            _missingCityRootLogged = false;
 
             _layout = LoadLayout();
             string[] regionIds = MetaProgressionConstants.RegionIds;
             for (int i = 0; i < regionIds.Length; i++)
             {
                 string regionId = regionIds[i];
-                Transform source = FindSourceRegionRoot(cityRootObject.transform, regionId);
+                Transform source = FindSourceRegionRoot(cityRoot, regionId);
                 if (source == null)
                 {
                     continue;
@@ -339,7 +316,504 @@ namespace DeliveryRun.Managers.Subs
             if (_entryCount <= 0)
             {
                 Debug.LogWarning("[RunRegionMiniatureManager] No region roots were cloned for miniature view.");
+                EnsureSourceSceneUnloaded();
+                return;
             }
+
+            EnsureSourceSceneUnloaded();
+        }
+
+        private Transform ResolveCityRootSource()
+        {
+            GameObject cityRootObject = GameObject.Find(CityRootName);
+            if (cityRootObject != null)
+            {
+                return cityRootObject.transform;
+            }
+
+            EnsureSourceSceneLoaded();
+            return null;
+        }
+
+        private void EnsureSourceSceneLoaded()
+        {
+            if (!_isLobby || _sourceSceneLoadOperation != null || _sourceSceneUnloadOperation != null)
+            {
+                return;
+            }
+
+            if (SceneIsLoaded(SceneNames.RunScene) || SceneIsLoaded(MiniatureSourcePrimaryScene))
+            {
+                return;
+            }
+
+            AsyncOperation operation = SceneManager.LoadSceneAsync(MiniatureSourcePrimaryScene, LoadSceneMode.Additive);
+            if (operation != null)
+            {
+                _loadedSourceSceneName = MiniatureSourcePrimaryScene;
+            }
+            else
+            {
+                operation = SceneManager.LoadSceneAsync(SceneNames.RunScene, LoadSceneMode.Additive);
+                _loadedSourceSceneName = SceneNames.RunScene;
+            }
+
+            if (operation == null)
+            {
+                _loadedSourceSceneName = null;
+                Debug.LogWarning("[RunRegionMiniatureManager] Failed to load miniature source scene.");
+                return;
+            }
+
+            _sourceSceneLoadedByMiniature = true;
+            _sourceSceneLoadOperation = operation;
+            _sourceSceneLoadOperation.completed += OnSourceSceneLoadCompleted;
+        }
+
+        private void OnSourceSceneLoadCompleted(AsyncOperation _)
+        {
+            _sourceSceneLoadOperation = null;
+            if (!_isLobby)
+            {
+                EnsureSourceSceneUnloaded();
+            }
+        }
+
+        private void EnsureSourceSceneUnloaded()
+        {
+            if (_sourceSceneLoadOperation != null || _sourceSceneUnloadOperation != null || !_sourceSceneLoadedByMiniature)
+            {
+                return;
+            }
+
+            string sceneName = string.IsNullOrEmpty(_loadedSourceSceneName)
+                ? SceneNames.RunScene
+                : _loadedSourceSceneName;
+            Scene loadedSourceScene = SceneManager.GetSceneByName(sceneName);
+            if (!loadedSourceScene.IsValid() || !loadedSourceScene.isLoaded)
+            {
+                _sourceSceneLoadedByMiniature = false;
+                _loadedSourceSceneName = null;
+                return;
+            }
+
+            _sourceSceneUnloadOperation = SceneManager.UnloadSceneAsync(loadedSourceScene);
+            if (_sourceSceneUnloadOperation == null)
+            {
+                _sourceSceneLoadedByMiniature = false;
+                _loadedSourceSceneName = null;
+                return;
+            }
+
+            _sourceSceneUnloadOperation.completed += OnSourceSceneUnloadCompleted;
+        }
+
+        private void OnSourceSceneUnloadCompleted(AsyncOperation _)
+        {
+            _sourceSceneUnloadOperation = null;
+            _sourceSceneLoadedByMiniature = false;
+            _loadedSourceSceneName = null;
+        }
+
+        private void EnsureHoverSkins()
+        {
+            if (_hoverPanelSprite != null || _hoverHeaderSprite != null ||
+                _hoverLockedIconSprite != null || _hoverUnlockableIconSprite != null || _hoverOpenIconSprite != null)
+            {
+                return;
+            }
+
+            Texture2D panelTexture = _uiCatalog != null ? _uiCatalog.LobbyPanelTexture : null;
+            Texture2D headerTexture = _uiCatalog != null ? _uiCatalog.LobbyButtonAccentTexture : null;
+            Texture2D lockedIconTexture = _uiCatalog != null ? _uiCatalog.LobbyRegionLockedIconTexture : null;
+            Texture2D unlockableIconTexture = _uiCatalog != null ? _uiCatalog.LobbyRegionUnlockableIconTexture : null;
+            Texture2D openIconTexture = _uiCatalog != null ? _uiCatalog.LobbyRegionOpenIconTexture : null;
+
+            _hoverPanelSprite = CreateSpriteFromTexture(panelTexture, new Vector4(28f, 28f, 28f, 28f));
+            _hoverHeaderSprite = CreateSpriteFromTexture(headerTexture, new Vector4(22f, 22f, 22f, 22f));
+            _hoverLockedIconSprite = CreateSpriteFromTexture(lockedIconTexture, Vector4.zero);
+            _hoverUnlockableIconSprite = CreateSpriteFromTexture(unlockableIconTexture, Vector4.zero);
+            _hoverOpenIconSprite = CreateSpriteFromTexture(openIconTexture, Vector4.zero);
+        }
+
+        private void ReleaseHoverSkins()
+        {
+            if (_hoverPanelSprite != null)
+            {
+                Object.Destroy(_hoverPanelSprite);
+                _hoverPanelSprite = null;
+            }
+
+            if (_hoverHeaderSprite != null)
+            {
+                Object.Destroy(_hoverHeaderSprite);
+                _hoverHeaderSprite = null;
+            }
+
+            if (_hoverLockedIconSprite != null)
+            {
+                Object.Destroy(_hoverLockedIconSprite);
+                _hoverLockedIconSprite = null;
+            }
+
+            if (_hoverUnlockableIconSprite != null)
+            {
+                Object.Destroy(_hoverUnlockableIconSprite);
+                _hoverUnlockableIconSprite = null;
+            }
+
+            if (_hoverOpenIconSprite != null)
+            {
+                Object.Destroy(_hoverOpenIconSprite);
+                _hoverOpenIconSprite = null;
+            }
+        }
+
+        private static Sprite CreateSpriteFromTexture(Texture2D texture, Vector4 border)
+        {
+            if (texture == null)
+            {
+                return null;
+            }
+
+            return Sprite.Create(
+                texture,
+                new Rect(0f, 0f, texture.width, texture.height),
+                new Vector2(0.5f, 0.5f),
+                100f,
+                0u,
+                SpriteMeshType.FullRect,
+                border);
+        }
+
+        private void EnsureHoverUi()
+        {
+            if (_hoverUiRoot != null)
+            {
+                return;
+            }
+
+            EnsureHoverSkins();
+
+            var root = new GameObject(
+                MiniatureHoverUiName,
+                typeof(Canvas),
+                typeof(CanvasScaler),
+                typeof(GraphicRaycaster));
+            Canvas canvas = root.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 96;
+
+            CanvasScaler scaler = root.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.matchWidthOrHeight = 0.5f;
+
+            RectTransform rootRect = root.GetComponent<RectTransform>();
+            rootRect.anchorMin = Vector2.zero;
+            rootRect.anchorMax = Vector2.one;
+            rootRect.offsetMin = Vector2.zero;
+            rootRect.offsetMax = Vector2.zero;
+
+            GameObject panel = new GameObject("Panel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            _hoverPanelRect = panel.GetComponent<RectTransform>();
+            _hoverPanelRect.SetParent(rootRect, false);
+            _hoverPanelRect.anchorMin = Vector2.zero;
+            _hoverPanelRect.anchorMax = Vector2.zero;
+            _hoverPanelRect.pivot = Vector2.zero;
+            _hoverPanelRect.sizeDelta = new Vector2(HoverPanelWidth, HoverPanelMinHeight);
+
+            _hoverPanelImage = panel.GetComponent<Image>();
+            if (_hoverPanelSprite != null)
+            {
+                _hoverPanelImage.sprite = _hoverPanelSprite;
+                _hoverPanelImage.type = Image.Type.Sliced;
+                _hoverPanelImage.color = new Color(1f, 1f, 1f, 0.98f);
+            }
+            else
+            {
+                _hoverPanelImage.color = new Color(0.94f, 0.96f, 0.99f, 0.96f);
+            }
+            _hoverPanelImage.raycastTarget = false;
+
+            GameObject header = new GameObject("Header", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            _hoverHeaderRect = header.GetComponent<RectTransform>();
+            _hoverHeaderRect.SetParent(_hoverPanelRect, false);
+            _hoverHeaderRect.anchorMin = new Vector2(0f, 1f);
+            _hoverHeaderRect.anchorMax = new Vector2(1f, 1f);
+            _hoverHeaderRect.pivot = new Vector2(0.5f, 1f);
+            _hoverHeaderRect.anchoredPosition = Vector2.zero;
+            _hoverHeaderRect.sizeDelta = new Vector2(0f, HoverHeaderHeight);
+
+            _hoverHeaderImage = header.GetComponent<Image>();
+            if (_hoverHeaderSprite != null)
+            {
+                _hoverHeaderImage.sprite = _hoverHeaderSprite;
+                _hoverHeaderImage.type = Image.Type.Sliced;
+                _hoverHeaderImage.color = new Color(0.99f, 0.84f, 0.35f, 0.98f);
+            }
+            else
+            {
+                _hoverHeaderImage.color = new Color(0.99f, 0.84f, 0.35f, 0.98f);
+            }
+            _hoverHeaderImage.raycastTarget = false;
+
+            GameObject statusIcon = new GameObject("StatusIcon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            RectTransform statusRect = statusIcon.GetComponent<RectTransform>();
+            statusRect.SetParent(_hoverHeaderRect, false);
+            statusRect.anchorMin = new Vector2(0f, 0.5f);
+            statusRect.anchorMax = new Vector2(0f, 0.5f);
+            statusRect.pivot = new Vector2(0f, 0.5f);
+            statusRect.anchoredPosition = new Vector2(12f, 0f);
+            statusRect.sizeDelta = new Vector2(20f, 20f);
+
+            _hoverStatusIconImage = statusIcon.GetComponent<Image>();
+            _hoverStatusIconImage.raycastTarget = false;
+            _hoverStatusIconImage.color = Color.white;
+
+            GameObject titleObj = new GameObject("Title", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            RectTransform titleRect = titleObj.GetComponent<RectTransform>();
+            titleRect.SetParent(_hoverHeaderRect, false);
+            titleRect.anchorMin = new Vector2(0f, 0f);
+            titleRect.anchorMax = new Vector2(1f, 1f);
+            titleRect.offsetMin = new Vector2(38f, 0f);
+            titleRect.offsetMax = new Vector2(-10f, 0f);
+
+            _hoverTitleText = titleObj.GetComponent<Text>();
+            _hoverTitleText.font = ResolveHoverFont();
+            _hoverTitleText.fontSize = 20;
+            _hoverTitleText.fontStyle = FontStyle.Bold;
+            _hoverTitleText.alignment = TextAnchor.MiddleLeft;
+            _hoverTitleText.horizontalOverflow = HorizontalWrapMode.Overflow;
+            _hoverTitleText.verticalOverflow = VerticalWrapMode.Overflow;
+            _hoverTitleText.color = new Color(0.08f, 0.1f, 0.14f, 1f);
+            _hoverTitleText.raycastTarget = false;
+
+            GameObject textObj = new GameObject("Body", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            RectTransform textRect = textObj.GetComponent<RectTransform>();
+            textRect.SetParent(_hoverPanelRect, false);
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.pivot = new Vector2(0.5f, 0.5f);
+            textRect.offsetMin = new Vector2(HoverPanelPadding, HoverPanelPadding);
+            textRect.offsetMax = new Vector2(-HoverPanelPadding, -(HoverHeaderHeight + 10f));
+
+            _hoverText = textObj.GetComponent<Text>();
+            _hoverText.font = ResolveHoverFont();
+            _hoverText.fontSize = 17;
+            _hoverText.alignment = TextAnchor.UpperLeft;
+            _hoverText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            _hoverText.verticalOverflow = VerticalWrapMode.Overflow;
+            _hoverText.color = new Color(0.08f, 0.1f, 0.14f, 1f);
+            _hoverText.lineSpacing = 1.05f;
+            _hoverText.raycastTarget = false;
+
+            _hoverUiRoot = root;
+            SetHoverUiVisible(false);
+        }
+
+        private void RefreshHoverUi()
+        {
+            if (_hoverPanelRect == null || _hoverText == null)
+            {
+                return;
+            }
+
+            if (!_isLobby || string.IsNullOrEmpty(_hoveredRegionId))
+            {
+                SetHoverUiVisible(false);
+                return;
+            }
+
+            bool unlocked;
+            bool canUnlockNow;
+            string title;
+            string text = BuildHoverPanelText(_hoveredRegionId, out unlocked, out canUnlockNow, out title);
+            if (string.IsNullOrEmpty(text))
+            {
+                SetHoverUiVisible(false);
+                return;
+            }
+
+            if (_hoverTitleText != null)
+            {
+                _hoverTitleText.text = string.IsNullOrEmpty(title) ? "REGION INFO" : title;
+            }
+
+            _hoverText.text = text;
+            if (_hoverHeaderImage != null)
+            {
+                if (unlocked)
+                {
+                    _hoverHeaderImage.color = new Color(0.62f, 0.9f, 0.62f, 0.98f);
+                }
+                else if (canUnlockNow)
+                {
+                    _hoverHeaderImage.color = new Color(0.99f, 0.84f, 0.35f, 0.98f);
+                }
+                else
+                {
+                    _hoverHeaderImage.color = new Color(0.98f, 0.6f, 0.6f, 0.98f);
+                }
+            }
+
+            if (_hoverStatusIconImage != null)
+            {
+                Sprite icon = unlocked
+                    ? _hoverOpenIconSprite
+                    : (canUnlockNow ? _hoverUnlockableIconSprite : _hoverLockedIconSprite);
+                _hoverStatusIconImage.enabled = icon != null;
+                _hoverStatusIconImage.sprite = icon;
+                _hoverStatusIconImage.color = Color.white;
+            }
+
+            float contentWidth = HoverPanelWidth - (HoverPanelPadding * 2f);
+            float preferredHeight = _hoverText.cachedTextGeneratorForLayout.GetPreferredHeight(
+                text,
+                _hoverText.GetGenerationSettings(new Vector2(contentWidth, 0f)));
+
+            float panelHeight = Mathf.Max(HoverPanelMinHeight, preferredHeight + HoverHeaderHeight + (HoverPanelPadding * 2f) + 10f);
+            _hoverPanelRect.sizeDelta = new Vector2(HoverPanelWidth, panelHeight);
+            UpdateHoverPanelPosition();
+            SetHoverUiVisible(true);
+        }
+
+        private string BuildHoverPanelText(string regionId, out bool unlocked, out bool canUnlockNow, out string title)
+        {
+            unlocked = false;
+            canUnlockNow = false;
+            title = string.Empty;
+
+            if (_meta == null)
+            {
+                Services.TryGet(out _meta);
+            }
+
+            if (_meta == null || string.IsNullOrEmpty(regionId))
+            {
+                return string.Empty;
+            }
+
+            string displayName = LobbyRegionMetaUtil.FormatRegionName(regionId);
+            title = displayName;
+            unlocked = _meta.IsRegionUnlocked(regionId);
+            if (unlocked)
+            {
+                return "Status: OPEN\nClick: Already unlocked.";
+            }
+
+            RegionUnlockState state;
+            if (!TryBuildUnlockState(regionId, out state))
+            {
+                return "Status: LOCKED" +
+                       "\nUnlock data unavailable.";
+            }
+
+            if (!state.HasRule)
+            {
+                canUnlockNow = true;
+                return "Status: UNLOCKABLE" +
+                       "\nStarter region." +
+                       "\nClick: Unlock now.";
+            }
+
+            canUnlockNow = state.CanUnlockNow;
+            string previousState = state.PreviousRegionUnlocked ? "OK" : "X";
+            string cashState = state.BestRunCash >= state.Rule.RequiredRunCash ? "OK" : "X";
+            string ratingState = state.BestRunRating >= state.Rule.RequiredRunRating ? "OK" : "X";
+            string costState = state.CanAfford ? "OK" : "X";
+
+            return "Status: " + (state.CanUnlockNow ? "UNLOCKABLE" : "LOCKED") +
+                   "\nPrev Region: " + LobbyRegionMetaUtil.FormatRegionName(state.Rule.PreviousRegionId) + " [" + previousState + "]" +
+                   "\nBest Cash: $" + state.BestRunCash + " / $" + state.Rule.RequiredRunCash + " [" + cashState + "]" +
+                   "\nBest Rating: " + state.BestRunRating.ToString("0.0") + " / " + state.Rule.RequiredRunRating.ToString("0.0") + " [" + ratingState + "]" +
+                   "\nUnlock Cost: $" + state.Rule.UnlockCost + " [" + costState + "]" +
+                   "\nResult: " + (state.CanUnlockNow ? "Click to unlock now." : BuildMissingReason(state));
+        }
+
+        private void UpdateHoverPanelPosition()
+        {
+            if (_hoverPanelRect == null)
+            {
+                return;
+            }
+
+            Vector2 panelSize = _hoverPanelRect.sizeDelta;
+            float x = Input.mousePosition.x + HoverPanelOffsetX;
+            float y = Input.mousePosition.y + HoverPanelOffsetY;
+
+            if (x + panelSize.x > Screen.width - 8f)
+            {
+                x = Input.mousePosition.x - panelSize.x - HoverPanelOffsetX;
+            }
+
+            if (y + panelSize.y > Screen.height - 8f)
+            {
+                y = Screen.height - panelSize.y - 8f;
+            }
+
+            if (y < 8f)
+            {
+                y = 8f;
+            }
+
+            if (x < 8f)
+            {
+                x = 8f;
+            }
+
+            _hoverPanelRect.anchoredPosition = new Vector2(x, y);
+        }
+
+        private void SetHoverUiVisible(bool visible)
+        {
+            if (_hoverPanelRect == null)
+            {
+                return;
+            }
+
+            if (_hoverPanelRect.gameObject.activeSelf != visible)
+            {
+                _hoverPanelRect.gameObject.SetActive(visible);
+            }
+        }
+
+        private void DestroyHoverUi()
+        {
+            _hoverHeaderRect = null;
+            _hoverPanelRect = null;
+            _hoverHeaderImage = null;
+            _hoverStatusIconImage = null;
+            _hoverTitleText = null;
+            _hoverText = null;
+            _hoverPanelImage = null;
+
+            if (_hoverUiRoot != null)
+            {
+                Object.Destroy(_hoverUiRoot);
+                _hoverUiRoot = null;
+            }
+        }
+
+        private Font ResolveHoverFont()
+        {
+            if (_uiCatalog != null && _uiCatalog.LobbyPrimaryFont != null)
+            {
+                return _uiCatalog.LobbyPrimaryFont;
+            }
+
+            return Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        }
+
+        private static bool SceneIsLoaded(string sceneName)
+        {
+            if (string.IsNullOrEmpty(sceneName))
+            {
+                return false;
+            }
+
+            Scene scene = SceneManager.GetSceneByName(sceneName);
+            return scene.IsValid() && scene.isLoaded;
         }
 
         private void CreateMiniatureCamera()
@@ -377,59 +851,6 @@ namespace DeliveryRun.Managers.Subs
             _miniatureCamera.allowMSAA = false;
             _miniatureCamera.allowHDR = false;
             _miniatureCamera.useOcclusionCulling = false;
-        }
-
-        private void CreateOverlayUi()
-        {
-            GameObject root = new GameObject(
-                UiRootName,
-                typeof(Canvas),
-                typeof(CanvasScaler),
-                typeof(GraphicRaycaster));
-
-            _canvas = root.GetComponent<Canvas>();
-            _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            _canvas.sortingOrder = 3400;
-
-            CanvasScaler scaler = root.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.matchWidthOrHeight = 0.5f;
-
-            RunRegionMiniatureLayoutSO.UiLayout uiLayout;
-            GetUiLayout(out uiLayout);
-
-            GameObject panel = new GameObject("InfoPanel", typeof(RectTransform), typeof(Image));
-            panel.transform.SetParent(root.transform, false);
-
-            RectTransform panelRect = panel.GetComponent<RectTransform>();
-            panelRect.anchorMin = new Vector2(1f, 0f);
-            panelRect.anchorMax = new Vector2(1f, 0f);
-            panelRect.pivot = new Vector2(1f, 0f);
-            panelRect.anchoredPosition = uiLayout.PanelAnchoredPosition;
-            panelRect.sizeDelta = uiLayout.PanelSize;
-
-            Image panelImage = panel.GetComponent<Image>();
-            panelImage.color = new Color(1f, 1f, 1f, 0.90f);
-
-            _titleText = CreateText("Title", panelRect, 26, FontStyle.Bold, TextAnchor.UpperLeft);
-            RectTransform titleRect = _titleText.rectTransform;
-            titleRect.anchorMin = new Vector2(0f, 1f);
-            titleRect.anchorMax = new Vector2(1f, 1f);
-            titleRect.pivot = new Vector2(0f, 1f);
-            titleRect.anchoredPosition = new Vector2(18f, -14f);
-            titleRect.sizeDelta = new Vector2(-36f, 36f);
-
-            _detailText = CreateText("Detail", panelRect, 18, FontStyle.Normal, TextAnchor.UpperLeft);
-            RectTransform detailRect = _detailText.rectTransform;
-            detailRect.anchorMin = new Vector2(0f, 0f);
-            detailRect.anchorMax = new Vector2(1f, 1f);
-            detailRect.pivot = new Vector2(0f, 1f);
-            detailRect.anchoredPosition = new Vector2(18f, -54f);
-            detailRect.sizeDelta = new Vector2(-36f, -64f);
-            _detailText.horizontalOverflow = HorizontalWrapMode.Wrap;
-            _detailText.verticalOverflow = VerticalWrapMode.Overflow;
-            _detailText.lineSpacing = 1.1f;
         }
 
         private void HandlePointer()
@@ -547,18 +968,17 @@ namespace DeliveryRun.Managers.Subs
             RegionUnlockState state;
             if (!TryBuildUnlockState(regionId, out state) || !state.HasRule)
             {
-                SetFeedback("This region cannot be unlocked manually.");
+                Debug.LogWarning("[RunRegionMiniatureManager] Unlock rule not found: " + regionId);
                 return;
             }
 
             if (!state.CanUnlockNow)
             {
-                SetFeedback("Unlock blocked: " + BuildMissingReason(state));
+                Debug.Log("[RunRegionMiniatureManager] Unlock blocked for " + regionId + ": " + BuildMissingReason(state));
                 return;
             }
 
             _pendingUnlockRegionId = regionId;
-            SetFeedback(LobbyRegionMetaUtil.FormatRegionName(regionId) + " unlock requested...");
             Events.Publish(new UnlockRegionRequested { RegionId = regionId });
         }
         private void RefreshEntryVisuals()
@@ -606,112 +1026,6 @@ namespace DeliveryRun.Managers.Subs
                 Color tint = ResolveTint(unlocked, selected, hovered, canUnlockNow, pending);
                 ApplyTint(entry.Renderers, tint);
             }
-        }
-
-        private void RefreshInfoPanel()
-        {
-            if (_titleText == null || _detailText == null)
-            {
-                return;
-            }
-
-            _titleText.text = "REGION MINIATURE";
-
-            if (_meta == null)
-            {
-                _detailText.text = "Meta progression service unavailable.";
-                return;
-            }
-
-            string regionId = _hoveredRegionId;
-            if (string.IsNullOrEmpty(regionId))
-            {
-                regionId = _meta.SelectedRegionId;
-            }
-
-            if (string.IsNullOrEmpty(regionId))
-            {
-                regionId = MetaProgressionConstants.RegionIds[0];
-            }
-
-            var builder = new StringBuilder(360);
-            builder.Append(BuildRegionInfo(regionId));
-            if (!string.IsNullOrEmpty(_feedbackMessage) && Time.unscaledTime < _feedbackUntil)
-            {
-                builder.Append("\n\n");
-                builder.Append(_feedbackMessage);
-            }
-
-            _detailText.text = builder.ToString();
-        }
-
-        private string BuildRegionInfo(string regionId)
-        {
-            if (_meta == null)
-            {
-                return "Meta progression data unavailable.";
-            }
-
-            bool isUnlocked = _meta.IsRegionUnlocked(regionId);
-            bool isSelected = string.Equals(_meta.SelectedRegionId, regionId, StringComparison.Ordinal);
-
-            var builder = new StringBuilder(360);
-            builder.Append("Region: ");
-            builder.Append(LobbyRegionMetaUtil.FormatRegionName(regionId));
-            if (isSelected)
-            {
-                builder.Append(" [SELECTED]");
-            }
-
-            builder.Append("\nStatus: ");
-            builder.Append(isUnlocked ? "OPEN" : "LOCKED");
-
-            if (isUnlocked)
-            {
-                builder.Append("\n\nUnlocked region.");
-                builder.Append("\nHover another locked miniature to check unlock conditions.");
-                return builder.ToString();
-            }
-
-            RegionUnlockState state;
-            if (!TryBuildUnlockState(regionId, out state))
-            {
-                builder.Append("\n\nUnable to resolve unlock state.");
-                return builder.ToString();
-            }
-
-            if (!state.HasRule)
-            {
-                builder.Append("\n\nStarter region. No unlock rule.");
-                return builder.ToString();
-            }
-
-            builder.Append("\n\nUnlock Conditions");
-            builder.Append("\n- Cost: $");
-            builder.Append(state.Rule.UnlockCost);
-            builder.Append("\n- Previous Region: ");
-            builder.Append(LobbyRegionMetaUtil.FormatRegionName(state.Rule.PreviousRegionId));
-            builder.Append(state.PreviousRegionUnlocked ? " (OPEN)" : " (LOCKED)");
-            builder.Append("\n- Best Cash: $");
-            builder.Append(state.BestRunCash);
-            builder.Append(" / $");
-            builder.Append(state.Rule.RequiredRunCash);
-            builder.Append("\n- Best Rating: ");
-            builder.Append(state.BestRunRating.ToString("0.0"));
-            builder.Append(" / ");
-            builder.Append(state.Rule.RequiredRunRating.ToString("0.0"));
-
-            builder.Append("\n\nResult: ");
-            if (state.CanUnlockNow)
-            {
-                builder.Append("UNLOCK AVAILABLE (click miniature).");
-            }
-            else
-            {
-                builder.Append(BuildMissingReason(state));
-            }
-
-            return builder.ToString();
         }
 
         private bool TryBuildUnlockState(string regionId, out RegionUnlockState state)
@@ -776,35 +1090,6 @@ namespace DeliveryRun.Managers.Subs
             return "Unlock requirements are not met.";
         }
 
-        private static string FormatUnlockFailReason(string reason)
-        {
-            if (string.IsNullOrEmpty(reason))
-            {
-                return "unknown error";
-            }
-
-            if (reason == "previous_region_locked")
-            {
-                return "previous region is locked";
-            }
-
-            if (reason == "requirements_not_met")
-            {
-                return "cash/rating requirement not met";
-            }
-
-            if (reason == "not_enough_cash")
-            {
-                return "not enough cash";
-            }
-
-            if (reason == "unknown_region")
-            {
-                return "unknown region";
-            }
-
-            return reason;
-        }
         private static Transform FindSourceRegionRoot(Transform cityRoot, string regionId)
         {
             if (cityRoot == null || string.IsNullOrEmpty(regionId))
@@ -1115,21 +1400,6 @@ namespace DeliveryRun.Managers.Subs
             };
         }
 
-        private void GetUiLayout(out RunRegionMiniatureLayoutSO.UiLayout layout)
-        {
-            if (LoadLayout() != null)
-            {
-                layout = _layout.Ui;
-                return;
-            }
-
-            layout = new RunRegionMiniatureLayoutSO.UiLayout
-            {
-                PanelAnchoredPosition = new Vector2(-18f, 18f),
-                PanelSize = new Vector2(560f, 236f)
-            };
-        }
-
         private Vector3 ComputeRegionCenterLocal()
         {
             if (_entryCount <= 0)
@@ -1157,28 +1427,6 @@ namespace DeliveryRun.Managers.Subs
             }
 
             return sum / valid;
-        }
-
-        private static Text CreateText(string name, Transform parent, int fontSize, FontStyle style, TextAnchor anchor)
-        {
-            GameObject go = new GameObject(name, typeof(RectTransform), typeof(Text));
-            go.transform.SetParent(parent, false);
-
-            Text text = go.GetComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            text.fontSize = fontSize;
-            text.fontStyle = style;
-            text.alignment = anchor;
-            text.color = Color.black;
-            text.supportRichText = false;
-
-            return text;
-        }
-
-        private void SetFeedback(string message)
-        {
-            _feedbackMessage = message;
-            _feedbackUntil = Time.unscaledTime + FeedbackDuration;
         }
 
         private sealed class RegionEntry

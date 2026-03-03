@@ -27,13 +27,6 @@ namespace DeliveryRun.Managers.Subs
             public Rect Viewport;
         }
 
-        [Serializable]
-        public struct UiLayout
-        {
-            public Vector2 PanelAnchoredPosition;
-            public Vector2 PanelSize;
-        }
-
         [SerializeField] private RegionLayout[] regions = new RegionLayout[0];
         [SerializeField] private CameraLayout camera = new CameraLayout
         {
@@ -42,14 +35,8 @@ namespace DeliveryRun.Managers.Subs
             FieldOfView = 27f,
             Viewport = new Rect(0.62f, 0.03f, 0.35f, 0.34f)
         };
-        [SerializeField] private UiLayout ui = new UiLayout
-        {
-            PanelAnchoredPosition = new Vector2(-18f, 18f),
-            PanelSize = new Vector2(560f, 236f)
-        };
 
         public CameraLayout Camera => camera;
-        public UiLayout Ui => ui;
 
         public bool TryGetRegionLayout(string regionId, out RegionLayout layout)
         {

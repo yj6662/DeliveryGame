@@ -109,7 +109,6 @@ namespace DeliveryRun.Managers.Subs
         {
             _pendingChoice = false;
             _pendingChoiceIndex = -1;
-            _pendingDeadlineSeconds = 0f;
             ClearPendingDraft();
         }
 

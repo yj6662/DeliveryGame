@@ -16,6 +16,7 @@ namespace DeliveryRun.Managers.Subs
 
         private bool _isTransitioning;
         private string _pendingTargetScene;
+        private string _queuedTargetScene;
         private AsyncOperation _loadingSceneOperation;
         private AsyncOperation _targetLoadOperation;
 
@@ -27,6 +28,7 @@ namespace DeliveryRun.Managers.Subs
             _loadingState = Services.GetRequired<LoadingState>();
             _sceneRouter = Services.GetRequired<SceneRouter>();
 
+            Subs.Add<BootToStartRequested>(Events, OnBootToStartRequested);
             Subs.Add<BootToLobbyRequested>(Events, OnBootToLobbyRequested);
             Subs.Add<StartRunRequested>(Events, OnStartRunRequested);
             Subs.Add<ReturnToLobbyRequested>(Events, OnReturnToLobbyRequested);
@@ -71,6 +73,16 @@ namespace DeliveryRun.Managers.Subs
 
             _loadingState.Reset();
             Events.Publish(new SceneTransitionCompleted { SceneName = completedScene });
+
+            if (!string.IsNullOrEmpty(_queuedTargetScene))
+            {
+                string queued = _queuedTargetScene;
+                _queuedTargetScene = null;
+                if (!string.Equals(queued, completedScene, System.StringComparison.Ordinal))
+                {
+                    BeginTransition(queued);
+                }
+            }
         }
 
         protected override void OnShutdown()
@@ -83,9 +95,15 @@ namespace DeliveryRun.Managers.Subs
 
             _targetLoadOperation = null;
             _pendingTargetScene = null;
+            _queuedTargetScene = null;
             _isTransitioning = false;
             _sceneRouter = null;
             _loadingState = null;
+        }
+
+        private void OnBootToStartRequested(BootToStartRequested evt)
+        {
+            BeginTransition(SceneNames.StartScene);
         }
 
         private void OnBootToLobbyRequested(BootToLobbyRequested evt)
@@ -107,6 +125,12 @@ namespace DeliveryRun.Managers.Subs
         {
             if (_isTransitioning)
             {
+                if (!string.IsNullOrEmpty(targetScene) &&
+                    !string.Equals(targetScene, _pendingTargetScene, System.StringComparison.Ordinal))
+                {
+                    _queuedTargetScene = targetScene;
+                }
+
                 return;
             }
 
@@ -120,6 +144,7 @@ namespace DeliveryRun.Managers.Subs
             _isTransitioning = true;
             _pendingTargetScene = targetScene;
             _targetLoadOperation = null;
+            _queuedTargetScene = null;
 
             _loadingState.IsTransitioning = true;
             _loadingState.FromScene = fromScene;
@@ -183,6 +208,7 @@ namespace DeliveryRun.Managers.Subs
             Debug.LogError("[SceneFlowController] " + reason);
             _targetLoadOperation = null;
             _pendingTargetScene = null;
+            _queuedTargetScene = null;
             _isTransitioning = false;
 
             if (_loadingSceneOperation != null)
