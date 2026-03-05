@@ -85,6 +85,22 @@ namespace DeliveryRun.UI.Run
             }
         }
 
+        public void SetTopLeftBarFill01(float value01)
+        {
+            if (topLeftBarFill != null)
+            {
+                topLeftBarFill.fillAmount = Mathf.Clamp01(value01);
+            }
+        }
+
+        public void SetTopLeftBarColor(Color color)
+        {
+            if (topLeftBarFill != null)
+            {
+                topLeftBarFill.color = color;
+            }
+        }
+
         public void SetFocusButtonAction(UnityAction onClick)
         {
             if (focusButton == null)

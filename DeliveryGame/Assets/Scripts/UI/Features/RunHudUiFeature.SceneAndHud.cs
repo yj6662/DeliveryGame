@@ -137,6 +137,7 @@ namespace DeliveryRun.UI.Features
             {
                 ApplyStatusLines();
                 ApplyCashLabel();
+                RefreshTimeLabel();
                 _corePanelsCoordinator.RefreshTrack(_pickedTrackNameByChoice);
                 _corePanelsCoordinator.SetSpeed(_currentSpeedKmh);
                 _corePanelsCoordinator.SetFuel(_fuel01);

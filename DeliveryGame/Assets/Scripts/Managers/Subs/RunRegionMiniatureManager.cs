@@ -2,6 +2,9 @@ using System;
 using DeliveryRun.Managers.Core;
 using DeliveryRun.UI;
 using UnityEngine;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -24,11 +27,13 @@ namespace DeliveryRun.Managers.Subs
         private const float HoverPanelPadding = 16f;
         private const float HoverHeaderHeight = 44f;
 
-        private const string CityRootName = "CityRoot";
         private const string MiniatureRootName = "RunRegionMiniatureRoot";
         private const string MiniatureCameraName = "RunRegionMiniatureCamera";
         private const string MiniatureHoverUiName = "RunRegionMiniatureHoverUI";
-        private const string MiniatureSourcePrimaryScene = "RunScene_Placement";
+        private const string MiniatureSourceRootName = "RunRegionMiniatureSourceRoot";
+        private const string MiniatureSourceResourcePath = "Bootstrap/RunRegionMiniatureSource";
+        private const string SceneUiRootName = "LobbySceneUiRoot";
+        private const string LobbyUiRootName = "LobbyUIRoot";
         private const string LayoutResourcePath = "Bootstrap/RunRegionMiniatureLayout";
         private const string LayoutFallbackResourcePath = "RunRegionMiniatureLayout";
 
@@ -74,10 +79,6 @@ namespace DeliveryRun.Managers.Subs
         private Image _hoverStatusIconImage;
         private Text _hoverTitleText;
         private Text _hoverText;
-        private AsyncOperation _sourceSceneLoadOperation;
-        private AsyncOperation _sourceSceneUnloadOperation;
-        private bool _sourceSceneLoadedByMiniature;
-        private string _loadedSourceSceneName;
         private Sprite _hoverPanelSprite;
         private Sprite _hoverHeaderSprite;
         private Sprite _hoverLockedIconSprite;
@@ -89,7 +90,7 @@ namespace DeliveryRun.Managers.Subs
         private string _pendingUnlockRegionId;
         private float _scenePollElapsed;
         private bool _isLobby;
-        private bool _missingCityRootLogged;
+        private bool _missingMiniatureSourceLogged;
 
         public override string Name => nameof(RunRegionMiniatureManager);
         public override int InitOrder => 68;
@@ -139,7 +140,6 @@ namespace DeliveryRun.Managers.Subs
         protected override void OnShutdown()
         {
             DestroyMiniatureRig();
-            EnsureSourceSceneUnloaded();
             _layout = null;
             _meta = null;
             _uiCatalog = null;
@@ -156,7 +156,6 @@ namespace DeliveryRun.Managers.Subs
 
             _isLobby = false;
             DestroyMiniatureRig();
-            EnsureSourceSceneUnloaded();
         }
 
         private void OnSceneTransitionCompleted(SceneTransitionCompleted evt)
@@ -199,17 +198,28 @@ namespace DeliveryRun.Managers.Subs
             {
                 _isLobby = false;
                 DestroyMiniatureRig();
-                EnsureSourceSceneUnloaded();
+                return;
+            }
+
+            if (DetectSceneUiOnlyMode())
+            {
+                _isLobby = false;
+                DestroyMiniatureRig();
                 return;
             }
 
             if (!_isLobby || forceRefresh)
             {
                 _isLobby = true;
-                _missingCityRootLogged = false;
+                _missingMiniatureSourceLogged = false;
                 EnsureMiniatureRig();
                 RefreshEntryVisuals();
             }
+        }
+
+        private static bool DetectSceneUiOnlyMode()
+        {
+            return GameObject.Find(SceneUiRootName) != null || GameObject.Find(LobbyUiRootName) != null;
         }
 
         private void EnsureMiniatureRig()
@@ -255,10 +265,11 @@ namespace DeliveryRun.Managers.Subs
             _entryCount = 0;
             _hoveredRegionId = null;
             _pendingUnlockRegionId = null;
-            _missingCityRootLogged = false;
+            _missingMiniatureSourceLogged = false;
 
             DestroyHoverUi();
         }
+
         private void BuildMiniatureEntries()
         {
             _entryCount = 0;
@@ -268,37 +279,50 @@ namespace DeliveryRun.Managers.Subs
                 return;
             }
 
-            Transform cityRoot = ResolveCityRootSource();
-            if (cityRoot == null)
+            bool destroySourceAfterUse;
+            Transform sourceRoot = ResolveMiniatureSourceRoot(out destroySourceAfterUse);
+            if (sourceRoot == null)
             {
-                if (!_missingCityRootLogged)
+                if (!_missingMiniatureSourceLogged)
                 {
-                    _missingCityRootLogged = true;
-                    Debug.LogWarning("[RunRegionMiniatureManager] CityRoot source not ready. Waiting for RunScene miniature source load.");
+                    _missingMiniatureSourceLogged = true;
+                    Debug.LogWarning(
+                        "[RunRegionMiniatureManager] Miniature source root not found. " +
+                        "Using generated proxy objects. " +
+                        "Optional: add '" + MiniatureSourceRootName + "' in LobbyScene or " +
+                        "create Resources/" + MiniatureSourceResourcePath + ".prefab.");
                 }
-
-                return;
             }
-
-            _missingCityRootLogged = false;
+            else
+            {
+                _missingMiniatureSourceLogged = false;
+            }
 
             _layout = LoadLayout();
             string[] regionIds = MetaProgressionConstants.RegionIds;
             for (int i = 0; i < regionIds.Length; i++)
             {
                 string regionId = regionIds[i];
-                Transform source = FindSourceRegionRoot(cityRoot, regionId);
-                if (source == null)
-                {
-                    continue;
-                }
+                Transform source = sourceRoot != null ? FindSourceRegionRoot(sourceRoot, regionId) : null;
 
-                GameObject clone = Object.Instantiate(source.gameObject, _miniatureRoot.transform);
+                GameObject clone = source != null
+                    ? Object.Instantiate(source.gameObject, _miniatureRoot.transform)
+                    : CreateProceduralRegionProxy(regionId, i, _miniatureRoot.transform);
                 clone.name = "MiniRegion_" + regionId;
+
                 StripCloneForMiniature(clone);
                 ApplyRegionLayout(clone.transform, regionId, i);
 
                 Renderer[] renderers = clone.GetComponentsInChildren<Renderer>(true);
+                if (renderers == null || renderers.Length == 0)
+                {
+                    Object.Destroy(clone);
+                    clone = CreateProceduralRegionProxy(regionId, i, _miniatureRoot.transform);
+                    StripCloneForMiniature(clone);
+                    ApplyRegionLayout(clone.transform, regionId, i);
+                    renderers = clone.GetComponentsInChildren<Renderer>(true);
+                }
+
                 EnsureHitCollider(clone.transform, renderers);
 
                 var entry = new RegionEntry
@@ -313,106 +337,88 @@ namespace DeliveryRun.Managers.Subs
                 _entryCount++;
             }
 
+            if (destroySourceAfterUse && sourceRoot != null)
+            {
+                Object.Destroy(sourceRoot.gameObject);
+            }
+
             if (_entryCount <= 0)
             {
-                Debug.LogWarning("[RunRegionMiniatureManager] No region roots were cloned for miniature view.");
-                EnsureSourceSceneUnloaded();
-                return;
-            }
-
-            EnsureSourceSceneUnloaded();
-        }
-
-        private Transform ResolveCityRootSource()
-        {
-            GameObject cityRootObject = GameObject.Find(CityRootName);
-            if (cityRootObject != null)
-            {
-                return cityRootObject.transform;
-            }
-
-            EnsureSourceSceneLoaded();
-            return null;
-        }
-
-        private void EnsureSourceSceneLoaded()
-        {
-            if (!_isLobby || _sourceSceneLoadOperation != null || _sourceSceneUnloadOperation != null)
-            {
-                return;
-            }
-
-            if (SceneIsLoaded(SceneNames.RunScene) || SceneIsLoaded(MiniatureSourcePrimaryScene))
-            {
-                return;
-            }
-
-            AsyncOperation operation = SceneManager.LoadSceneAsync(MiniatureSourcePrimaryScene, LoadSceneMode.Additive);
-            if (operation != null)
-            {
-                _loadedSourceSceneName = MiniatureSourcePrimaryScene;
-            }
-            else
-            {
-                operation = SceneManager.LoadSceneAsync(SceneNames.RunScene, LoadSceneMode.Additive);
-                _loadedSourceSceneName = SceneNames.RunScene;
-            }
-
-            if (operation == null)
-            {
-                _loadedSourceSceneName = null;
-                Debug.LogWarning("[RunRegionMiniatureManager] Failed to load miniature source scene.");
-                return;
-            }
-
-            _sourceSceneLoadedByMiniature = true;
-            _sourceSceneLoadOperation = operation;
-            _sourceSceneLoadOperation.completed += OnSourceSceneLoadCompleted;
-        }
-
-        private void OnSourceSceneLoadCompleted(AsyncOperation _)
-        {
-            _sourceSceneLoadOperation = null;
-            if (!_isLobby)
-            {
-                EnsureSourceSceneUnloaded();
+                Debug.LogWarning("[RunRegionMiniatureManager] Failed to create miniature region entries.");
             }
         }
 
-        private void EnsureSourceSceneUnloaded()
+        private Transform ResolveMiniatureSourceRoot(out bool destroyAfterUse)
         {
-            if (_sourceSceneLoadOperation != null || _sourceSceneUnloadOperation != null || !_sourceSceneLoadedByMiniature)
+            destroyAfterUse = false;
+
+            // Preferred: author a dedicated miniature source root in LobbyScene.
+            GameObject sceneRootObject = GameObject.Find(MiniatureSourceRootName);
+            if (sceneRootObject != null)
             {
-                return;
+                return sceneRootObject.transform;
             }
 
-            string sceneName = string.IsNullOrEmpty(_loadedSourceSceneName)
-                ? SceneNames.RunScene
-                : _loadedSourceSceneName;
-            Scene loadedSourceScene = SceneManager.GetSceneByName(sceneName);
-            if (!loadedSourceScene.IsValid() || !loadedSourceScene.isLoaded)
+            // Fallback: load a reusable miniature source prefab from Resources.
+            GameObject sourcePrefab = Resources.Load<GameObject>(MiniatureSourceResourcePath);
+            if (sourcePrefab == null)
             {
-                _sourceSceneLoadedByMiniature = false;
-                _loadedSourceSceneName = null;
-                return;
+                return null;
             }
 
-            _sourceSceneUnloadOperation = SceneManager.UnloadSceneAsync(loadedSourceScene);
-            if (_sourceSceneUnloadOperation == null)
-            {
-                _sourceSceneLoadedByMiniature = false;
-                _loadedSourceSceneName = null;
-                return;
-            }
-
-            _sourceSceneUnloadOperation.completed += OnSourceSceneUnloadCompleted;
+            GameObject instantiatedSource = Object.Instantiate(sourcePrefab);
+            instantiatedSource.name = MiniatureSourceRootName;
+            destroyAfterUse = true;
+            return instantiatedSource.transform;
         }
 
-        private void OnSourceSceneUnloadCompleted(AsyncOperation _)
+        private static GameObject CreateProceduralRegionProxy(string regionId, int index, Transform parent)
         {
-            _sourceSceneUnloadOperation = null;
-            _sourceSceneLoadedByMiniature = false;
-            _loadedSourceSceneName = null;
+            GameObject root = new GameObject("MiniRegion_" + regionId);
+            root.transform.SetParent(parent, false);
+
+            uint seed = (uint)(Animator.StringToHash(regionId) ^ (index * 486187739));
+
+            GameObject basePlate = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            basePlate.name = "Base";
+            basePlate.transform.SetParent(root.transform, false);
+            basePlate.transform.localPosition = Vector3.zero;
+            basePlate.transform.localScale = new Vector3(18f, 0.9f, 14f);
+
+            int blockCount = 5 + (int)(NextSeed01(ref seed) * 4f);
+            for (int i = 0; i < blockCount; i++)
+            {
+                PrimitiveType primitive = (i % 3) == 0 ? PrimitiveType.Cylinder : PrimitiveType.Cube;
+                GameObject block = GameObject.CreatePrimitive(primitive);
+                block.name = "Block_" + (i + 1);
+                block.transform.SetParent(root.transform, false);
+
+                float angle = ((360f / blockCount) * i) + NextSeedRange(ref seed, -18f, 18f);
+                float radius = NextSeedRange(ref seed, 1.8f, 6.8f);
+                float radians = angle * Mathf.Deg2Rad;
+                float width = NextSeedRange(ref seed, 1.4f, 3.2f);
+                float depth = NextSeedRange(ref seed, 1.4f, 3.2f);
+                float height = NextSeedRange(ref seed, 2.2f, 8.4f);
+                block.transform.localPosition = new Vector3(
+                    Mathf.Cos(radians) * radius,
+                    height * 0.5f,
+                    Mathf.Sin(radians) * radius);
+                block.transform.localScale = new Vector3(width, height, depth);
+                block.transform.localEulerAngles = new Vector3(0f, NextSeedRange(ref seed, 0f, 360f), 0f);
+            }
+
+            return root;
+        }
+
+        private static float NextSeed01(ref uint seed)
+        {
+            seed = (seed * 1664525u) + 1013904223u;
+            return (seed & 0x00FFFFFFu) / 16777215f;
+        }
+
+        private static float NextSeedRange(ref uint seed, float min, float max)
+        {
+            return Mathf.Lerp(min, max, NextSeed01(ref seed));
         }
 
         private void EnsureHoverSkins()
@@ -738,13 +744,19 @@ namespace DeliveryRun.Managers.Subs
                 return;
             }
 
+            Vector2 pointer;
+            if (!TryGetPointerPosition(out pointer))
+            {
+                return;
+            }
+
             Vector2 panelSize = _hoverPanelRect.sizeDelta;
-            float x = Input.mousePosition.x + HoverPanelOffsetX;
-            float y = Input.mousePosition.y + HoverPanelOffsetY;
+            float x = pointer.x + HoverPanelOffsetX;
+            float y = pointer.y + HoverPanelOffsetY;
 
             if (x + panelSize.x > Screen.width - 8f)
             {
-                x = Input.mousePosition.x - panelSize.x - HoverPanelOffsetX;
+                x = pointer.x - panelSize.x - HoverPanelOffsetX;
             }
 
             if (y + panelSize.y > Screen.height - 8f)
@@ -805,17 +817,6 @@ namespace DeliveryRun.Managers.Subs
             return Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         }
 
-        private static bool SceneIsLoaded(string sceneName)
-        {
-            if (string.IsNullOrEmpty(sceneName))
-            {
-                return false;
-            }
-
-            Scene scene = SceneManager.GetSceneByName(sceneName);
-            return scene.IsValid() && scene.isLoaded;
-        }
-
         private void CreateMiniatureCamera()
         {
             if (_miniatureRoot == null)
@@ -863,7 +864,7 @@ namespace DeliveryRun.Managers.Subs
                 return;
             }
 
-            if (!Input.GetMouseButtonDown(0))
+            if (!IsPrimaryPointerPressedThisFrame())
             {
                 return;
             }
@@ -878,13 +879,13 @@ namespace DeliveryRun.Managers.Subs
                 return null;
             }
 
-            Vector3 mouse = Input.mousePosition;
-            if (!_miniatureCamera.pixelRect.Contains(mouse))
+            Vector2 pointer;
+            if (!TryGetPointerPosition(out pointer) || !_miniatureCamera.pixelRect.Contains(pointer))
             {
                 return null;
             }
 
-            Ray ray = _miniatureCamera.ScreenPointToRay(mouse);
+            Ray ray = _miniatureCamera.ScreenPointToRay(pointer);
             int hitCount = Physics.RaycastNonAlloc(
                 ray,
                 _raycastHits,
@@ -929,6 +930,54 @@ namespace DeliveryRun.Managers.Subs
             }
 
             return resolvedRegionId;
+        }
+
+        private static bool TryGetPointerPosition(out Vector2 pointerPosition)
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (Mouse.current != null)
+            {
+                pointerPosition = Mouse.current.position.ReadValue();
+                return true;
+            }
+
+            Touchscreen touchscreen = Touchscreen.current;
+            if (touchscreen != null)
+            {
+                pointerPosition = touchscreen.primaryTouch.position.ReadValue();
+                return true;
+            }
+#endif
+
+#if ENABLE_LEGACY_INPUT_MANAGER
+            pointerPosition = Input.mousePosition;
+            return true;
+#else
+            pointerPosition = default;
+            return false;
+#endif
+        }
+
+        private static bool IsPrimaryPointerPressedThisFrame()
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+            {
+                return true;
+            }
+
+            Touchscreen touchscreen = Touchscreen.current;
+            if (touchscreen != null && touchscreen.primaryTouch.press.wasPressedThisFrame)
+            {
+                return true;
+            }
+#endif
+
+#if ENABLE_LEGACY_INPUT_MANAGER
+            return Input.GetMouseButtonDown(0);
+#else
+            return false;
+#endif
         }
 
         private bool TryResolveRegionIdFromTransform(Transform source, out string regionId)
@@ -1097,8 +1146,11 @@ namespace DeliveryRun.Managers.Subs
                 return null;
             }
 
-            string targetName = "Region_" + regionId;
-            Transform direct = cityRoot.Find(targetName);
+            string targetNameA = "Region_" + regionId;
+            string targetNameB = "MiniRegion_" + regionId;
+            string targetNameC = regionId;
+
+            Transform direct = cityRoot.Find(targetNameA) ?? cityRoot.Find(targetNameB) ?? cityRoot.Find(targetNameC);
             if (direct != null)
             {
                 return direct;
@@ -1111,7 +1163,9 @@ namespace DeliveryRun.Managers.Subs
             {
                 Transform candidate = transforms[i];
                 if (candidate == null ||
-                    !string.Equals(candidate.name, targetName, StringComparison.OrdinalIgnoreCase))
+                    (!string.Equals(candidate.name, targetNameA, StringComparison.OrdinalIgnoreCase) &&
+                     !string.Equals(candidate.name, targetNameB, StringComparison.OrdinalIgnoreCase) &&
+                     !string.Equals(candidate.name, targetNameC, StringComparison.OrdinalIgnoreCase)))
                 {
                     continue;
                 }

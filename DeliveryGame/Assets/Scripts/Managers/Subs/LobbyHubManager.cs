@@ -11,17 +11,9 @@ namespace DeliveryRun.Managers.Subs
 
         protected override void OnInitialize()
         {
-            _runtime = new LobbyHubRuntime(Services, Events);
-            _runtime.Initialize();
-
-            Subs.Add<SceneTransitionStarted>(Events, OnTransitionStarted);
-            Subs.Add<SceneTransitionCompleted>(Events, OnTransitionCompleted);
-            Subs.Add<MetaBalanceChanged>(Events, OnMetaBalanceChanged);
-            Subs.Add<PermanentUpgradeChanged>(Events, OnPermanentUpgradeChanged);
-            Subs.Add<SelectedRegionChanged>(Events, OnSelectedRegionChanged);
-            Subs.Add<RegionUnlockStatusChanged>(Events, OnRegionUnlockStatusChanged);
-            Subs.Add<RegionUnlocked>(Events, OnRegionUnlocked);
-            Subs.Add<RegionUnlockFailed>(Events, OnRegionUnlockFailed);
+            // Legacy runtime-generated Lobby UI is intentionally disabled.
+            // LobbyScene now uses prefab/bootstrap driven UI.
+            _runtime = null;
         }
 
         protected override void OnTick(float unscaledDeltaTime)

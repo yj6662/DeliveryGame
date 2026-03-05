@@ -5,6 +5,7 @@
         "DeliveryRun.Delivery",
         "DeliveryRun.Music",
         "DeliveryRun.UI",
+        "Unity.InputSystem",
         "Unity.Addressables",
         "Unity.ResourceManager"
     ],

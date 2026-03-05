@@ -40,10 +40,18 @@ namespace DeliveryRun.UI.Features
             if (!Services.TryGet(out runSessionManager) || runSessionManager == null)
             {
                 _view.SetTimeLabel("Time: --:--");
+                _view.SetTopLeftBarFill01(1f);
+                _view.SetTopLeftBarColor(new Color(0.22f, 0.85f, 0.65f, 1f));
                 return;
             }
 
-            int wholeSeconds = Mathf.CeilToInt(runSessionManager.RemainingSeconds);
+            float remainingSeconds = Mathf.Max(0f, runSessionManager.RemainingSeconds);
+            float durationSeconds = runSessionManager.RunDurationSeconds;
+            float timeRatio = durationSeconds > 0.01f ? Mathf.Clamp01(remainingSeconds / durationSeconds) : 0f;
+            _view.SetTopLeftBarFill01(timeRatio);
+            _view.SetTopLeftBarColor(Color.Lerp(new Color(0.91f, 0.24f, 0.18f, 1f), new Color(0.22f, 0.85f, 0.65f, 1f), timeRatio));
+
+            int wholeSeconds = Mathf.CeilToInt(remainingSeconds);
             if (wholeSeconds < 0)
             {
                 wholeSeconds = 0;
